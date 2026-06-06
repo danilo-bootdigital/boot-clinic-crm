@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 let prisma: PrismaClient;
 
@@ -30,6 +30,4 @@ export type PrismaPatientWithRelations = Prisma.PatientGetPayload<{
   };
 }>;
 
-export type PrismaPatientWithoutRelations = Prisma.PatientGetPayload<{
-  include: false;
-}>;
+export type PrismaPatientWithoutRelations = Prisma.PatientGetPayload<{}>;

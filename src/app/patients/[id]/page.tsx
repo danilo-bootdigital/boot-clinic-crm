@@ -1,6 +1,6 @@
-import { Timeline } from '@/components/patients/Timeline'
-import { Attachments } from '@/components/patients/Attachments'
-import { Tags } from '@/components/patients/Tags'
+import Timeline from '@/components/patients/Timeline'
+import Attachments from '@/components/patients/Attachments'
+import Tags from '@/components/patients/Tags'
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
   const patientId = params.id
