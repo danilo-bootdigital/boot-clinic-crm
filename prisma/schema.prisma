@@ -1,0 +1,629 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Multiempresa
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  cnpj        String?  @unique
+  logo        String?
+  address     String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  users        User[]
+  patients     Patient[]
+  tags         Tag[]
+
+  @@map("companies")
+}
+
+// Usuários e Autenticação
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  avatar      String?
+  role        UserRole
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company        Company        @relation(fields: [companyId], references: [id])
+  createdPatients Patient[]      // Pacientes criados por este usuário
+  timelineEvents  TimelineEvent[] // Eventos de timeline criados por este usuário
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  DOCTOR
+  RECEPTION
+  FINANCE
+  MARKETING
+  ATTENDANCE
+}
+
+// Módulo de Pacientes - BOOT CLINIC CRM
+model Patient {
+  id          String   @id @default(cuid())
+  name        String
+  cpf         String   @unique
+  birthDate   DateTime
+  gender      Gender
+  phone       String
+  whatsapp    String?
+  email       String?
+  origin      PatientOrigin
+  status      PatientStatus @default(ACTIVE)
+  companyId   String
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company        @relation(fields: [companyId], references: [id])
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  timeline    TimelineEvent[]
+  attachments PatientAttachment[]
+  tags        PatientTag[]
+
+  @@map("patients")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum PatientOrigin {
+  GOOGLE
+  FACEBOOK
+  INSTAGRAM
+  REFERRAL
+  WALK_IN
+  PHONE
+  WHATSAPP
+  OTHER
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+// Timeline de Pacientes
+model TimelineEvent {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  type      TimelineEventType
+  patientId String
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@map("timeline_events")
+}
+
+enum TimelineEventType {
+  NOTE
+  APPOINTMENT
+  PHONE_CALL
+  EMAIL
+  WHATSAPP
+  DOCUMENT
+  STATUS_CHANGE
+}
+
+// Anexos de Pacientes
+model PatientAttachment {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  url         String
+  patientId   String
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_attachments")
+}
+
+// Tags de Pacientes
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#3B82F6")
+  companyId String
+  createdAt DateTime @default(now())
+
+  // Relacionamentos
+  company   Company        @relation(fields: [companyId], references: [id])
+  patients  PatientTag[]
+
+  @@map("tags")
+}
+
+model PatientTag {
+  id        String   @id @default(cuid())
+  patientId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, tagId])
+  @@map("patient_tags")
+}
+
+// Módulo de CRM/Pipeline
+model Deal {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  valueEstimated   Float?
+  priority         Priority @default(MEDIUM)
+  status           DealStatus @default(NEW)
+  companyId        String
+  patientId        String?
+  responsibleUserId String
+  nextFollowUpAt   DateTime?
+  lastContactAt    DateTime?
+  wonAt            DateTime?
+  lostAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  @@map("deals")
+}
+
+model DealActivity {
+  id            String   @id @default(cuid())
+  type          ActivityType
+  title         String
+  description   String?
+  companyId     String
+  dealId        String
+  authorId      String
+  createdAt     DateTime @default(now())
+
+  @@map("deal_activities")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DealStatus {
+  NEW
+  CONTACTED
+  IN_NEGOTIATION
+  APPOINTMENT_SCHEDULED
+  APPOINTMENT_ATTENDED
+  QUOTE_SENT
+  WON
+  LOST
+}
+
+enum ActivityType {
+  CREATED
+  MOVED_STAGE
+  FOLLOW_UP_CREATED
+  FOLLOW_UP_COMPLETED
+  NOTE_ADDED
+  TASK_CREATED
+  TASK_COMPLETED
+  WON
+  LOST
+}
+
+// Módulo de Follow-up e Automações
+model FollowUpTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  content         String
+  type            FollowUpType
+  dueHours        Int      // Horas após o gatilho
+  isRecurring     Boolean  @default(false)
+  recurrenceType  RecurrenceType?
+  recurrenceEvery Int?    // Dias/semanas/meses
+  isActive        Boolean  @default(true)
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, name])
+  @@map("follow_up_templates")
+}
+
+model FollowUpTask {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  dueDate         DateTime
+  status          TaskStatus @default(PENDING)
+  priority        Priority @default(MEDIUM)
+  type            TaskType
+  templateId      String?
+  assignedToId    String?
+  createdById     String
+  completedAt     DateTime?
+  canceledAt      DateTime?
+  canceledReason  String?
+  companyId       String
+  patientId       String?
+  dealId          String?
+  appointmentId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@map("follow_up_tasks")
+}
+
+model AutomationRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, name])
+  @@map("automation_rules")
+}
+
+model AutomationTrigger {
+  id              String   @id @default(cuid())
+  ruleId          String
+  entityType      EntityType
+  event           String   // Evento específico (paciente.criado, pipeline.movido, etc.)
+  condition       String?  // Condição JSON para execução
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, ruleId, entityType, event])
+  @@map("automation_triggers")
+}
+
+model AutomationAction {
+  id              String   @id @default(cuid())
+  ruleId          String
+  actionType      ActionType
+  config          String   // Configuração JSON da ação
+  order           Int
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, ruleId, order])
+  @@map("automation_actions")
+}
+
+model AutomationExecution {
+  id              String   @id @default(cuid())
+  ruleId          String
+  triggerId       String
+  status          ExecutionStatus @default(PENDING)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  error           String?
+  result          String?  // Resultado JSON
+  companyId       String
+  patientId       String?
+  dealId          String?
+  taskId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@map("automation_executions")
+}
+
+model NotificationEvent {
+  id              String   @id @default(cuid())
+  title           String
+  message         String
+  type            NotificationType
+  priority        Priority @default(MEDIUM)
+  isRead          Boolean  @default(false)
+  userId          String
+  companyId       String
+  patientId       String?
+  dealId          String?
+  metadata        String?  // Dados adicionais JSON
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@map("notification_events")
+}
+
+// Módulo de Agenda Médica
+model Appointment {
+  id                  String   @id @default(cuid())
+  patientId           String
+  professionalId      String
+  specialtyId        String
+  type                String
+  status              AppointmentStatus @default(PENDING)
+  startAt             DateTime
+  endAt               DateTime
+  durationMinutes     Int
+  source              String
+  notes               String?
+  createdById         String
+  confirmedAt         DateTime?
+  canceledAt          DateTime?
+  cancellationReason  String?
+  noShowAt            DateTime?
+  attendedAt          DateTime?
+  companyId           String
+  dealId              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  @@map("appointments")
+}
+
+model Specialty {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@map("specialties")
+}
+
+model Professional {
+  id          String   @id @default(cuid())
+  name        String
+  crm         String?
+  phone       String?
+  email       String?
+  companyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@map("professionals")
+}
+
+model ProfessionalSpecialty {
+  id            String   @id @default(cuid())
+  professionalId String
+  specialtyId   String
+  companyId     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([professionalId, specialtyId])
+  @@map("professional_specialties")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@map("rooms")
+}
+
+model AppointmentType {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  duration    Int      // minutos
+  companyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@map("appointment_types")
+}
+
+model ProfessionalSchedule {
+  id          String   @id @default(cuid())
+  professionalId String
+  dayOfWeek   Int      // 0-6 (Domingo-Sábado)
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  isActive    Boolean  @default(true)
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@map("professional_schedules")
+}
+
+model ScheduleBlock {
+  id          String   @id @default(cuid())
+  professionalId String
+  date        DateTime
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  reason      String?
+  isRecurring Boolean  @default(false)
+  recurringPattern String? // daily, weekly, monthly
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@map("schedule_blocks")
+}
+
+model AppointmentStatusHistory {
+  id            String   @id @default(cuid())
+  appointmentId String
+  status        AppointmentStatus
+  notes         String?
+  changedById   String
+  createdAt     DateTime @default(now())
+
+  @@map("appointment_status_history")
+}
+
+model AppointmentReminder {
+  id            String   @id @default(cuid())
+  appointmentId String
+  type          ReminderType
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("appointment_reminders")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+  RESCHEDULED
+  ATTENDED
+  NO_SHOW
+}
+
+enum ReminderType {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+// Enums
+enum FollowUpType {
+  MANUAL
+  AUTOMATIC
+  RECURRING
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  OVERDUE
+}
+
+enum TaskType {
+  FOLLOW_UP
+  REMINDER
+  ALERT
+  TASK
+}
+
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum EntityType {
+  PATIENT
+  DEAL
+  APPOINTMENT
+  WHATSAPP_CONVERSATION
+}
+
+enum ActionType {
+  CREATE_TASK
+  CREATE_FOLLOW_UP
+  MOVE_PIPELINE_STAGE
+  SEND_NOTIFICATION
+  SEND_WHATSAPP
+  CREATE_TIMELINE_EVENT
+  ASSIGN_USER
+  UPDATE_STATUS
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+// Sistema de Auditoria
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  userName    String?
+  action      ActionType
+  entityType  EntityType
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+  companyId   String
+
+  @@map("audit_logs")
+}

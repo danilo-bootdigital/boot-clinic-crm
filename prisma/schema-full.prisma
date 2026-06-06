@@ -1,0 +1,1373 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Multiempresa
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  cnpj        String?  @unique
+  logo        String?
+  address     String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  clinics     Clinic[]
+  users       User[]
+  patients    Patient[]
+  // CRM
+  pipelines   Pipeline[]
+  dealSources DealSource[]
+  dealLossReasons DealLossReason[]
+  // Agenda
+  specialties Specialty[]
+  professionals Professional[]
+  rooms Room[]
+  appointmentTypes AppointmentType[]
+  // WhatsApp
+  whatsappInstances WhatsAppInstance[]
+  whatsappContacts WhatsAppContact[]
+  whatsappConversations WhatsAppConversation[]
+  whatsappMessages WhatsAppMessage[]
+  whatsappQueues WhatsAppQueue[]
+  whatsappDepartments WhatsAppDepartment[]
+  whatsappQuickReplies WhatsAppQuickReply[]
+  whatsappTags WhatsAppTag[]
+  webhookLogs WhatsAppWebhookLog[]
+  // Follow-up e Automações
+  followUpTemplates FollowUpTemplate[]
+  followUpTasks FollowUpTask[]
+  automationRules AutomationRule[]
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("companies")
+}
+
+model Clinic {
+  id          String   @id @default(cuid())
+  name        String
+  companyId   String
+  address     String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  patients    Patient[]
+  // CRM
+  pipelines   Pipeline[]
+  // Agenda
+  professionals Professional[]
+  rooms Room[]
+  // WhatsApp
+  whatsappInstances WhatsAppInstance[]
+  whatsappQueues WhatsAppQueue[]
+  whatsappDepartments WhatsAppDepartment[]
+  // Follow-up e Automações
+  followUpTemplates FollowUpTemplate[]
+  followUpTasks FollowUpTask[]
+  automationRules AutomationRule[]
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("clinics")
+}
+
+// Usuários e Autenticação
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  avatar      String?
+  role        UserRole
+  companyId   String
+  clinicId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  clinic      Clinic?  @relation(fields: [clinicId], references: [id])
+  // CRM
+  deals       Deal[] @relation("UserDeals")
+  dealActivities Deal[] @relation("UserDealActivities")
+  dealTasks Deal[] @relation("UserDealTasks")
+  // WhatsApp
+  whatsappConversations WhatsAppConversation[] @relation("UserAssignedConversations")
+  whatsappMessages WhatsAppMessage[] @relation("UserAuthoredMessages")
+  assignedAssignments WhatsAppAssignment[] @relation("UserAssignedAssignments")
+  givenAssignments WhatsAppAssignment[] @relation("UserGivenAssignments")
+  // Follow-up e Automações
+  followUpTasks FollowUpTask[] @relation("UserCreatedTasks")
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  MANAGER
+  DOCTOR
+  RECEPTION
+  FINANCE
+  MARKETING
+  ATTENDANCE
+}
+
+// Módulo de Pacientes
+model Patient {
+  id          String   @id @default(cuid())
+  name        String
+  cpf         String   @unique
+  birthDate   DateTime
+  gender      Gender
+  phone       String
+  whatsapp    String?
+  email       String?
+  origin      PatientOrigin
+  status      PatientStatus @default(ACTIVE)
+  companyId   String
+  clinicId    String
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  clinic      Clinic  @relation(fields: [clinicId], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  contacts    PatientContact[]
+  addresses   PatientAddress[]
+  documents   PatientDocument[]
+  tags        PatientTag[]
+  notes       PatientNote[]
+  attachments PatientAttachment[]
+  timelineEvents PatientTimelineEvent[]
+  // Follow-up e Automações
+  followUpTasks FollowUpTask[]
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("patients")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum PatientOrigin {
+  GOOGLE
+  FACEBOOK
+  INSTAGRAM
+  REFERRAL
+  WALK_IN
+  PHONE
+  WHATSAPP
+  OTHER
+}
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+// Contatos do Paciente
+model PatientContact {
+  id        String   @id @default(cuid())
+  patientId String
+  type      ContactType
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_contacts")
+}
+
+enum ContactType {
+  PHONE
+  MOBILE
+  WHATSAPP
+  EMAIL
+  OTHER
+}
+
+// Endereços do Paciente
+model PatientAddress {
+  id        String   @id @default(cuid())
+  patientId String
+  street    String
+  number    String?
+  complement String?
+  district  String?
+  city      String
+  state     String
+  zipCode   String
+  isMain    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_addresses")
+}
+
+// Documentos do Paciente
+model PatientDocument {
+  id        String   @id @default(cuid())
+  patientId String
+  type      DocumentType
+  number    String
+  issuer    String?
+  issueDate DateTime?
+  expiryDate DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_documents")
+}
+
+enum DocumentType {
+  RG
+  CPF
+  CNH
+  PASSPORT
+  HEALTH_CARD
+  OTHER
+}
+
+// Tags do Paciente
+model PatientTag {
+  id        String   @id @default(cuid())
+  patientId String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, name])
+  @@map("patient_tags")
+}
+
+// Observações do Paciente
+model PatientNote {
+  id        String   @id @default(cuid())
+  patientId String
+  content   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+
+  @@map("patient_notes")
+}
+
+// Anexos do Paciente
+model PatientAttachment {
+  id        String   @id @default(cuid())
+  patientId String
+  filename  String
+  path      String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_attachments")
+}
+
+// Timeline de Eventos do Paciente
+model PatientTimelineEvent {
+  id        String   @id @default(cuid())
+  patientId String
+  type      TimelineEventType
+  title     String
+  content   String?
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+
+  @@map("patient_timeline_events")
+}
+
+enum TimelineEventType {
+  CREATED
+  UPDATED
+  INACTIVATED
+  DOCUMENT_ADDED
+  ATTACHMENT_ADDED
+  NOTE_ADDED
+  APPOINTMENT_SCHEDULED
+  APPOINTMENT_COMPLETED
+  INVOICE_CREATED
+  PAYMENT_RECEIVED
+}
+
+// Auditoria
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String
+  changes     Json?
+  userId      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// Outras entidades do sistema (placeholders para referência)
+model Doctor {
+  id        String   @id @default(cuid())
+  name      String
+  crm       String?
+  specialty String?
+  companyId String
+  clinicId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("doctors")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  duration    Int
+  companyId   String
+  clinicId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("services")
+}
+
+// Módulo de Agenda Médica
+model Pipeline {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  clinicId    String
+  isDefault   Boolean  @default(false)
+  status      PipelineStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  clinic      Clinic  @relation(fields: [clinicId], references: [id])
+  stages      PipelineStage[]
+  deals       Deal[]
+
+  @@unique([companyId, name])
+  @@map("pipelines")
+}
+
+enum PipelineStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model PipelineStage {
+  id          String   @id @default(cuid())
+  name        String
+  order       Int
+  color       String
+  probability Float?   // 0-100
+  isFinal     Boolean  @default(false)
+  finalType    FinalType @default(NONE)
+  companyId   String
+  pipelineId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+
+  @@unique([companyId, pipelineId, name])
+  @@map("pipeline_stages")
+}
+
+enum FinalType {
+  WON
+  LOST
+  NONE
+}
+
+model Deal {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  valueEstimated   Float?
+  priority         Priority @default(MEDIUM)
+  status           DealStatus @default(NEW)
+  companyId        String
+  clinicId         String
+  pipelineId       String
+  stageId          String
+  patientId        String?
+  sourceId         String?
+  source           DealSource? @relation(fields: [sourceId], references: [id])
+  responsibleUserId String
+  nextFollowUpAt   DateTime?
+  lastContactAt    DateTime?
+  wonAt            DateTime?
+  lostAt           DateTime?
+  lossReasonId     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  // Relacionamentos
+  company          Company @relation(fields: [companyId], references: [id])
+  clinic           Clinic  @relation(fields: [clinicId], references: [id])
+  pipeline         Pipeline @relation(fields: [pipelineId], references: [id])
+  stage            PipelineStage @relation(fields: [stageId], references: [id])
+  patient          Patient? @relation(fields: [patientId], references: [id])
+  responsibleUser  User    @relation(fields: [responsibleUserId], references: [id])
+  lossReason       DealLossReason? @relation(fields: [lossReasonId], references: [id])
+  activities       DealActivity[] @relation("DealActivities")
+  notes            DealNote[] @relation("DealNotes")
+  tasks            DealTask[] @relation("DealTasks")
+  // Follow-up e Automações
+  followUpTasks FollowUpTask[]
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("deals")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DealStatus {
+  NEW
+  CONTACTED
+  IN_NEGOTIATION
+  APPOINTMENT_SCHEDULED
+  APPOINTMENT_ATTENDED
+  QUOTE_SENT
+  WON
+  LOST
+}
+
+model DealSource {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  company   Company @relation(fields: [companyId], references: [id])
+  deals     Deal[]
+
+  @@unique([companyId, name])
+  @@map("deal_sources")
+}
+
+model DealLossReason {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  company   Company @relation(fields: [companyId], references: [id])
+  deals     Deal[]
+
+  @@unique([companyId, name])
+  @@map("deal_loss_reasons")
+}
+
+model DealActivity {
+  id          String   @id @default(cuid())
+  type        ActivityType
+  title       String
+  description String?
+  companyId   String
+  dealId      String
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  deal        Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  author      User    @relation(fields: [authorId], references: [id])
+
+  @@map("deal_activities")
+}
+
+enum ActivityType {
+  CREATED
+  MOVED_STAGE
+  FOLLOW_UP_CREATED
+  FOLLOW_UP_COMPLETED
+  NOTE_ADDED
+  TASK_CREATED
+  TASK_COMPLETED
+  WON
+  LOST
+}
+
+model DealNote {
+  id          String   @id @default(cuid())
+  content     String
+  companyId   String
+  dealId      String
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  deal        Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  author      User    @relation(fields: [authorId], references: [id])
+
+  @@map("deal_notes")
+}
+
+model DealTask {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  isCompleted Boolean  @default(false)
+  companyId   String
+  dealId      String
+  assignedToId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  deal        Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  assignedTo  User?   @relation(fields: [assignedToId], references: [id])
+
+  @@map("deal_tasks")
+}
+
+// Módulo de Agenda Médica
+model Specialty {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  professionals Professional[]
+
+  @@unique([companyId, name])
+  @@map("specialties")
+}
+
+model Professional {
+  id          String   @id @default(cuid())
+  name        String
+  crm         String?
+  phone       String?
+  email       String?
+  companyId   String
+  clinicId    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  clinic      Clinic  @relation(fields: [clinicId], references: [id])
+  specialties ProfessionalSpecialty[]
+  schedules   ProfessionalSchedule[]
+  appointments Appointment[]
+
+  @@map("professionals")
+}
+
+model ProfessionalSpecialty {
+  id            String   @id @default(cuid())
+  professionalId String
+  specialtyId   String
+  companyId     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relacionamentos
+  professional  Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  specialty     Specialty    @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  company       Company      @relation(fields: [companyId], references: [id])
+
+  @@unique([professionalId, specialtyId])
+  @@map("professional_specialties")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  clinicId    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  clinic      Clinic  @relation(fields: [clinicId], references: [id])
+  appointments Appointment[]
+
+  @@unique([companyId, name])
+  @@map("rooms")
+}
+
+model AppointmentType {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  duration    Int      // minutos
+  companyId   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  company     Company @relation(fields: [companyId], references: [id])
+  appointments Appointment[]
+
+  @@unique([companyId, name])
+  @@map("appointment_types")
+}
+
+model ProfessionalSchedule {
+  id          String   @id @default(cuid())
+  professionalId String
+  dayOfWeek   Int      // 0-6 (Domingo-Sábado)
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  isActive    Boolean  @default(true)
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  company     Company @relation(fields: [companyId], references: [id])
+
+  @@map("professional_schedules")
+}
+
+model ScheduleBlock {
+  id          String   @id @default(cuid())
+  professionalId String
+  date        DateTime
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  reason      String?
+  isRecurring Boolean  @default(false)
+  recurringPattern String? // daily, weekly, monthly
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relacionamentos
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  company     Company @relation(fields: [companyId], references: [id])
+
+  @@map("schedule_blocks")
+}
+
+model Appointment {
+  id                  String   @id @default(cuid())
+  patientId           String
+  professionalId      String
+  specialtyId        String
+  roomId              String?
+  type                String
+  status              AppointmentStatus @default(PENDING)
+  startAt             DateTime
+  endAt               DateTime
+  durationMinutes     Int
+  source              String
+  notes               String?
+  createdById         String
+  confirmedAt         DateTime?
+  canceledAt          DateTime?
+  cancellationReason  String?
+  noShowAt            DateTime?
+  attendedAt          DateTime?
+  companyId           String
+  clinicId            String
+  dealId              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+
+  // Relacionamentos
+  patient             Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professional        Professional @relation(fields: [professionalId], references: [id])
+  specialty           Specialty @relation(fields: [specialtyId], references: [id])
+  room                Room? @relation(fields: [roomId], references: [id])
+  createdBy           User @relation(fields: [createdById], references: [id])
+  deal                Deal? @relation(fields: [dealId], references: [id])
+  statusHistory       AppointmentStatusHistory[]
+  reminders           AppointmentReminder[]
+  // Follow-up e Automações
+  followUpTasks FollowUpTask[]
+  automationExecutions AutomationExecution[]
+  notificationEvents NotificationEvent[]
+
+  @@map("appointments")
+}
+
+model AppointmentStatusHistory {
+  id            String   @id @default(cuid())
+  appointmentId String
+  status        AppointmentStatus
+  notes         String?
+  changedById   String
+  createdAt     DateTime @default(now())
+
+  // Relacionamentos
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  changedBy     User @relation(fields: [changedById], references: [id])
+
+  @@map("appointment_status_history")
+}
+
+model AppointmentReminder {
+  id            String   @id @default(cuid())
+  appointmentId String
+  type          ReminderType
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relacionamentos
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@map("appointment_reminders")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+  RESCHEDULED
+  ATTENDED
+  NO_SHOW
+}
+
+enum ReminderType {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+// Módulo de WhatsApp
+model WhatsAppInstance {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String
+  apiToken        String
+  status          InstanceStatus @default(INACTIVE)
+  companyId       String
+  clinicId        String
+  isActive        Boolean  @default(true)
+  connectedAt     DateTime?
+  disconnectedAt  DateTime?
+  lastSyncAt      DateTime?
+  webhookUrl      String?
+  webhookSecret   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  conversations   WhatsAppConversation[]
+  messages        WhatsAppMessage[]
+  contacts        WhatsAppContact[]
+  queues          WhatsAppQueue[]
+  departments     WhatsAppDepartment[]
+  assignments     WhatsAppAssignment[]
+  quickReplies    WhatsAppQuickReply[]
+  tags            WhatsAppTag[]
+  webhookLogs     WhatsAppWebhookLog[]
+
+  @@unique([companyId, phone])
+  @@map("whatsapp_instances")
+}
+
+model WhatsAppContact {
+  id              String   @id @default(cuid())
+  phone           String
+  name            String?
+  avatar          String?
+  isBusiness      Boolean  @default(false)
+  isWAUser        Boolean  @default(false)
+  companyId       String
+  patientId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  conversations   WhatsAppConversation[]
+  messages        WhatsAppMessage[]
+
+  @@unique([companyId, phone])
+  @@map("whatsapp_contacts")
+}
+
+model WhatsAppConversation {
+  id              String   @id @default(cuid())
+  contactId       String
+  instanceId      String
+  queueId         String?
+  departmentId    String?
+  assignedToId    String?
+  status          ConversationStatus @default(OPEN)
+  subject         String?
+  priority        Priority @default(MEDIUM)
+  isOpen         Boolean  @default(true)
+  lastMessageAt   DateTime?
+  companyId       String
+  clinicId        String
+  patientId       String?
+  dealId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  contact         WhatsAppContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  instance        WhatsAppInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  queue           WhatsAppQueue? @relation(fields: [queueId], references: [id])
+  department      WhatsAppDepartment? @relation(fields: [departmentId], references: [id])
+  assignedTo      User? @relation(fields: [assignedToId], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  deal            Deal? @relation(fields: [dealId], references: [id])
+  messages        WhatsAppMessage[]
+  assignments     WhatsAppAssignment[] @relation("ConversationAssignments")
+  tags            WhatsAppTag[]
+
+  @@unique([companyId, contactId, instanceId])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  contactId       String
+  instanceId      String
+  type            MessageType
+  content         String
+  direction       MessageDirection @default(INCOMING)
+  status          MessageStatus @default(PENDING)
+  mediaUrl        String?
+  mediaType       String?
+  quotedMessageId String?
+  companyId       String
+  clinicId        String
+  authorId        String?
+  patientId       String?
+  dealId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sentAt          DateTime?
+  readAt          DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact         WhatsAppContact @relation(fields: [contactId], references: [id])
+  instance        WhatsAppInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  quotedMessage   WhatsAppMessage? @relation("QuotedMessages", fields: [quotedMessageId], references: [id])
+  author          User? @relation(fields: [authorId], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  deal            Deal? @relation(fields: [dealId], references: [id])
+
+  @@map("whatsapp_messages")
+}
+
+model WhatsAppQueue {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  companyId       String
+  clinicId        String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  conversations   WhatsAppConversation[]
+
+  @@unique([companyId, name])
+  @@map("whatsapp_queues")
+}
+
+model WhatsAppDepartment {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  companyId       String
+  clinicId        String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  conversations   WhatsAppConversation[]
+
+  @@unique([companyId, name])
+  @@map("whatsapp_departments")
+}
+
+model WhatsAppAssignment {
+  id              String   @id @default(cuid())
+  conversationId  String
+  assignedToId    String
+  assignedById    String
+  note            String?
+  createdAt       DateTime @default(now())
+
+  // Relacionamentos
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  assignedTo      User @relation("UserAssignedAssignments", fields: [assignedToId], references: [id])
+  assignedBy      User @relation("UserGivenAssignments", fields: [assignedById], references: [id])
+
+  @@unique([conversationId, assignedToId])
+  @@map("whatsapp_assignments")
+}
+
+model WhatsAppQuickReply {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  shortcut       String?
+  companyId       String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  conversations   WhatsAppConversation[]
+
+  @@unique([companyId, shortcut])
+  @@map("whatsapp_quick_replies")
+}
+
+model WhatsAppTag {
+  id              String   @id @default(cuid())
+  name            String
+  color           String?
+  companyId       String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  conversations   WhatsAppConversation[]
+
+  @@unique([companyId, name])
+  @@map("whatsapp_tags")
+}
+
+model WhatsAppWebhookLog {
+  id              String   @id @default(cuid())
+  instanceId      String
+  companyId       String
+  eventType       String
+  payload         String
+  response       String?
+  status          WebhookStatus @default(PENDING)
+  errorMessage   String?
+  createdAt       DateTime @default(now())
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  instance        WhatsAppInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_webhook_logs")
+}
+
+enum InstanceStatus {
+  ACTIVE
+  INACTIVE
+  DISCONNECTED
+  ERROR
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  LOCATION
+  CONTACT
+  STICKER
+  TEMPLATE
+  BUTTON
+  LIST
+}
+
+enum MessageDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WebhookStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// Módulo de Follow-up e Automações
+model FollowUpTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  content         String
+  type            FollowUpType
+  dueHours        Int      // Horas após o gatilho
+  isRecurring     Boolean  @default(false)
+  recurrenceType  RecurrenceType?
+  recurrenceEvery Int?    // Dias/semanas/meses
+  isActive        Boolean  @default(true)
+  companyId       String
+  clinicId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  tasks           FollowUpTask[]
+
+  @@unique([companyId, name])
+  @@map("follow_up_templates")
+}
+
+model FollowUpTask {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  dueDate         DateTime
+  status          TaskStatus @default(PENDING)
+  priority        Priority @default(MEDIUM)
+  type            TaskType
+  templateId      String?
+  assignedToId    String?
+  createdById     String
+  completedAt     DateTime?
+  canceledAt      DateTime?
+  canceledReason  String?
+  companyId       String
+  clinicId        String
+  patientId       String?
+  dealId          String?
+  appointmentId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  template        FollowUpTemplate? @relation(fields: [templateId], references: [id])
+  assignedTo      User? @relation("UserAssignedTasks", fields: [assignedToId], references: [id])
+  createdBy       User @relation("UserCreatedTasks", fields: [createdById], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  deal            Deal? @relation(fields: [dealId], references: [id])
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+  executions      AutomationExecution[]
+  timelineEvents  PatientTimelineEvent[]
+
+  @@map("follow_up_tasks")
+}
+
+model AutomationRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  companyId       String
+  clinicId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  triggers        AutomationTrigger[]
+  actions         AutomationAction[]
+  executions      AutomationExecution[]
+
+  @@unique([companyId, name])
+  @@map("automation_rules")
+}
+
+model AutomationTrigger {
+  id              String   @id @default(cuid())
+  ruleId          String
+  entityType      EntityType
+  event           String   // Evento específico (paciente.criado, pipeline.movido, etc.)
+  condition       String?  // Condição JSON para execução
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  rule            AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, ruleId, entityType, event])
+  @@map("automation_triggers")
+}
+
+model AutomationAction {
+  id              String   @id @default(cuid())
+  ruleId          String
+  actionType      ActionType
+  config          String   // Configuração JSON da ação
+  order           Int
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  rule            AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, ruleId, order])
+  @@map("automation_actions")
+}
+
+model AutomationExecution {
+  id              String   @id @default(cuid())
+  ruleId          String
+  triggerId       String
+  status          ExecutionStatus @default(PENDING)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  error           String?
+  result          String?  // Resultado JSON
+  companyId       String
+  clinicId        String
+  patientId       String?
+  dealId          String?
+  appointmentId   String?
+  taskId          String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  rule            AutomationRule @relation(fields: [ruleId], references: [id])
+  trigger         AutomationTrigger @relation(fields: [triggerId], references: [id])
+  task            FollowUpTask? @relation(fields: [taskId], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  deal            Deal? @relation(fields: [dealId], references: [id])
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@map("automation_executions")
+}
+
+model NotificationEvent {
+  id              String   @id @default(cuid())
+  title           String
+  message         String
+  type            NotificationType
+  priority        Priority @default(MEDIUM)
+  isRead          Boolean  @default(false)
+  userId          String
+  companyId       String
+  clinicId        String
+  patientId       String?
+  dealId          String?
+  appointmentId   String?
+  metadata        String?  // Dados adicionais JSON
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  // Relacionamentos
+  company         Company @relation(fields: [companyId], references: [id])
+  clinic          Clinic  @relation(fields: [clinicId], references: [id])
+  user            User @relation(fields: [userId], references: [id])
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  deal            Deal? @relation(fields: [dealId], references: [id])
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@map("notification_events")
+}
+
+// Enums
+enum FollowUpType {
+  MANUAL
+  AUTOMATIC
+  RECURRING
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  OVERDUE
+}
+
+enum TaskType {
+  FOLLOW_UP
+  REMINDER
+  ALERT
+  TASK
+}
+
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum EntityType {
+  PATIENT
+  DEAL
+  APPOINTMENT
+  WHATSAPP_CONVERSATION
+}
+
+enum ActionType {
+  CREATE_TASK
+  CREATE_FOLLOW_UP
+  MOVE_PIPELINE_STAGE
+  SEND_NOTIFICATION
+  SEND_WHATSAPP
+  CREATE_TIMELINE_EVENT
+  ASSIGN_USER
+  UPDATE_STATUS
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}

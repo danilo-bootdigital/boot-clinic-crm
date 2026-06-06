@@ -1,0 +1,13 @@
+{
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "postgresql://postgres:BootDigital25$@db.zjhapezbcqoqwrwolcju.supabase.co:5432/postgres?schema=boot_clinic_crm",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://zjhapezbcqoqwrwolcju.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqaGFwZXpiY3FvcXdyd29sY2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NjI3NzEsImV4cCI6MjA5NDAzODc3MX0.ANkRf5Z6T4LdqUOtfPK7EVbZjah03BbBURrGKl2ZK_0"
+  }
+}
