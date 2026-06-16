@@ -25,6 +25,7 @@ export async function GET() {
       dealsOpen, dealsOpenValue, dealsWon, dealsWonValue, dealsLost,
       apptToday, apptWeek, apptMonth, apptAttended, apptPrevMonth,
       apptByStatus, patientsByOrigin, apptTodayByStatus, noShow7d,
+      fuPendingToday, fuOverdue, fuThisWeek, fuCompletedMonth, fuTotalMonth,
     ] = await Promise.all([
       prisma.patient.count({ where: { companyId, deletedAt: null, status: 'ACTIVE' } }),
       prisma.patient.count({ where: { companyId, deletedAt: null } }),
@@ -44,6 +45,11 @@ export async function GET() {
       prisma.patient.groupBy({ by: ['origin'], _count: true, where: { companyId, deletedAt: null } }),
       prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: todayStart, lt: todayEnd } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'NO_SHOW', startAt: { gte: last7 } } }),
+      prisma.followUpTask.count({ where: { companyId, deletedAt: null, status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { gte: todayStart, lt: todayEnd } } }),
+      prisma.followUpTask.count({ where: { companyId, deletedAt: null, status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { lt: now } } }),
+      prisma.followUpTask.count({ where: { companyId, deletedAt: null, status: { in: ['PENDING', 'IN_PROGRESS'] }, dueDate: { gte: weekStart, lt: weekEnd } } }),
+      prisma.followUpTask.count({ where: { companyId, deletedAt: null, status: 'COMPLETED', completedAt: { gte: monthStart } } }),
+      prisma.followUpTask.count({ where: { companyId, deletedAt: null, createdAt: { gte: monthStart } } }),
     ]);
 
     const byStatus: Record<string, number> = {};
@@ -66,6 +72,14 @@ export async function GET() {
         today: apptToday, thisWeek: apptWeek, thisMonth: apptMonth,
         attendedThisMonth: apptAttended, attendedPrevMonth: apptPrevMonth,
         byStatus, todayByStatus, noShow7d,
+      },
+      followup: {
+        pendingToday: fuPendingToday,
+        overdue: fuOverdue,
+        thisWeek: fuThisWeek,
+        completedThisMonth: fuCompletedMonth,
+        totalThisMonth: fuTotalMonth,
+        completionRate: fuTotalMonth > 0 ? Math.round((fuCompletedMonth / fuTotalMonth) * 100) : 0,
       },
     });
   } catch (err) {
