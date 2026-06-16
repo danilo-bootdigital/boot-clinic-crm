@@ -76,13 +76,11 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
 
   const loadUsers = async () => {
     try {
-      // Aqui você caria os usuários disponíveis
-      // Por enquanto, vamos usar dados mock
-      setUsers([
-        { id: '1', name: 'João Silva' },
-        { id: '2', name: 'Maria Santos' },
-        { id: '3', name: 'Pedro Oliveira' },
-      ]);
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
     } catch (error) {
       console.error('Erro ao carregar usuários:', error);
     }

@@ -84,19 +84,24 @@ export const UpdatePipelineStageSchema = CreatePipelineStageSchema.partial().ext
 export const CreateDealSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
   description: z.string().optional(),
-  valueEstimated: z.number().positive().optional(),
+  // Aceita vazio/NaN (campo opcional do form) → undefined.
+  valueEstimated: z.preprocess(
+    (v) => (v === "" || v === null || (typeof v === "number" && Number.isNaN(v)) ? undefined : v),
+    z.coerce.number().positive().optional()
+  ),
   priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
-  pipelineId: z.string().cuid(),
-  stageId: z.string().cuid(),
-  patientId: z.string().cuid().optional(),
+  // IDs são strings simples (usuários usam UUID do Supabase; os demais usam cuid).
+  pipelineId: z.string().min(1, "Pipeline é obrigatório"),
+  stageId: z.string().min(1, "Etapa é obrigatória"),
+  patientId: z.string().optional().or(z.literal("")),
   source: z.nativeEnum(DealSource),
-  responsibleUserId: z.string().cuid(),
+  responsibleUserId: z.string().min(1, "Responsável é obrigatório"),
   nextFollowUpAt: z.string().optional(),
   lastContactAt: z.string().optional(),
 });
 
 export const UpdateDealSchema = CreateDealSchema.partial().extend({
-  id: z.string().cuid(),
+  id: z.string().optional(),
 });
 
 export const MoveDealSchema = z.object({

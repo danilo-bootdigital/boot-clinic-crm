@@ -187,6 +187,46 @@ model PatientTag {
 }
 
 // Módulo de CRM/Pipeline
+model Pipeline {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  status      PipelineStatus @default(ACTIVE)
+  order       Int      @default(0)
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@map("pipelines")
+}
+
+model PipelineStage {
+  id          String   @id @default(cuid())
+  name        String
+  order       Int
+  color       String   @default("#3B82F6")
+  probability Int?
+  isFinal     Boolean  @default(false)
+  finalType   FinalType @default(NONE)
+  pipelineId  String
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("pipeline_stages")
+}
+
+model DealLossReason {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  createdAt DateTime @default(now())
+
+  @@map("deal_loss_reasons")
+}
+
 model Deal {
   id               String   @id @default(cuid())
   title            String
@@ -194,9 +234,13 @@ model Deal {
   valueEstimated   Float?
   priority         Priority @default(MEDIUM)
   status           DealStatus @default(NEW)
+  source           DealSource @default(OTHER)
   companyId        String
+  pipelineId       String?
+  stageId          String?
   patientId        String?
   responsibleUserId String
+  lossReasonId     String?
   nextFollowUpAt   DateTime?
   lastContactAt    DateTime?
   wonAt            DateTime?
@@ -237,6 +281,29 @@ enum DealStatus {
   QUOTE_SENT
   WON
   LOST
+}
+
+enum PipelineStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum FinalType {
+  WON
+  LOST
+  NONE
+}
+
+enum DealSource {
+  WEBSITE
+  REFERRAL
+  PHONE
+  WHATSAPP
+  SOCIAL_MEDIA
+  WALK_IN
+  EMAIL
+  OTHER
 }
 
 enum ActivityType {
