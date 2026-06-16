@@ -263,7 +263,7 @@ export type CreateDealFromConversationInput = z.infer<typeof CreateDealFromConve
 export type SendWhatsAppMessageInput = z.infer<typeof SendWhatsAppMessageSchema>;
 export type AssignConversationInput = z.infer<typeof AssignConversationSchema>;
 export type AddTagToConversationInput = z.infer<typeof AddTagToConversationSchema>;
-export type RemoveTagFromConversationInput = z.infer<typeof RemoveTagFromConversationInput>;
+export type RemoveTagFromConversationInput = z.infer<typeof RemoveTagFromConversationSchema>;
 export type UpdateConversationStatusInput = z.infer<typeof UpdateConversationStatusSchema>;
 
 // Funções utilitárias

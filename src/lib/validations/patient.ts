@@ -67,8 +67,8 @@ export const CreatePatientSchema = z.object({
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento inválida. Use formato: YYYY-MM-DD"),
   gender: z.nativeEnum(Gender),
   phone: z.string().regex(phoneRegex, "Telefone inválido. Use formato: (11) 99999-9999"),
-  whatsapp: z.string().optional().regex(phoneRegex, "WhatsApp inválido. Use formato: (11) 99999-9999").or(z.literal("")),
-  email: z.string().optional().email("E-mail inválido").or(z.literal("")),
+  whatsapp: z.string().regex(phoneRegex, "WhatsApp inválido. Use formato: (11) 99999-9999").optional().or(z.literal("")),
+  email: z.string().email("E-mail inválido").optional().or(z.literal("")),
   origin: z.nativeEnum(PatientOrigin),
   status: z.nativeEnum(PatientStatus).optional().default(PatientStatus.ACTIVE),
   notes: z.string().optional(),
@@ -108,10 +108,22 @@ export const CreatePatientSchema = z.object({
   path: ["phone"],
 });
 
-export const UpdatePatientSchema = CreatePatientSchema.partial().extend({
+// Schema base para Update (sem validação extra)
+const UpdatePatientSchemaBase = z.object({
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+  cpf: z.string().regex(cpfRegex, "CPF inválido. Use formato: 123.456.789-00"),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento inválida. Use formato: YYYY-MM-DD"),
+  gender: z.nativeEnum(Gender),
+  phone: z.string().regex(phoneRegex, "Telefone inválido. Use formato: (11) 99999-9999"),
+  whatsapp: z.string().regex(phoneRegex, "WhatsApp inválido. Use formato: (11) 99999-9999").optional().or(z.literal("")),
+  email: z.string().email("E-mail inválido").optional().or(z.literal("")),
+  origin: z.nativeEnum(PatientOrigin),
+  status: z.nativeEnum(PatientStatus).optional().default(PatientStatus.ACTIVE),
+  notes: z.string().optional(),
+}).omit({ cpf: true });
+
+export const UpdatePatientSchema = UpdatePatientSchemaBase.partial().extend({
   id: z.string().cuid(),
-}).omit({
-  cpf: true, // CPF não pode ser alterado
 });
 
 export const CreatePatientContactSchema = z.object({
