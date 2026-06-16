@@ -1,115 +1,59 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { CalendarClock, CheckCircle2, PhoneCall, UserX, CalendarPlus, LogIn, Phone, CalendarX } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const ACTIONS = [
+  { title: "Nova Consulta", desc: "Agendar", icon: CalendarPlus },
+  { title: "Check-in", desc: "Registrar chegada", icon: LogIn },
+  { title: "Confirmar", desc: "Ligar paciente", icon: Phone },
+  { title: "Cancelar", desc: "Desmarcar", icon: CalendarX },
+];
 
 export default function ReceptionDashboard() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Recepção</h1>
-        <p className="text-muted-foreground">
-          Controle de agendamento e atendimento
-        </p>
+      <PageHeader title="Recepção" description="Controle de agendamento e atendimento" />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Hoje" value="0" hint="Consultas" tone="primary" icon={<CalendarClock className="h-[18px] w-[18px]" />} />
+        <StatCard label="Confirmadas" value="0" hint="Hoje" tone="success" icon={<CheckCircle2 className="h-[18px] w-[18px]" />} />
+        <StatCard label="Pendentes" value="0" hint="Ligar" tone="warning" icon={<PhoneCall className="h-[18px] w-[18px]" />} />
+        <StatCard label="Não Compareceram" value="0" hint="Últimos 7 dias" tone="destructive" icon={<UserX className="h-[18px] w-[18px]" />} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hoje</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Consultas</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Próximos Horários" description="Consultas do dia">
+          <EmptyState title="Nenhuma consulta agendada para hoje" />
+        </SectionCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Confirmadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Hoje</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Ligar</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Não Compareceram</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Últimos 7 dias</p>
-          </CardContent>
-        </Card>
+        <SectionCard title="Pacientes do Dia" description="Lista de pacientes esperando">
+          <EmptyState title="Nenhum paciente na lista de espera" />
+        </SectionCard>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Próximos Horários</CardTitle>
-            <CardDescription>
-              Consultas do dia
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma consulta agendada para hoje
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pacientes do Dia</CardTitle>
-            <CardDescription>
-              Lista de pacientes esperando
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum paciente na lista de espera
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações Rápidas</CardTitle>
-          <CardDescription>
-            Operações comuns da recepção
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-              <div className="font-medium">Nova Consulta</div>
-              <div className="text-sm text-muted-foreground">Agendar</div>
-            </button>
-            <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-              <div className="font-medium">Check-in</div>
-              <div className="text-sm text-muted-foreground">Registrar chegada</div>
-            </button>
-            <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-              <div className="font-medium">Confirmar</div>
-              <div className="text-sm text-muted-foreground">Ligar paciente</div>
-            </button>
-            <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-              <div className="font-medium">Cancelar</div>
-              <div className="text-sm text-muted-foreground">Desmarcar</div>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+      <SectionCard title="Ações Rápidas" description="Operações comuns da recepção">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {ACTIONS.map((a) => {
+            const Icon = a.icon;
+            return (
+              <button
+                key={a.title}
+                className="flex items-center gap-3 rounded-lg border border-border bg-background/50 p-4 text-left transition-colors hover:border-primary/30 hover:bg-accent"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-[18px] w-[18px]" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-foreground">{a.title}</span>
+                  <span className="block text-xs text-muted-foreground">{a.desc}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </SectionCard>
     </div>
-  )
+  );
 }

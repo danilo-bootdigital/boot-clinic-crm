@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Plus, ArrowLeft, Users, Pencil, UserMinus } from 'lucide-react'
 import PatientList from '@/components/patients/PatientList'
 import PatientForm from '@/components/patients/PatientForm'
 import { formatPhone } from '@/lib/validations/patient'
-import { createClient } from '@/lib/supabase/client'
+import { PageHeader } from '@/components/ui/page-header'
+import { SectionCard } from '@/components/ui/section-card'
+import { LoadingState } from '@/components/ui/loading-state'
+import { ActionButton } from '@/components/ui/action-button'
 
 interface Patient {
   id: string
@@ -30,6 +34,13 @@ const ORIGIN_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Ativo', INACTIVE: 'Inativo', ARCHIVED: 'Arquivado' }
 const GENDER_LABELS: Record<string, string> = {
   MALE: 'Masculino', FEMALE: 'Feminino', OTHER: 'Outro', PREFER_NOT_TO_SAY: 'Prefiro não informar',
+}
+
+const TITLES: Record<Mode, string> = {
+  list: 'Pacientes',
+  create: 'Novo Paciente',
+  edit: 'Editar Paciente',
+  view: 'Detalhes do Paciente',
 }
 
 export default function PacientesPage() {
@@ -63,13 +74,6 @@ export default function PacientesPage() {
   useEffect(() => {
     loadPatients()
   }, [loadPatients])
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
 
   async function handleCreate(formData: any) {
     setSaving(true)
@@ -136,92 +140,95 @@ export default function PacientesPage() {
     }
   }
 
-  const header = (
-    <div className="flex items-center justify-between mb-8">
-      <h1 className="text-3xl font-bold text-gray-900">Pacientes</h1>
-      <div className="flex gap-3">
-        {mode === 'list' && (
-          <button
-            onClick={() => { setSelected(null); setMode('create') }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Novo Paciente
-          </button>
-        )}
-        {mode !== 'list' && (
-          <button
-            onClick={() => { setMode('list'); setSelected(null); setError(null) }}
-            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
-          >
-            ← Voltar
-          </button>
-        )}
-        <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700 px-2">
-          Sair
-        </button>
-      </div>
-    </div>
-  )
-
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        {header}
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {mode === 'list' && (
-          loading ? (
-            <p className="text-gray-500">Carregando pacientes...</p>
+    <div className="space-y-6">
+      <PageHeader
+        title={TITLES[mode]}
+        description={mode === 'list' ? 'Gestão de pacientes e histórico clínico' : undefined}
+        icon={<Users className="h-5 w-5" />}
+        actions={
+          mode === 'list' ? (
+            <ActionButton icon={<Plus />} onClick={() => { setSelected(null); setMode('create') }}>
+              Novo Paciente
+            </ActionButton>
           ) : (
-            <PatientList
-              patients={patients}
-              onView={(p) => { setSelected(p as Patient); setMode('view') }}
-              onEdit={(p) => { setSelected(p as Patient); setMode('edit') }}
-            />
+            <ActionButton
+              variant="outline"
+              icon={<ArrowLeft />}
+              onClick={() => { setMode('list'); setSelected(null); setError(null) }}
+            >
+              Voltar
+            </ActionButton>
           )
-        )}
+        }
+      />
 
-        {mode === 'create' && (
+      {error && (
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {mode === 'list' && (
+        loading ? (
+          <LoadingState rows={5} label="Carregando pacientes" />
+        ) : (
+          <PatientList
+            patients={patients}
+            onView={(p) => { setSelected(p as Patient); setMode('view') }}
+            onEdit={(p) => { setSelected(p as Patient); setMode('edit') }}
+          />
+        )
+      )}
+
+      {mode === 'create' && (
+        <SectionCard>
           <PatientForm onSubmit={handleCreate} onCancel={() => setMode('list')} />
-        )}
+        </SectionCard>
+      )}
 
-        {mode === 'edit' && selected && (
+      {mode === 'edit' && selected && (
+        <SectionCard>
           <PatientForm
             patient={selected as any}
             onSubmit={handleUpdate}
             onCancel={() => { setMode('list'); setSelected(null) }}
           />
-        )}
+        </SectionCard>
+      )}
 
-        {mode === 'view' && selected && (
-          <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-6 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">{selected.name}</h2>
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div><dt className="text-gray-500">CPF</dt><dd className="text-gray-900">{selected.cpf}</dd></div>
-              <div><dt className="text-gray-500">Telefone</dt><dd className="text-gray-900">{formatPhone(selected.phone)}</dd></div>
-              <div><dt className="text-gray-500">WhatsApp</dt><dd className="text-gray-900">{selected.whatsapp ? formatPhone(selected.whatsapp) : '—'}</dd></div>
-              <div><dt className="text-gray-500">E-mail</dt><dd className="text-gray-900">{selected.email || '—'}</dd></div>
-              <div><dt className="text-gray-500">Nascimento</dt><dd className="text-gray-900">{selected.birthDate ? new Date(selected.birthDate).toLocaleDateString('pt-BR') : '—'}</dd></div>
-              <div><dt className="text-gray-500">Gênero</dt><dd className="text-gray-900">{GENDER_LABELS[selected.gender] || selected.gender}</dd></div>
-              <div><dt className="text-gray-500">Origem</dt><dd className="text-gray-900">{ORIGIN_LABELS[selected.origin] || selected.origin}</dd></div>
-              <div><dt className="text-gray-500">Status</dt><dd className="text-gray-900">{STATUS_LABELS[selected.status] || selected.status}</dd></div>
-            </dl>
-            <div className="flex gap-3 pt-4 border-t">
-              <button onClick={() => setMode('edit')} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                Editar
-              </button>
-              <button onClick={() => handleDeactivate(selected)} className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100">
-                Inativar
-              </button>
-            </div>
+      {mode === 'view' && selected && (
+        <SectionCard title={selected.name} className="max-w-3xl">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+            <Field label="CPF" value={selected.cpf} />
+            <Field label="Telefone" value={formatPhone(selected.phone)} />
+            <Field label="WhatsApp" value={selected.whatsapp ? formatPhone(selected.whatsapp) : '—'} />
+            <Field label="E-mail" value={selected.email || '—'} />
+            <Field label="Nascimento" value={selected.birthDate ? new Date(selected.birthDate).toLocaleDateString('pt-BR') : '—'} />
+            <Field label="Gênero" value={GENDER_LABELS[selected.gender] || selected.gender} />
+            <Field label="Origem" value={ORIGIN_LABELS[selected.origin] || selected.origin} />
+            <Field label="Status" value={STATUS_LABELS[selected.status] || selected.status} />
+          </dl>
+          <div className="mt-6 flex gap-3 border-t border-border pt-5">
+            <ActionButton icon={<Pencil />} onClick={() => setMode('edit')}>
+              Editar
+            </ActionButton>
+            <ActionButton variant="outline" icon={<UserMinus />} onClick={() => handleDeactivate(selected)}
+              className="border-destructive/30 text-destructive hover:bg-destructive/10">
+              Inativar
+            </ActionButton>
           </div>
-        )}
-      </div>
+        </SectionCard>
+      )}
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm text-foreground">{value}</dd>
     </div>
   )
 }

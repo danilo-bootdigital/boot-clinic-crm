@@ -1,44 +1,44 @@
+import Link from "next/link";
+import { Plus, CalendarDays, CalendarClock, CalendarRange, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ActionButton } from "@/components/ui/action-button";
+
 export default function AgendaPage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Agenda Médica</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="Agenda Médica"
+        description="Controle completo de agendamentos e consultas"
+        icon={<CalendarDays className="h-5 w-5" />}
+        actions={
+          <Link href="/agenda">
+            <ActionButton icon={<Plus />}>Novo Agendamento</ActionButton>
+          </Link>
+        }
+      />
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600 mb-4">
-          Controle completo de agendamentos e consultas.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-          <div className="border rounded-lg p-4">
-            <h3 className="font-semibold text-lg mb-2">Hoje</h3>
-            <p className="text-gray-500">8 consultas</p>
-          </div>
-
-          <div className="border rounded-lg p-4">
-            <h3 className="font-semibold text-lg mb-2">Esta Semana</h3>
-            <p className="text-gray-500">42 consultas</p>
-          </div>
-
-          <div className="border rounded-lg p-4">
-            <h3 className="font-semibold text-lg mb-2">Este Mês</h3>
-            <p className="text-gray-500">168 consultas</p>
-          </div>
-
-          <div className="border rounded-lg p-4">
-            <h3 className="font-semibold text-lg mb-2">Confirmadas</h3>
-            <p className="text-gray-500">156 consultas</p>
-          </div>
-        </div>
-
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-            Novo Agendamento
-          </button>
-          <button className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
-            Ver Agenda
-          </button>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Hoje" value="0" hint="Consultas" tone="primary" icon={<CalendarClock className="h-[18px] w-[18px]" />} />
+        <StatCard label="Esta Semana" value="0" hint="Consultas" tone="primary" icon={<CalendarRange className="h-[18px] w-[18px]" />} />
+        <StatCard label="Este Mês" value="0" hint="Consultas" tone="primary" icon={<CalendarDays className="h-[18px] w-[18px]" />} />
+        <StatCard label="Confirmadas" value="0" hint="No período" tone="success" icon={<CheckCircle2 className="h-[18px] w-[18px]" />} />
       </div>
+
+      <SectionCard title="Calendário" description="Visualize e gerencie os agendamentos da clínica">
+        <EmptyState
+          icon={<CalendarDays className="h-6 w-6" />}
+          title="Nenhum agendamento para exibir"
+          description="Os agendamentos da clínica aparecerão aqui assim que forem criados."
+          action={
+            <Link href="/agenda">
+              <ActionButton icon={<Plus />}>Novo Agendamento</ActionButton>
+            </Link>
+          }
+        />
+      </SectionCard>
     </div>
-  )
+  );
 }

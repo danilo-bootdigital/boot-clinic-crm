@@ -1,127 +1,64 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DollarSign, Users, Stethoscope, Star } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { SectionCard } from "@/components/ui/section-card";
+
+const COMPARISONS = [
+  { label: "Receita", value: "—" },
+  { label: "Pacientes Novos", value: "—" },
+  { label: "Consultas", value: "—" },
+  { label: "Retenção", value: "—" },
+];
+
+const GOALS = [
+  { label: "Receita", progress: 0 },
+  { label: "Novos Pacientes", progress: 0 },
+  { label: "Consultas", progress: 0 },
+];
 
 export default function ExecutiveDashboard() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Executivo</h1>
-        <p className="text-muted-foreground">
-          Visão geral do negócio e indicadores de desempenho
-        </p>
+      <PageHeader
+        title="Executivo"
+        description="Visão geral do negócio e indicadores de desempenho"
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Receita Total" value="R$ 0" hint="Este mês" tone="success" icon={<DollarSign className="h-[18px] w-[18px]" />} />
+        <StatCard label="Pacientes Ativos" value="0" hint="Total" tone="primary" icon={<Users className="h-[18px] w-[18px]" />} />
+        <StatCard label="Consultas Realizadas" value="0" hint="Este mês" tone="primary" icon={<Stethoscope className="h-[18px] w-[18px]" />} />
+        <StatCard label="Satisfação Média" value="0/5" hint="Este mês" tone="warning" icon={<Star className="h-[18px] w-[18px]" />} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">R$ 0</div>
-            <p className="text-xs text-muted-foreground">Este mês</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Mês vs Mês Anterior" description="Comparação de desempenho">
+          <div className="divide-y divide-border">
+            {COMPARISONS.map((c) => (
+              <div key={c.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm text-foreground">{c.label}</span>
+                <span className="text-sm font-medium text-muted-foreground">{c.value}</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pacientes Ativos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Total</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Consultas Realizadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Este mês</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Satisfação Média</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0/5</div>
-            <p className="text-xs text-muted-foreground">Este mês</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Mês vs Mês Anterior</CardTitle>
-            <CardDescription>
-              Comparação de desempenho
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span>Receita</span>
-                <span className="text-green-600 font-medium">+0%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Pacientes Novos</span>
-                <span className="text-green-600 font-medium">+0%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Consultas</span>
-                <span className="text-green-600 font-medium">+0%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Retenção</span>
-                <span className="text-green-600 font-medium">+0%</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Meta do Mês</CardTitle>
-            <CardDescription>
-              Progresso em relação às metas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Receita</span>
-                  <span>0%</span>
+        <SectionCard title="Meta do Mês" description="Progresso em relação às metas">
+          <div className="space-y-4">
+            {GOALS.map((g) => (
+              <div key={g.label}>
+                <div className="mb-1.5 flex justify-between text-sm">
+                  <span className="text-foreground">{g.label}</span>
+                  <span className="font-medium text-muted-foreground">{g.progress}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '0%' }}></div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${g.progress}%` }} />
                 </div>
               </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Novos Pacientes</span>
-                  <span>0%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '0%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Consultas</span>
-                  <span>0%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '0%' }}></div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        </SectionCard>
       </div>
     </div>
-  )
+  );
 }

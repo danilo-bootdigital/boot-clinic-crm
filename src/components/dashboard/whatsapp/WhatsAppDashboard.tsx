@@ -1,128 +1,60 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Send, Inbox, AlertCircle, Timer } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const TEMPLATES = [
+  { title: "Confirmação de Consulta", desc: "Lembrar sobre agendamento" },
+  { title: "Pós-Consulta", desc: "Feedback sobre atendimento" },
+  { title: "Retorno", desc: "Agendar nova consulta" },
+];
+
+const STATS = [
+  { label: "Taxa de Resposta", value: "0%" },
+  { label: "Satisfação", value: "0/5" },
+  { label: "Atendimentos Finalizados", value: "0" },
+];
 
 export default function WhatsAppDashboard() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">WhatsApp</h1>
-        <p className="text-muted-foreground">
-          Gestão de comunicação via WhatsApp
-        </p>
+      <PageHeader title="WhatsApp" description="Gestão de comunicação via WhatsApp" />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Mensagens Enviadas" value="0" hint="Hoje" tone="success" icon={<Send className="h-[18px] w-[18px]" />} />
+        <StatCard label="Mensagens Recebidas" value="0" hint="Hoje" tone="primary" icon={<Inbox className="h-[18px] w-[18px]" />} />
+        <StatCard label="Atendimentos Pendentes" value="0" hint="Não lidas" tone="warning" icon={<AlertCircle className="h-[18px] w-[18px]" />} />
+        <StatCard label="Tempo Médio de Resposta" value="0min" hint="Últimas 24h" tone="muted" icon={<Timer className="h-[18px] w-[18px]" />} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mensagens Enviadas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Hoje</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Conversas Recentes" description="Últimas interações">
+          <EmptyState title="Nenhuma conversa recente" description="As conversas aparecerão aqui quando houver atividade." />
+        </SectionCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mensagens Recebidas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Hoje</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Atendimentos Pendentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Não lidas</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tempo Médio de Resposta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0min</div>
-            <p className="text-xs text-muted-foreground">Últimas 24h</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Conversas Recentes</CardTitle>
-            <CardDescription>
-              Últimas interações
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma conversa recente
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Estatísticas da Semana</CardTitle>
-            <CardDescription>
-              Desempenho de comunicação
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between">
-                <span>Taxa de Resposta</span>
-                <span className="font-medium">0%</span>
+        <SectionCard title="Estatísticas da Semana" description="Desempenho de comunicação">
+          <div className="divide-y divide-border">
+            {STATS.map((s) => (
+              <div key={s.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm text-foreground">{s.label}</span>
+                <span className="text-sm font-medium text-muted-foreground">{s.value}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Satisfação</span>
-                <span className="font-medium">0/5</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Atendimentos Finalizados</span>
-                <span className="font-medium">0</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Modelos de Mensagem</CardTitle>
-          <CardDescription>
-            Templates para comunicação rápida
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Confirmação de Consulta</h4>
-              <p className="text-sm text-muted-foreground">
-                Lembrar sobre agendamento
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Pós-Consulta</h4>
-              <p className="text-sm text-muted-foreground">
-                Feedback sobre atendimento
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Retorno</h4>
-              <p className="text-sm text-muted-foreground">
-                Agendar nova consulta
-              </p>
-            </div>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Modelos de Mensagem" description="Templates para comunicação rápida">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {TEMPLATES.map((t) => (
+            <div key={t.title} className="rounded-lg border border-border bg-background/50 p-4 transition-colors hover:border-primary/30">
+              <h4 className="text-sm font-semibold text-foreground">{t.title}</h4>
+              <p className="mt-1 text-sm text-muted-foreground">{t.desc}</p>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
     </div>
-  )
+  );
 }

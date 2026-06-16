@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
-import { UserRole } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 
 const CreatePatientInputSchema = z.object({
   name: z.string(),
@@ -124,11 +124,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = CreatePatientInputSchema.parse(body);
 
-    // Validar CPF único por empresa
+    // Validar CPF único por empresa (ignorando pacientes inativados/soft-deletados,
+    // para que um paciente arquivado não impeça o recadastro do mesmo CPF).
     const existingPatient = await prisma.patient.findFirst({
       where: {
         cpf: validatedData.cpf,
         companyId: dbUser.companyId,
+        deletedAt: null,
       },
     });
 
@@ -173,8 +175,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {
     console.error('Erro ao criar paciente:', error);
-    if (error instanceof Error && error.name === 'ZodError') {
-      return NextResponse.json({ error: 'Dados inválidos', details: error.message }, { status: 400 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Dados inválidos', details: error.errors }, { status: 400 });
+    }
+    // Violação de unicidade do CPF (constraint global no banco): retorna 400 em
+    // vez de 500 — cobre o caso de o CPF já existir (inclusive em outra empresa).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ error: 'CPF já cadastrado' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }

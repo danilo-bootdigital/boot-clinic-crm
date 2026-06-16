@@ -1,117 +1,47 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ListTodo, AlertTriangle, CalendarRange, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const TEMPLATES = [
+  { title: "Pós-Consulta", desc: "Envio 24 horas após a consulta" },
+  { title: "Retorno", desc: "Lembrete de retorno em 30 dias" },
+  { title: "Aniversário", desc: "Mensagem de aniversário anual" },
+];
 
 export default function FollowUpDashboard() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Follow-up</h1>
-        <p className="text-muted-foreground">
-          Gerenciar tarefas e acompanhamentos
-        </p>
+      <PageHeader title="Follow-up" description="Gerenciar tarefas e acompanhamentos" />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Tarefas Pendentes" value="0" hint="Hoje" tone="primary" icon={<ListTodo className="h-[18px] w-[18px]" />} />
+        <StatCard label="Follow-ups Atrasados" value="0" hint="Crítico" tone="destructive" icon={<AlertTriangle className="h-[18px] w-[18px]" />} />
+        <StatCard label="Tarefas da Semana" value="0" hint="Próximos 7 dias" tone="primary" icon={<CalendarRange className="h-[18px] w-[18px]" />} />
+        <StatCard label="Taxa de Conclusão" value="0%" hint="Este mês" tone="success" icon={<CheckCircle2 className="h-[18px] w-[18px]" />} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tarefas Pendentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Hoje</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SectionCard title="Tarefas Recentes" description="Últimas tarefas criadas">
+          <EmptyState title="Nenhuma tarefa encontrada" description="As tarefas criadas aparecerão aqui." />
+        </SectionCard>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Follow-ups Atrasados</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Crítico</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tarefas da Semana</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Próximos 7 dias</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Conclusão</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0%</div>
-            <p className="text-xs text-muted-foreground">Este mês</p>
-          </CardContent>
-        </Card>
+        <SectionCard title="Pacientes com Follow-up" description="Pacientes que precisam de acompanhamento">
+          <EmptyState title="Nenhum paciente encontrado" description="Pacientes que precisam de acompanhamento aparecerão aqui." />
+        </SectionCard>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tarefas Recentes</CardTitle>
-            <CardDescription>
-              Últimas tarefas criadas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhuma tarefa encontrada
+      <SectionCard title="Modelos de Follow-up" description="Templates automatizados de acompanhamento">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {TEMPLATES.map((t) => (
+            <div key={t.title} className="rounded-lg border border-border bg-background/50 p-4 transition-colors hover:border-primary/30">
+              <h4 className="text-sm font-semibold text-foreground">{t.title}</h4>
+              <p className="mt-1 text-sm text-muted-foreground">{t.desc}</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pacientes com Follow-up</CardTitle>
-            <CardDescription>
-              Pacientes que precisam de acompanhamento
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum paciente encontrado
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Modelos de Follow-up</CardTitle>
-          <CardDescription>
-            Templates automatizados de acompanhamento
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Pós-Consulta</h4>
-              <p className="text-sm text-muted-foreground">
-                Envio de 24 horas após a consulta
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Retorno</h4>
-              <p className="text-sm text-muted-foreground">
-                Lembrete de retorno em 30 dias
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h4 className="font-medium mb-2">Aniversário</h4>
-              <p className="text-sm text-muted-foreground">
-                Mensagem de aniversário anual
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </SectionCard>
     </div>
-  )
+  );
 }
