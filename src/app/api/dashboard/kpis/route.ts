@@ -16,6 +16,7 @@ export async function GET() {
     const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
     const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - todayStart.getDay());
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+    const last7 = new Date(todayStart); last7.setDate(last7.getDate() - 7);
 
     const apptOpen = { notIn: ['CANCELED', 'NO_SHOW'] as any };
 
@@ -23,7 +24,7 @@ export async function GET() {
       patientsActive, patientsTotal, patientsNew, patientsPrev,
       dealsOpen, dealsOpenValue, dealsWon, dealsWonValue, dealsLost,
       apptToday, apptWeek, apptMonth, apptAttended, apptPrevMonth,
-      apptByStatus,
+      apptByStatus, patientsByOrigin, apptTodayByStatus, noShow7d,
     ] = await Promise.all([
       prisma.patient.count({ where: { companyId, deletedAt: null, status: 'ACTIVE' } }),
       prisma.patient.count({ where: { companyId, deletedAt: null } }),
@@ -40,13 +41,20 @@ export async function GET() {
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'ATTENDED', startAt: { gte: monthStart } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'ATTENDED', startAt: { gte: prevMonthStart, lt: monthStart } } }),
       prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: monthStart } } }),
+      prisma.patient.groupBy({ by: ['origin'], _count: true, where: { companyId, deletedAt: null } }),
+      prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: todayStart, lt: todayEnd } } }),
+      prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'NO_SHOW', startAt: { gte: last7 } } }),
     ]);
 
     const byStatus: Record<string, number> = {};
     for (const row of apptByStatus) byStatus[row.status] = (row as any)._count;
+    const todayByStatus: Record<string, number> = {};
+    for (const row of apptTodayByStatus) todayByStatus[row.status] = (row as any)._count;
+    const byOrigin: Record<string, number> = {};
+    for (const row of patientsByOrigin) byOrigin[row.origin] = (row as any)._count;
 
     return NextResponse.json({
-      patients: { active: patientsActive, total: patientsTotal, newThisMonth: patientsNew, newPrevMonth: patientsPrev },
+      patients: { active: patientsActive, total: patientsTotal, newThisMonth: patientsNew, newPrevMonth: patientsPrev, byOrigin },
       deals: {
         open: dealsOpen,
         openValue: dealsOpenValue._sum.valueEstimated ?? 0,
@@ -56,7 +64,8 @@ export async function GET() {
       },
       appointments: {
         today: apptToday, thisWeek: apptWeek, thisMonth: apptMonth,
-        attendedThisMonth: apptAttended, attendedPrevMonth: apptPrevMonth, byStatus,
+        attendedThisMonth: apptAttended, attendedPrevMonth: apptPrevMonth,
+        byStatus, todayByStatus, noShow7d,
       },
     });
   } catch (err) {
