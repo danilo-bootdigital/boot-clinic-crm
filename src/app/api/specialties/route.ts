@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { resolveDbUser } from '@/lib/api/session';
 
 const DEFAULTS = ['Clínica Geral', 'Cardiologia', 'Dermatologia', 'Pediatria', 'Ortopedia'];
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(item, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return NextResponse.json({ error: 'Especialidade já existe' }, { status: 400 });
+    }
     console.error('Erro ao criar especialidade:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
