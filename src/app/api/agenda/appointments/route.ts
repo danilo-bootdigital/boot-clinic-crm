@@ -5,6 +5,7 @@ import { resolveDbUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
+import { runAutomations } from '@/lib/automations/engine';
 
 const CreateSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -112,6 +113,8 @@ export async function POST(request: NextRequest) {
         companyId: dbUser!.companyId,
       },
     });
+    await runAutomations('APPOINTMENT_CREATED', { companyId: dbUser!.companyId, patientId: appt.patientId, summary: 'Nova consulta agendada' });
+
     return NextResponse.json(appt, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });

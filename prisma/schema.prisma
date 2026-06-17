@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Multiempresa
+// Multiempresa (cada Company = 1 clínica assinante do SaaS)
 model Company {
   id          String   @id @default(cuid())
   name        String
@@ -16,6 +16,10 @@ model Company {
   address     String?
   phone       String?
   email       String?
+  // Assinatura SaaS — gerida pelo painel Super-Admin.
+  status      CompanyStatus @default(ACTIVE)
+  plan        String?       // ex.: "trial", "basic", "pro" (texto livre por enquanto)
+  trialEndsAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
@@ -26,6 +30,14 @@ model Company {
   tags         Tag[]
 
   @@map("companies")
+}
+
+// Situação da assinatura de uma clínica no SaaS.
+enum CompanyStatus {
+  ACTIVE    // assinatura ativa
+  TRIAL     // em período de teste
+  SUSPENDED // acesso bloqueado (ex.: inadimplência) — usuários não-super recebem 403
+  CANCELED  // assinatura encerrada
 }
 
 // Usuários e Autenticação
@@ -448,6 +460,48 @@ model NotificationEvent {
   deletedAt       DateTime?
 
   @@map("notification_events")
+}
+
+// Módulo de WhatsApp (estrutura interna; envio real via Evolution API quando configurada)
+model WhatsAppConversation {
+  id            String   @id @default(cuid())
+  companyId     String
+  patientId     String?
+  contactName   String
+  contactPhone  String
+  status        String   @default("OPEN") // OPEN | CLOSED
+  lastMessage   String?
+  lastMessageAt DateTime?
+  unreadCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(cuid())
+  companyId      String
+  conversationId String
+  content        String
+  direction      String   // INCOMING | OUTGOING
+  status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED
+  createdAt      DateTime @default(now())
+
+  @@map("whatsapp_messages")
+}
+
+model WhatsAppQuickReply {
+  id        String   @id @default(cuid())
+  companyId String
+  title     String
+  content   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  @@map("whatsapp_quick_replies")
 }
 
 // Preferências de notificação por empresa

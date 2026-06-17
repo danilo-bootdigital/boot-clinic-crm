@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
+import { subscriptionBlock } from '@/lib/api/session';
+import { runAutomations } from '@/lib/automations/engine';
 
 const MoveSchema = z.object({
   newStageId: z.string(),
@@ -18,6 +20,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    const blocked = await subscriptionBlock(dbUser);
+    if (blocked) return blocked;
     const forbidden = requirePermission(dbUser, 'crm', 'edit');
     if (forbidden) return forbidden;
 
@@ -54,6 +58,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         authorId: dbUser.id,
       },
     });
+
+    // Automação: oportunidade ganha ao mover para etapa final WON.
+    if (stage.finalType === 'WON') {
+      await runAutomations('DEAL_WON', { companyId: dbUser.companyId, dealId: deal.id, patientId: deal.patientId, summary: `Oportunidade ganha: ${updated.title}` });
+    }
 
     return NextResponse.json(updated);
   } catch (err) {

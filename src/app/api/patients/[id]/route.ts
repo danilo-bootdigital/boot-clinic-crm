@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { requirePermission } from '@/lib/api/permissions';
+import { subscriptionBlock } from '@/lib/api/session';
 
 // Schema de atualização. CPF é imutável (não incluído).
 const UpdatePatientInputSchema = z.object({
@@ -24,6 +25,9 @@ async function resolveDbUser() {
 
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
+
+  const blocked = await subscriptionBlock(dbUser);
+  if (blocked) return { error: blocked };
 
   return { dbUser };
 }

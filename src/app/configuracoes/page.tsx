@@ -87,8 +87,8 @@ function ClinicaTab({ router }: { router: any }) {
 }
 
 const MODULES: [string, string][] = [
-  ['patients', 'Pacientes'], ['crm', 'CRM'], ['agenda', 'Agenda'],
-  ['followup', 'Follow-up'], ['dashboard', 'Dashboard'], ['configuracoes', 'Configurações'],
+  ['patients', 'Pacientes'], ['crm', 'CRM'], ['agenda', 'Agenda'], ['followup', 'Follow-up'],
+  ['whatsapp', 'WhatsApp'], ['automacoes', 'Automações'], ['dashboard', 'Dashboard'], ['configuracoes', 'Configurações'],
 ]
 const LEVELS: [string, string][] = [['none', 'Sem acesso'], ['view', 'Visualizar'], ['edit', 'Editar']]
 const ADMIN_ROLE = (r: string) => r === 'OWNER' || r === 'SUPER_ADMIN'

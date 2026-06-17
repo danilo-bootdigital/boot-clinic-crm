@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole, Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/api/permissions';
+import { subscriptionBlock } from '@/lib/api/session';
+import { runAutomations } from '@/lib/automations/engine';
 
 const CreatePatientInputSchema = z.object({
   name: z.string(),
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest) {
     });
 
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    const blocked = await subscriptionBlock(dbUser);
+    if (blocked) return blocked;
     const denied = requirePermission(dbUser, 'patients', 'view');
     if (denied) return denied;
 
@@ -117,6 +121,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    const blocked = await subscriptionBlock(dbUser);
+    if (blocked) return blocked;
 
     // Verificar se o usuário tem permissão para criar
     const forbidden = requirePermission(dbUser, 'patients', 'edit');
@@ -172,6 +178,9 @@ export async function POST(request: NextRequest) {
         userId: dbUser.id,
       },
     });
+
+    // Dispara automações de "paciente criado" (não bloqueia em caso de falha).
+    await runAutomations('PATIENT_CREATED', { companyId: dbUser.companyId, patientId: patient.id, summary: `Novo paciente: ${patient.name}` });
 
     return NextResponse.json(patient, { status: 201 });
   } catch (error) {

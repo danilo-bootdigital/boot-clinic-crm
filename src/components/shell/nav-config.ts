@@ -8,6 +8,7 @@ import {
   Workflow,
   BarChart3,
   Settings,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,8 @@ export interface NavItem {
   match?: string[];
   /** módulo de permissão; se o usuário não tiver 'view', o item é ocultado */
   module?: string;
+  /** item exclusivo do dono do SaaS; só aparece para SUPER_ADMIN */
+  superAdmin?: boolean;
 }
 
 export interface NavSection {
@@ -33,9 +36,9 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Pacientes", href: "/pacientes", icon: Users, match: ["/patients"], module: "patients" },
       { label: "CRM", href: "/crm", icon: Target, module: "crm" },
       { label: "Agenda", href: "/agenda", icon: CalendarDays, module: "agenda" },
-      { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
+      { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, module: "whatsapp" },
       { label: "Follow-up", href: "/followup", icon: Repeat, module: "followup" },
-      { label: "Automações", href: "/automacoes", icon: Workflow },
+      { label: "Automações", href: "/automacoes", icon: Workflow, module: "automacoes" },
     ],
   },
   {
@@ -43,6 +46,12 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
       { label: "Configurações", href: "/configuracoes", icon: Settings, module: "configuracoes" },
+    ],
+  },
+  {
+    title: "SaaS",
+    items: [
+      { label: "Clínicas", href: "/admin", icon: Building2, superAdmin: true },
     ],
   },
 ];
@@ -63,6 +72,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   relatorios: "Relatórios",
   configuracoes: "Configurações",
   audit: "Auditoria",
+  admin: "Clínicas",
 };
 
 export function isActive(pathname: string, item: NavItem): boolean {

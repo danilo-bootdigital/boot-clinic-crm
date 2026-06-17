@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { ownsPatient, ownsUser, ownsStage } from '@/lib/api/ownership';
 import { requirePermission } from '@/lib/api/permissions';
+import { subscriptionBlock } from '@/lib/api/session';
 
 // Campos editáveis de um deal (todos opcionais).
 const UpdateDealInputSchema = z.object({
@@ -25,6 +26,8 @@ async function resolveDbUser() {
   if (!user) return { error: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) };
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
+  const blocked = await subscriptionBlock(dbUser);
+  if (blocked) return { error: blocked };
   return { dbUser };
 }
 

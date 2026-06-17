@@ -23,17 +23,28 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const [perms, setPerms] = useState<Record<string, string> | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((me) => setPerms(me?.permissions ?? null))
-      .catch(() => setPerms(null));
+      .then((me) => {
+        setPerms(me?.permissions ?? null);
+        setRole(me?.role ?? null);
+      })
+      .catch(() => {
+        setPerms(null);
+        setRole(null);
+      });
   }, []);
 
   // Oculta itens cujo módulo o usuário não pode ao menos visualizar.
   // Enquanto carrega (perms === null), mostra tudo para evitar "piscar".
-  const canSee = (mod?: string) => !mod || perms === null || perms[mod] !== "none";
+  // Itens superAdmin só aparecem para SUPER_ADMIN (nunca enquanto carrega).
+  const canSee = (item: { module?: string; superAdmin?: boolean }) => {
+    if (item.superAdmin) return role === "SUPER_ADMIN";
+    return !item.module || perms === null || perms[item.module] !== "none";
+  };
 
   return (
     <>
@@ -72,7 +83,11 @@ export function Sidebar({
 
         {/* Navegação */}
         <nav className="scrollbar-thin flex-1 overflow-y-auto px-3 py-3">
-          {NAV_SECTIONS.map((section, i) => (
+          {NAV_SECTIONS.map((section, i) => {
+            const visibleItems = section.items.filter(canSee);
+            // Não renderiza a seção (nem seu título) se nada nela é visível.
+            if (visibleItems.length === 0) return null;
+            return (
             <div key={i} className={cn(i > 0 && "mt-6")}>
               {section.title && !collapsed && (
                 <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">
@@ -80,7 +95,7 @@ export function Sidebar({
                 </p>
               )}
               <ul className="space-y-1">
-                {section.items.filter((item) => canSee(item.module)).map((item) => {
+                {visibleItems.map((item) => {
                   const active = isActive(pathname, item);
                   const Icon = item.icon;
                   return (
@@ -110,7 +125,8 @@ export function Sidebar({
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Recolher (desktop) */}
