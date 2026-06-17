@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 import { findAppointmentConflict } from '@/lib/api/appointments';
+import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
 
 const CreateSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -67,8 +68,18 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
 
     const data = CreateSchema.parse(await request.json());
+
+    // FKs precisam pertencer à empresa do usuário (multi-tenant).
+    if (!(await ownsPatient(dbUser!.companyId, data.patientId)) ||
+        !(await ownsProfessional(dbUser!.companyId, data.professionalId)) ||
+        !(await ownsSpecialty(dbUser!.companyId, data.specialtyId))) {
+      return NextResponse.json({ error: 'Paciente, profissional ou especialidade inválidos' }, { status: 400 });
+    }
+
     const startAt = new Date(data.startAt);
     if (Number.isNaN(startAt.getTime())) return NextResponse.json({ error: 'Data/hora inválida' }, { status: 400 });
     const endAt = new Date(startAt.getTime() + data.durationMinutes * 60000);

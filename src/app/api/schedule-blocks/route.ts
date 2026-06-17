@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { ownsProfessional } from '@/lib/api/ownership';
 
 const Schema = z.object({
   professionalId: z.string().min(1),
@@ -40,7 +41,14 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
     const data = Schema.parse(await request.json());
+
+    // Profissional do bloqueio precisa pertencer à empresa.
+    if (!(await ownsProfessional(dbUser!.companyId, data.professionalId))) {
+      return NextResponse.json({ error: 'Profissional inválido' }, { status: 400 });
+    }
 
     const item = await prisma.scheduleBlock.create({
       data: {

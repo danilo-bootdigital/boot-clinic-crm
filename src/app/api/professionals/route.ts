@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
 
 const Schema = z.object({
   name: z.string().min(1),
@@ -39,6 +39,8 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    if (forbidden) return forbidden;
     const data = Schema.parse(await request.json());
 
     const item = await prisma.professional.create({

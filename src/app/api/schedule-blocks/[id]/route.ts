@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 
 // DELETE /api/schedule-blocks/[id] - soft delete
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
 
     const item = await prisma.scheduleBlock.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

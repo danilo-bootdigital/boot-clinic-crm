@@ -33,8 +33,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   // '/' precisa ser correspondência exata; o resto pode ser por prefixo.
   // (Antes '/' usava startsWith e tornava TODAS as rotas públicas.)
-  const exactPublicPaths = ['/']
-  const prefixPublicPaths = ['/login', '/api/auth', '/api/public']
+  const exactPublicPaths = ['/', '/login']
+  // Prefixos com barra final para não casar rotas como /api/publicReport ou /loginX.
+  const prefixPublicPaths = ['/api/auth/', '/api/public/']
   const isPublicPath =
     exactPublicPaths.includes(pathname) ||
     prefixPublicPaths.some(path => pathname.startsWith(path))

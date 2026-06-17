@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 import { findAppointmentConflict } from '@/lib/api/appointments';
+import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
 
 const UpdateSchema = z.object({
   patientId: z.string().optional(),
@@ -43,12 +44,23 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
+
     const existing = await prisma.appointment.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
     });
     if (!existing) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 });
 
     const d = UpdateSchema.parse(await request.json());
+
+    // FKs alterados precisam pertencer à empresa.
+    if (!(await ownsPatient(dbUser!.companyId, d.patientId)) ||
+        !(await ownsProfessional(dbUser!.companyId, d.professionalId)) ||
+        !(await ownsSpecialty(dbUser!.companyId, d.specialtyId))) {
+      return NextResponse.json({ error: 'Paciente, profissional ou especialidade inválidos' }, { status: 400 });
+    }
+
     let startAt = existing.startAt;
     let endAt = existing.endAt;
     if (d.startAt) startAt = new Date(d.startAt);
@@ -94,6 +106,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
 
     const existing = await prisma.appointment.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

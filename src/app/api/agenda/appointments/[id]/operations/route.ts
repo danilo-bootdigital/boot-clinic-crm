@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 
 const Schema = z.object({
@@ -16,6 +16,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
 
     const existing = await prisma.appointment.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

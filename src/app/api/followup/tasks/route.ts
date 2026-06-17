@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { ownsPatient, ownsDeal } from '@/lib/api/ownership';
 
 // Datas "YYYY-MM-DD" são interpretadas ao meio-dia LOCAL (evita que a meia-noite
 // UTC caia no dia anterior em fusos negativos, jogando a tarefa para "atrasada").
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     const patientIds = Array.from(new Set(tasks.map((t) => t.patientId).filter(Boolean) as string[]));
     const patients = patientIds.length
-      ? await prisma.patient.findMany({ where: { id: { in: patientIds } }, select: { id: true, name: true } })
+      ? await prisma.patient.findMany({ where: { id: { in: patientIds }, companyId: dbUser!.companyId }, select: { id: true, name: true } })
       : [];
     const pm = new Map(patients.map((p) => [p.id, p]));
 
@@ -49,8 +50,17 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    if (forbidden) return forbidden;
 
     const d = CreateSchema.parse(await request.json());
+
+    // Paciente/deal vinculados precisam pertencer à empresa.
+    if (!(await ownsPatient(dbUser!.companyId, d.patientId || null)) ||
+        !(await ownsDeal(dbUser!.companyId, d.dealId || null))) {
+      return NextResponse.json({ error: 'Paciente ou oportunidade inválidos' }, { status: 400 });
+    }
+
     const task = await prisma.followUpTask.create({
       data: {
         title: d.title,

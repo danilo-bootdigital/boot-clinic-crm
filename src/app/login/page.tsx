@@ -5,10 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Activity, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
+// Só aceita caminhos internos relativos (evita open-redirect via ?redirect=).
+function safeRedirect(value: string | null): string {
+  if (value && value.startsWith('/') && !value.startsWith('//')) return value
+  return '/dashboard'
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = safeRedirect(searchParams.get('redirect'))
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

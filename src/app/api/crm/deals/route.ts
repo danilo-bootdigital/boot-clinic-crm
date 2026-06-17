@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { CreateDealSchema } from '@/lib/validations/crm';
+import { ownsPatient, ownsUser } from '@/lib/api/ownership';
 
 async function resolveDbUser() {
   const user = await getCurrentUser();
@@ -81,6 +82,12 @@ export async function POST(request: NextRequest) {
       where: { id: data.stageId, pipelineId: data.pipelineId, companyId: dbUser!.companyId },
     });
     if (!stage) return NextResponse.json({ error: 'Etapa/pipeline inválidos' }, { status: 400 });
+
+    // Paciente (opcional) e responsável precisam pertencer à empresa.
+    if (!(await ownsPatient(dbUser!.companyId, data.patientId || null)) ||
+        !(await ownsUser(dbUser!.companyId, data.responsibleUserId))) {
+      return NextResponse.json({ error: 'Paciente ou responsável inválidos' }, { status: 400 });
+    }
 
     const deal = await prisma.deal.create({
       data: {

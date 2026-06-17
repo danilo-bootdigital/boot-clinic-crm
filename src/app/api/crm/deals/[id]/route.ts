@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
+import { ownsPatient, ownsUser, ownsStage } from '@/lib/api/ownership';
 
 // Campos editáveis de um deal (todos opcionais).
 const UpdateDealInputSchema = z.object({
@@ -67,6 +68,13 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
     if (!existing) return NextResponse.json({ error: 'Deal não encontrado' }, { status: 404 });
 
     const d = UpdateDealInputSchema.parse(await request.json());
+
+    // FKs alterados precisam pertencer à empresa (etapa/responsável/paciente).
+    if (!(await ownsStage(dbUser!.companyId, d.stageId)) ||
+        !(await ownsUser(dbUser!.companyId, d.responsibleUserId)) ||
+        !(await ownsPatient(dbUser!.companyId, d.patientId || null))) {
+      return NextResponse.json({ error: 'Etapa, responsável ou paciente inválidos' }, { status: 400 });
+    }
 
     const deal = await prisma.deal.update({
       where: { id: params.id },
