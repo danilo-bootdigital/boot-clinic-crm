@@ -14,7 +14,9 @@
     "seed": "node --env-file=.env scripts/seed.mjs",
     "promote-super-admin": "node --env-file=.env scripts/promote-super-admin.mjs",
     "admin-smoke": "node --env-file=.env scripts/admin-smoke.mjs",
-    "asaas-webhook-smoke": "node --env-file=.env scripts/asaas-webhook-smoke.mjs"
+    "asaas-webhook-smoke": "node --env-file=.env scripts/asaas-webhook-smoke.mjs",
+    "asaas-live-check": "node --env-file=.env scripts/asaas-live-check.mjs",
+    "asaas-setup-webhook": "node --env-file=.env scripts/asaas-setup-webhook.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
