@@ -65,18 +65,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Cria a linha no banco com id = UID do Auth, papel e permissões.
-    const user = await prisma.user.create({
-      data: {
-        id: created.user.id,
-        email: d.email,
-        name: d.name,
-        role: d.role as UserRole,
-        companyId: dbUser!.companyId,
-        permissions: sanitizePermissions(d.permissions),
-      },
-      select: { id: true, name: true, email: true, role: true, permissions: true },
-    });
-    return NextResponse.json(user, { status: 201 });
+    // Se a inserção no banco falhar, desfaz a conta no Auth (evita órfão).
+    try {
+      const user = await prisma.user.create({
+        data: {
+          id: created.user.id,
+          email: d.email,
+          name: d.name,
+          role: d.role as UserRole,
+          companyId: dbUser!.companyId,
+          permissions: sanitizePermissions(d.permissions),
+        },
+        select: { id: true, name: true, email: true, role: true, permissions: true },
+      });
+      return NextResponse.json(user, { status: 201 });
+    } catch (dbErr) {
+      await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+      if (dbErr instanceof Prisma.PrismaClientKnownRequestError && dbErr.code === 'P2002') {
+        return NextResponse.json({ error: 'E-mail já cadastrado' }, { status: 400 });
+      }
+      throw dbErr;
+    }
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
