@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 // GET /api/dashboard/kpis - KPIs reais da empresa (Pacientes + CRM + Agenda)
 export async function GET() {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'dashboard', 'view');
+    if (denied) return denied;
     const companyId = dbUser!.companyId;
 
     const now = new Date();

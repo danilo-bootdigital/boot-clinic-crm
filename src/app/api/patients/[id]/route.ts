@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
+import { requirePermission } from '@/lib/api/permissions';
 
 // Schema de atualização. CPF é imutável (não incluído).
 const UpdatePatientInputSchema = z.object({
@@ -32,6 +33,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'patients', 'view');
+    if (denied) return denied;
 
     const patient = await prisma.patient.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
@@ -57,10 +60,8 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.RECEPTION, UserRole.ATTENDANCE];
-    if (!allowedRoles.includes(dbUser!.role)) {
-      return NextResponse.json({ error: 'Sem permissão para editar pacientes' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser!, 'patients', 'edit');
+    if (forbidden) return forbidden;
 
     // Garante que o paciente pertence à empresa do usuário.
     const existing = await prisma.patient.findFirst({
@@ -118,10 +119,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER];
-    if (!allowedRoles.includes(dbUser!.role)) {
-      return NextResponse.json({ error: 'Sem permissão para inativar pacientes' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser!, 'patients', 'edit');
+    if (forbidden) return forbidden;
 
     const existing = await prisma.patient.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole, Prisma } from '@prisma/client';
+import { requirePermission } from '@/lib/api/permissions';
 
 const CreatePatientInputSchema = z.object({
   name: z.string(),
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
     });
 
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    const denied = requirePermission(dbUser, 'patients', 'view');
+    if (denied) return denied;
 
     // Construir filtro baseado no papel do usuário
     // deletedAt: null garante que pacientes inativados (soft delete) não apareçam.
@@ -116,10 +119,8 @@ export async function POST(request: NextRequest) {
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
 
     // Verificar se o usuário tem permissão para criar
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.RECEPTION, UserRole.ATTENDANCE];
-    if (!allowedRoles.includes(dbUser.role)) {
-      return NextResponse.json({ error: 'Sem permissão para criar pacientes' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser, 'patients', 'edit');
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const validatedData = CreatePatientInputSchema.parse(body);

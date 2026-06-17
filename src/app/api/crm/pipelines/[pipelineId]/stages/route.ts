@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
+import { requirePermission } from '@/lib/api/permissions';
 
 // GET /api/crm/pipelines/[pipelineId]/stages - Etapas de um pipeline
 export async function GET(_request: NextRequest, { params }: { params: { pipelineId: string } }) {
@@ -9,6 +10,8 @@ export async function GET(_request: NextRequest, { params }: { params: { pipelin
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    const denied = requirePermission(dbUser, 'crm', 'view');
+    if (denied) return denied;
 
     // Garante que o pipeline pertence à empresa do usuário.
     const pipeline = await prisma.pipeline.findFirst({

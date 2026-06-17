@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { CreateDealSchema } from '@/lib/validations/crm';
 import { ownsPatient, ownsUser } from '@/lib/api/ownership';
+import { requirePermission } from '@/lib/api/permissions';
 
 async function resolveDbUser() {
   const user = await getCurrentUser();
@@ -19,6 +20,8 @@ export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'crm', 'view');
+    if (denied) return denied;
 
     const sp = request.nextUrl.searchParams;
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
@@ -69,10 +72,8 @@ export async function POST(request: NextRequest) {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.RECEPTION, UserRole.ATTENDANCE];
-    if (!allowedRoles.includes(dbUser!.role)) {
-      return NextResponse.json({ error: 'Sem permissão para criar deals' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser!, 'crm', 'edit');
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const data = CreateDealSchema.parse(body);

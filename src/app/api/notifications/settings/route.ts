@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const Schema = z.object({
   emailEnabled: z.boolean().optional(),
@@ -35,7 +36,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    const forbidden = requirePermission(dbUser!, 'configuracoes', 'edit');
     if (forbidden) return forbidden;
 
     await ensureSettings(dbUser!.companyId);

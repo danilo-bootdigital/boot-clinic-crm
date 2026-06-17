@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
 
@@ -20,6 +21,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'agenda', 'view');
+    if (denied) return denied;
 
     const a = await prisma.appointment.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
@@ -44,7 +47,7 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
 
     const existing = await prisma.appointment.findFirst({
@@ -106,7 +109,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
 
     const existing = await prisma.appointment.findFirst({

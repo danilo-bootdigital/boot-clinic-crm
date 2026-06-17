@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
 import { getDefaultStages } from '@/lib/validations/crm';
+import { requirePermission } from '@/lib/api/permissions';
 
 const DEFAULT_LOSS_REASONS = ['Preço', 'Sem retorno', 'Escolheu concorrente', 'Sem interesse', 'Outro'];
 
@@ -50,6 +51,8 @@ export async function GET(_request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'crm', 'view');
+    if (denied) return denied;
 
     await ensureDefaults(dbUser!.companyId);
 

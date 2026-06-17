@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const UpdateSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').optional(),
@@ -16,6 +17,8 @@ export async function GET() {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'configuracoes', 'view');
+    if (denied) return denied;
     const company = await prisma.company.findUnique({ where: { id: dbUser!.companyId } });
     if (!company) return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
     return NextResponse.json(company);
@@ -30,7 +33,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    const forbidden = requirePermission(dbUser!, 'configuracoes', 'edit');
     if (forbidden) return forbidden;
 
     const d = UpdateSchema.parse(await request.json());

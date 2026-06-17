@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const UpdateSchema = z.object({
   title: z.string().min(1).optional(),
@@ -17,6 +18,8 @@ async function update(request: NextRequest, { params }: { params: { id: string }
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requirePermission(dbUser!, 'followup', 'edit');
+    if (forbidden) return forbidden;
 
     const existing = await prisma.followUpTask.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
@@ -57,6 +60,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const forbidden = requirePermission(dbUser!, 'followup', 'edit');
+    if (forbidden) return forbidden;
 
     const existing = await prisma.followUpTask.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

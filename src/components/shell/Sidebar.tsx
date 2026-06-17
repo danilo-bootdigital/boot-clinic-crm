@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Activity, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,18 @@ export function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
+  const [perms, setPerms] = useState<Record<string, string> | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => setPerms(me?.permissions ?? null))
+      .catch(() => setPerms(null));
+  }, []);
+
+  // Oculta itens cujo módulo o usuário não pode ao menos visualizar.
+  // Enquanto carrega (perms === null), mostra tudo para evitar "piscar".
+  const canSee = (mod?: string) => !mod || perms === null || perms[mod] !== "none";
 
   return (
     <>
@@ -67,7 +80,7 @@ export function Sidebar({
                 </p>
               )}
               <ul className="space-y-1">
-                {section.items.map((item) => {
+                {section.items.filter((item) => canSee(item.module)).map((item) => {
                   const active = isActive(pathname, item);
                   const Icon = item.icon;
                   return (

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 import { ownsPatient, ownsDeal } from '@/lib/api/ownership';
 
 // Datas "YYYY-MM-DD" são interpretadas ao meio-dia LOCAL (evita que a meia-noite
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+
+    const denied = requirePermission(dbUser!, 'followup', 'view');
+    if (denied) return denied;
 
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
     const status = request.nextUrl.searchParams.get('status');
@@ -50,7 +54,7 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    const forbidden = requirePermission(dbUser!, 'followup', 'edit');
     if (forbidden) return forbidden;
 
     const d = CreateSchema.parse(await request.json());

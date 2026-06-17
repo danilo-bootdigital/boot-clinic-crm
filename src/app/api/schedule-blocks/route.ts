@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 import { ownsProfessional } from '@/lib/api/ownership';
 
 const Schema = z.object({
@@ -23,6 +24,8 @@ export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'agenda', 'view');
+    if (denied) return denied;
 
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
     const pid = request.nextUrl.searchParams.get('professionalId');
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, STAFF_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
     const data = Schema.parse(await request.json());
 

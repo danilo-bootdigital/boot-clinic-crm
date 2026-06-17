@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { ownsPatient, ownsUser, ownsStage } from '@/lib/api/ownership';
+import { requirePermission } from '@/lib/api/permissions';
 
 // Campos editáveis de um deal (todos opcionais).
 const UpdateDealInputSchema = z.object({
@@ -32,6 +33,8 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'crm', 'view');
+    if (denied) return denied;
 
     const deal = await prisma.deal.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
@@ -57,10 +60,8 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.RECEPTION, UserRole.ATTENDANCE];
-    if (!allowedRoles.includes(dbUser!.role)) {
-      return NextResponse.json({ error: 'Sem permissão para editar deals' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser!, 'crm', 'edit');
+    if (forbidden) return forbidden;
 
     const existing = await prisma.deal.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
@@ -111,10 +112,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const allowedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.MANAGER];
-    if (!allowedRoles.includes(dbUser!.role)) {
-      return NextResponse.json({ error: 'Sem permissão para excluir deals' }, { status: 403 });
-    }
+    const forbidden = requirePermission(dbUser!, 'crm', 'edit');
+    if (forbidden) return forbidden;
 
     const existing = await prisma.deal.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },

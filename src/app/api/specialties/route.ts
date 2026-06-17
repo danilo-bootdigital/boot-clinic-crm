@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const DEFAULTS = ['Clínica Geral', 'Cardiologia', 'Dermatologia', 'Pediatria', 'Ortopedia'];
 const Schema = z.object({ name: z.string().min(1), description: z.string().optional() });
@@ -12,6 +13,8 @@ export async function GET() {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
+    const denied = requirePermission(dbUser!, 'agenda', 'view');
+    if (denied) return denied;
 
     const count = await prisma.specialty.count({ where: { companyId: dbUser!.companyId, deletedAt: null } });
     if (count === 0) {
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
-    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
     const data = Schema.parse(await request.json());
 

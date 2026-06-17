@@ -17,6 +17,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** prefixos adicionais que ativam o item */
   match?: string[];
+  /** módulo de permissão; se o usuário não tiver 'view', o item é ocultado */
+  module?: string;
 }
 
 export interface NavSection {
@@ -27,12 +29,12 @@ export interface NavSection {
 export const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Pacientes", href: "/pacientes", icon: Users, match: ["/patients"] },
-      { label: "CRM", href: "/crm", icon: Target },
-      { label: "Agenda", href: "/agenda", icon: CalendarDays },
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, module: "dashboard" },
+      { label: "Pacientes", href: "/pacientes", icon: Users, match: ["/patients"], module: "patients" },
+      { label: "CRM", href: "/crm", icon: Target, module: "crm" },
+      { label: "Agenda", href: "/agenda", icon: CalendarDays, module: "agenda" },
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
-      { label: "Follow-up", href: "/followup", icon: Repeat },
+      { label: "Follow-up", href: "/followup", icon: Repeat, module: "followup" },
       { label: "Automações", href: "/automacoes", icon: Workflow },
     ],
   },
@@ -40,7 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "Análise",
     items: [
       { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
-      { label: "Configurações", href: "/configuracoes", icon: Settings },
+      { label: "Configurações", href: "/configuracoes", icon: Settings, module: "configuracoes" },
     ],
   },
 ];

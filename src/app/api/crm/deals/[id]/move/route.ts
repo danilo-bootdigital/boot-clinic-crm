@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
-import { requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const MoveSchema = z.object({
   newStageId: z.string(),
@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    const forbidden = requireRole(dbUser, STAFF_ROLES);
+    const forbidden = requirePermission(dbUser, 'crm', 'edit');
     if (forbidden) return forbidden;
 
     const { newStageId } = MoveSchema.parse(await request.json());

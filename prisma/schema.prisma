@@ -36,6 +36,8 @@ model User {
   avatar      String?
   role        UserRole
   companyId   String
+  // Permissões por módulo: { patients|crm|agenda|followup|dashboard|configuracoes: 'none'|'view'|'edit' }
+  permissions Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?

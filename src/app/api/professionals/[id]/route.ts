@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
+import { resolveDbUser } from '@/lib/api/session';
+import { requirePermission } from '@/lib/api/permissions';
 
 const Schema = z.object({
   name: z.string().min(1).optional(),
@@ -16,7 +17,7 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
 
     const existing = await prisma.professional.findFirst({
@@ -52,7 +53,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
 
-    const forbidden = requireRole(dbUser!, ADMIN_ROLES);
+    const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;
 
     const existing = await prisma.professional.findFirst({
