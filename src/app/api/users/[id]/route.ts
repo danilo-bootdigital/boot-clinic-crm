@@ -67,7 +67,11 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     const admin = createAdminClient();
     if (admin) await admin.auth.admin.deleteUser(params.id).catch(() => {});
 
-    await prisma.user.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
+    // Soft-delete liberando o e-mail (unique) para permitir recadastro futuro.
+    await prisma.user.update({
+      where: { id: params.id },
+      data: { deletedAt: new Date(), email: `removido_${params.id}@deleted.local` },
+    });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Erro ao remover usuário:', err);
