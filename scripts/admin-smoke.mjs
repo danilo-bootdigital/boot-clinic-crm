@@ -6,13 +6,23 @@
 // Uso: SEED_ADMIN_PASSWORD=... BASE_URL=https://... node scripts/admin-smoke.mjs
 globalThis.WebSocket = globalThis.WebSocket || class { close() {} }
 import { createServerClient } from '@supabase/ssr'
+import { PrismaClient } from '@prisma/client'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 const BASE = process.env.BASE_URL || 'http://localhost:3997'
-const EMAIL = process.env.SEED_ADMIN_EMAIL || 'danilo@bootdigital.com.br'
-const PASSWORD = process.env.SEED_ADMIN_PASSWORD
-if (!PASSWORD) { console.error('Defina SEED_ADMIN_PASSWORD'); process.exit(1) }
+
+// Modo 1 (prod): logar como o super-admin real (SEED_ADMIN_PASSWORD).
+// Modo 2 (local autônomo): sem senha, criamos um super-admin temporário via
+// service role e o destruímos no fim — não toca em nenhuma conta real.
+let EMAIL = process.env.SEED_ADMIN_EMAIL || 'danilo@bootdigital.com.br'
+let PASSWORD = process.env.SEED_ADMIN_PASSWORD
+const BOOTSTRAP = !PASSWORD
+if (BOOTSTRAP && !SERVICE) {
+  console.error('Defina SEED_ADMIN_PASSWORD, ou SUPABASE_SERVICE_ROLE_KEY para bootstrap automático.')
+  process.exit(1)
+}
 
 const OWNER_EMAIL = 'clinica.smoke.owner@example.com'
 const OWNER_PASS = 'SmokeOwner123!'
@@ -33,7 +43,47 @@ function makeClient() {
   return { sb, req }
 }
 
+// Cria um super-admin temporário (Auth + Company + User SUPER_ADMIN). Devolve
+// uma função de teardown que apaga tudo. Usado só no modo bootstrap local.
+async function bootstrapSuperAdmin() {
+  const { createClient } = await import('@supabase/supabase-js')
+  const sb = createClient(URL, SERVICE, { auth: { autoRefreshToken: false, persistSession: false } })
+  const prisma = new PrismaClient()
+  const email = 'super.smoke@example.com'
+  const password = 'SuperSmoke123!'
+
+  // limpa resíduo de execução anterior
+  const list = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  const old = list.data?.users?.find((u) => u.email?.toLowerCase() === email)
+  if (old) await sb.auth.admin.deleteUser(old.id).catch(() => {})
+  await prisma.user.deleteMany({ where: { email } }).catch(() => {})
+
+  const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true })
+  if (error || !data?.user) throw error || new Error('falha ao criar super temp')
+  const company = await prisma.company.create({ data: { name: 'SaaS Admin (smoke temp)', status: 'ACTIVE' } })
+  await prisma.user.create({ data: { id: data.user.id, email, name: 'Super Smoke', role: 'SUPER_ADMIN', companyId: company.id } })
+
+  EMAIL = email
+  PASSWORD = password
+  const uid = data.user.id
+  const companyId = company.id
+  const teardown = async () => {
+    await sb.auth.admin.deleteUser(uid).catch(() => {})
+    await prisma.user.deleteMany({ where: { id: uid } }).catch(() => {})
+    await prisma.company.delete({ where: { id: companyId } }).catch(() => {})
+    await prisma.$disconnect()
+  }
+  return teardown
+}
+
 async function main() {
+  let teardown = null
+  if (BOOTSTRAP) {
+    console.log('\n== BOOTSTRAP SUPER-ADMIN TEMPORÁRIO ==')
+    teardown = await bootstrapSuperAdmin()
+    console.log('  ✅ Super-admin temporário criado:', EMAIL)
+  }
+
   console.log('\n== SUPER-ADMIN LOGIN ==')
   const admin = makeClient()
   const a = await admin.sb.auth.signInWithPassword({ email: EMAIL, password: PASSWORD })
@@ -93,6 +143,8 @@ async function main() {
   del.status === 200 ? ok('Clínica encerrada (Auth + soft-delete)') : fail(`DELETE company: ${del.status}`)
   const list2 = await admin.req('GET', '/api/admin/companies')
   !list2.json?.companies?.some((c) => c.id === companyId) ? ok('Sumiu da lista') : fail('Ainda na lista')
+
+  if (teardown) { await teardown(); console.log('\n  🧹 Super-admin temporário removido.') }
 
   console.log(process.exitCode ? '\n⚠️  Admin smoke com falhas.' : '\n🎉 Admin smoke: criar + isolar + suspender + bloquear + reativar + encerrar OK.')
 }
