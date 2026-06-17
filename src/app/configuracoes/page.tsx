@@ -139,6 +139,14 @@ function UsuariosTab() {
     else { setMsg('Permissões salvas.'); setEditing(null) }
     load()
   }
+  async function removeUser(id: string, name: string) {
+    if (!confirm(`Remover o usuário ${name}? A conta de acesso será excluída.`)) return
+    setMsg(null)
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' })
+    if (!res.ok) setMsg((await res.json().catch(() => ({}))).error || 'Falha ao remover usuário')
+    else setMsg('Usuário removido.')
+    load()
+  }
   async function createUser(e: React.FormEvent) {
     e.preventDefault(); setMsg(null)
     const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
@@ -198,6 +206,11 @@ function UsuariosTab() {
                       Permissões
                     </button>
                   )}
+                  <button
+                    onClick={() => removeUser(u.id, u.name)}
+                    className="px-3 py-1.5 text-sm border border-destructive/30 text-destructive rounded-md hover:bg-destructive/10">
+                    Remover
+                  </button>
                 </div>
               </div>
               {editing === u.id && (
