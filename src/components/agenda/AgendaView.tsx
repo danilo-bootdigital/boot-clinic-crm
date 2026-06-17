@@ -62,13 +62,29 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
     '16:00', '16:30', '17:00', '17:30', '18:00'
   ];
 
+  const SLOT_MS = 30 * 60000;
+  const slotDate = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    const d = new Date(selectedDate);
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+  // Consulta que COMEÇA dentro deste slot de 30 min (renderiza o card).
   const getAppointmentForTimeSlot = (time: string) => {
+    const s = slotDate(time).getTime();
+    const e = s + SLOT_MS;
     return appointments.find(apt => {
-      const aptHour = new Date(apt.startAt).getHours();
-      const aptMinute = new Date(apt.startAt).getMinutes();
-      const slotHour = parseInt(time.split(':')[0]);
-      const slotMinute = parseInt(time.split(':')[1]);
-      return aptHour === slotHour && aptMinute === slotMinute;
+      const as = new Date(apt.startAt).getTime();
+      return as >= s && as < e;
+    });
+  };
+  // Consulta que NÃO começa aqui, mas ocupa este slot (duração > 30 min).
+  const getCoveringAppointment = (time: string) => {
+    const s = slotDate(time).getTime();
+    return appointments.find(apt => {
+      const as = new Date(apt.startAt).getTime();
+      const ae = new Date(apt.endAt).getTime();
+      return as < s && ae > s;
     });
   };
 
@@ -143,6 +159,7 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
           <div className="flex-1">
             {timeSlots.map((time) => {
               const appointment = getAppointmentForTimeSlot(time);
+              const covering = appointment ? null : getCoveringAppointment(time);
 
               return (
                 <div key={time} className="h-16 border-b flex">
@@ -160,6 +177,13 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
                       <div className="text-xs text-blue-600">
                         {appointment.specialty?.name || 'Especialidade'}
                       </div>
+                    </div>
+                  ) : covering ? (
+                    <div
+                      className="w-full h-full p-2 m-1 bg-blue-50 border border-blue-200 rounded cursor-pointer hover:bg-blue-100"
+                      onClick={() => onAppointmentClick(covering)}
+                    >
+                      <div className="text-xs text-blue-500 text-center">Ocupado</div>
                     </div>
                   ) : (
                     <div className="w-full h-full p-2 m-1 bg-gray-50 border border-gray-200 rounded opacity-50">

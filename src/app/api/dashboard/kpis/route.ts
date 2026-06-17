@@ -11,6 +11,7 @@ export async function GET() {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
@@ -38,10 +39,10 @@ export async function GET() {
       prisma.deal.count({ where: { companyId, deletedAt: null, status: 'LOST', lostAt: { gte: monthStart } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: apptOpen, startAt: { gte: todayStart, lt: todayEnd } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: apptOpen, startAt: { gte: weekStart, lt: weekEnd } } }),
-      prisma.appointment.count({ where: { companyId, deletedAt: null, status: apptOpen, startAt: { gte: monthStart } } }),
-      prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'ATTENDED', startAt: { gte: monthStart } } }),
+      prisma.appointment.count({ where: { companyId, deletedAt: null, status: apptOpen, startAt: { gte: monthStart, lt: monthEnd } } }),
+      prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'ATTENDED', startAt: { gte: monthStart, lt: monthEnd } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'ATTENDED', startAt: { gte: prevMonthStart, lt: monthStart } } }),
-      prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: monthStart } } }),
+      prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: monthStart, lt: monthEnd } } }),
       prisma.patient.groupBy({ by: ['origin'], _count: true, where: { companyId, deletedAt: null } }),
       prisma.appointment.groupBy({ by: ['status'], _count: true, where: { companyId, deletedAt: null, startAt: { gte: todayStart, lt: todayEnd } } }),
       prisma.appointment.count({ where: { companyId, deletedAt: null, status: 'NO_SHOW', startAt: { gte: last7 } } }),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveDbUser } from '@/lib/api/session';
+import { findAppointmentConflict } from '@/lib/api/appointments';
 
 const CreateSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -73,15 +74,11 @@ export async function POST(request: NextRequest) {
     const endAt = new Date(startAt.getTime() + data.durationMinutes * 60000);
 
     // Checagem de conflito: mesmo profissional, horário sobreposto, não cancelado.
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        companyId: dbUser!.companyId,
-        professionalId: data.professionalId,
-        deletedAt: null,
-        status: { notIn: ['CANCELED', 'NO_SHOW'] },
-        startAt: { lt: endAt },
-        endAt: { gt: startAt },
-      },
+    const conflict = await findAppointmentConflict({
+      companyId: dbUser!.companyId,
+      professionalId: data.professionalId,
+      startAt,
+      endAt,
     });
     if (conflict) return NextResponse.json({ error: 'Conflito de horário para este profissional' }, { status: 409 });
 

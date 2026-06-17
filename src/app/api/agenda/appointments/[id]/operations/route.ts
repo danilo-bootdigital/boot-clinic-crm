@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveDbUser } from '@/lib/api/session';
+import { findAppointmentConflict } from '@/lib/api/appointments';
 
 const Schema = z.object({
   action: z.enum(['confirm', 'attend', 'no_show', 'cancel', 'reschedule']),
@@ -42,7 +43,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         if (!body.newStartAt) return NextResponse.json({ error: 'Nova data/hora é obrigatória' }, { status: 400 });
         const startAt = new Date(body.newStartAt);
         const duration = body.newDurationMinutes ?? existing.durationMinutes;
-        data = { status: 'PENDING', startAt, endAt: new Date(startAt.getTime() + duration * 60000), durationMinutes: duration };
+        const endAt = new Date(startAt.getTime() + duration * 60000);
+        const conflict = await findAppointmentConflict({
+          companyId: dbUser!.companyId,
+          professionalId: existing.professionalId,
+          startAt,
+          endAt,
+          excludeId: params.id,
+        });
+        if (conflict) return NextResponse.json({ error: 'Conflito de horário para este profissional' }, { status: 409 });
+        data = { status: 'PENDING', startAt, endAt, durationMinutes: duration };
         break;
       }
     }

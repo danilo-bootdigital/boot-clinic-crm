@@ -66,6 +66,16 @@ async function main() {
   const conflict = await req('POST', '/api/agenda/appointments', { patientId, professionalId, specialtyId, type: 'Consulta', startAt, durationMinutes: 30 })
   conflict.status === 409 ? ok('Conflito de horário detectado (409)') : fail(`esperava 409, veio ${conflict.status}`)
 
+  console.log('\n== CONFLITO NA EDIÇÃO (#1) ==')
+  const startAt2 = new Date(`${dateStr}T10:00:00`).toISOString()
+  const a2 = await req('POST', '/api/agenda/appointments', { patientId, professionalId, specialtyId, type: 'Consulta', startAt: startAt2, durationMinutes: 30 })
+  const id2 = a2.json?.id
+  const editConf = await req('PUT', `/api/agenda/appointments/${id2}`, { startAt }) // move o 10:00 p/ 09:00 (ocupado)
+  editConf.status === 409 ? ok('Editar para horário ocupado → 409') : fail(`edição deveria dar 409, veio ${editConf.status}`)
+  const reConf = await req('PATCH', `/api/agenda/appointments/${id2}/operations`, { action: 'reschedule', newStartAt: startAt })
+  reConf.status === 409 ? ok('Remarcar para horário ocupado → 409') : fail(`remarcar deveria dar 409, veio ${reConf.status}`)
+  if (id2) await req('DELETE', `/api/agenda/appointments/${id2}`)
+
   console.log('\n== OPERAÇÕES DE STATUS ==')
   const c1 = await req('PATCH', `/api/agenda/appointments/${id}/operations`, { action: 'confirm' })
   c1.status === 200 && c1.json.status === 'CONFIRMED' ? ok('Confirmado') : fail(`confirm: ${c1.status}`)
@@ -87,6 +97,8 @@ async function main() {
   console.log('\n== EXCLUIR AGENDAMENTO ==')
   const del = await req('DELETE', `/api/agenda/appointments/${id}`)
   del.status === 200 ? ok('Excluído') : fail(`DELETE: ${del.status}`)
+  // auto-limpeza do paciente de teste (evita colisão de CPF com outros smokes)
+  if (patientId) await req('DELETE', `/api/patients/${patientId}`)
 
   console.log('\n== PROTEÇÃO ==')
   const noauth = await fetch(BASE + '/api/agenda/appointments').then((r) => r.status)

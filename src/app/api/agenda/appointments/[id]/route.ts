@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveDbUser } from '@/lib/api/session';
+import { findAppointmentConflict } from '@/lib/api/appointments';
 
 const UpdateSchema = z.object({
   patientId: z.string().optional(),
@@ -53,6 +54,18 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     if (d.startAt) startAt = new Date(d.startAt);
     const duration = d.durationMinutes ?? existing.durationMinutes;
     if (d.startAt || d.durationMinutes) endAt = new Date(startAt.getTime() + duration * 60000);
+
+    // Re-checa conflito quando muda horário/duração/profissional (ignora o próprio).
+    if (d.startAt || d.durationMinutes || d.professionalId) {
+      const conflict = await findAppointmentConflict({
+        companyId: dbUser!.companyId,
+        professionalId: d.professionalId ?? existing.professionalId,
+        startAt,
+        endAt,
+        excludeId: params.id,
+      });
+      if (conflict) return NextResponse.json({ error: 'Conflito de horário para este profissional' }, { status: 409 });
+    }
 
     const appt = await prisma.appointment.update({
       where: { id: params.id },
