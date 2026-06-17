@@ -15,6 +15,12 @@ interface PatientFormData {
   email?: string;
   origin: string;
   status?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  insurance?: string;
+  insuranceNumber?: string;
   notes?: string;
 }
 
@@ -41,6 +47,12 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
       email: patient.email || '',
       origin: patient.origin,
       status: patient.status,
+      address: (patient as any).address || '',
+      city: (patient as any).city || '',
+      state: (patient as any).state || '',
+      zipCode: (patient as any).zipCode || '',
+      insurance: (patient as any).insurance || '',
+      insuranceNumber: (patient as any).insuranceNumber || '',
       notes: patient.notes || '',
     } : {
       name: '',
@@ -52,6 +64,12 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
       email: '',
       origin: PatientOrigin.OTHER,
       status: 'ACTIVE',
+      address: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      insurance: '',
+      insuranceNumber: '',
       notes: '',
     },
   });
@@ -188,6 +206,43 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
               <option value={PatientOrigin.WHATSAPP}>WhatsApp</option>
               <option value={PatientOrigin.OTHER}>Outro</option>
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+            <input type="text" id="address" {...register('address')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+              <input type="text" id="city" {...register('city')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <input type="text" id="state" maxLength={2} placeholder="UF" {...register('state')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
+              <input type="text" id="zipCode" placeholder="00000-000" {...register('zipCode')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="insurance" className="block text-sm font-medium text-gray-700 mb-1">Convênio</label>
+              <input type="text" id="insurance" {...register('insurance')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label htmlFor="insuranceNumber" className="block text-sm font-medium text-gray-700 mb-1">Nº da carteirinha</label>
+              <input type="text" id="insuranceNumber" {...register('insuranceNumber')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
           </div>
 
           <div>

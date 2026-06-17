@@ -51,12 +51,13 @@ export default function PacientesPage() {
   const [mode, setMode] = useState<Mode>('list')
   const [selected, setSelected] = useState<Patient | null>(null)
   const [saving, setSaving] = useState(false)
+  const [viewArchived, setViewArchived] = useState(false)
 
   const loadPatients = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/patients?limit=100', { cache: 'no-store' })
+      const res = await fetch(`/api/patients?limit=100${viewArchived ? '&archived=true' : ''}`, { cache: 'no-store' })
       if (res.status === 401) {
         router.push('/login?redirect=/pacientes')
         return
@@ -69,7 +70,7 @@ export default function PacientesPage() {
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [router, viewArchived])
 
   useEffect(() => {
     loadPatients()
@@ -123,6 +124,21 @@ export default function PacientesPage() {
     }
   }
 
+  async function handleRestore(patient: Patient) {
+    if (!confirm(`Restaurar o paciente ${patient.name}?`)) return
+    setError(null)
+    try {
+      const res = await fetch(`/api/patients/${patient.id}/restore`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Falha ao restaurar paciente')
+      }
+      await loadPatients()
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
   async function handleDeactivate(patient: Patient) {
     if (!confirm(`Inativar o paciente ${patient.name}?`)) return
     setError(null)
@@ -170,15 +186,27 @@ export default function PacientesPage() {
       )}
 
       {mode === 'list' && (
-        loading ? (
-          <LoadingState rows={5} label="Carregando pacientes" />
-        ) : (
-          <PatientList
-            patients={patients}
-            onView={(p) => { setSelected(p as Patient); setMode('view') }}
-            onEdit={(p) => { setSelected(p as Patient); setMode('edit') }}
-          />
-        )
+        <>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewArchived((v) => !v)}
+              className={`rounded-md border px-3 py-1.5 text-sm font-medium ${viewArchived ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+            >
+              {viewArchived ? '← Voltar aos ativos' : 'Ver arquivados'}
+            </button>
+            {viewArchived && <span className="text-sm text-muted-foreground">Mostrando pacientes inativados — clique em Restaurar para reativar.</span>}
+          </div>
+          {loading ? (
+            <LoadingState rows={5} label="Carregando pacientes" />
+          ) : (
+            <PatientList
+              patients={patients}
+              onView={(p) => router.push(`/pacientes/${p.id}`)}
+              onEdit={(p) => { setSelected(p as Patient); setMode('edit') }}
+              onRestore={viewArchived ? handleRestore : undefined}
+            />
+          )}
+        </>
       )}
 
       {mode === 'create' && (

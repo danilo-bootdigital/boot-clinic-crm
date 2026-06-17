@@ -88,6 +88,14 @@ model Patient {
   email       String?
   origin      PatientOrigin
   status      PatientStatus @default(ACTIVE)
+  // Endereço e convênio
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  insurance       String?  // convênio
+  insuranceNumber String?  // número da carteirinha
+  notes           String?  // observações
   companyId   String
   createdById String
   createdAt   DateTime @default(now())
@@ -177,7 +185,7 @@ model PatientAttachment {
 // Tags de Pacientes
 model Tag {
   id        String   @id @default(cuid())
-  name      String   @unique
+  name      String
   color     String   @default("#3B82F6")
   companyId String
   createdAt DateTime @default(now())
@@ -186,6 +194,8 @@ model Tag {
   company   Company        @relation(fields: [companyId], references: [id])
   patients  PatientTag[]
 
+  // Único por empresa (não global) — cada clínica tem suas próprias tags.
+  @@unique([companyId, name])
   @@map("tags")
 }
 
@@ -734,6 +744,15 @@ enum ActionType {
   CREATE_TIMELINE_EVENT
   ASSIGN_USER
   UPDATE_STATUS
+  // Ações genéricas de auditoria (CRUD)
+  CREATE
+  UPDATE
+  ARCHIVE
+  RESTORE
+  UPLOAD_ATTACHMENT
+  DELETE_ATTACHMENT
+  ADD_TAG
+  REMOVE_TAG
 }
 
 enum ExecutionStatus {

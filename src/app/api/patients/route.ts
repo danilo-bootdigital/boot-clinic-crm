@@ -6,17 +6,26 @@ import { UserRole, Prisma } from '@prisma/client';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
 import { runAutomations } from '@/lib/automations/engine';
+import { writeAudit } from '@/lib/api/audit';
 
 const CreatePatientInputSchema = z.object({
-  name: z.string(),
-  cpf: z.string(),
+  name: z.string().min(1, 'Nome é obrigatório'),
+  cpf: z.string().min(1, 'CPF é obrigatório'),
   birthDate: z.string(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
-  phone: z.string(),
+  phone: z.string().min(1, 'Telefone é obrigatório'),
   whatsapp: z.string().optional(),
-  email: z.string().optional(),
+  email: z.string().email('E-mail inválido').optional().or(z.literal('')),
   origin: z.enum(['GOOGLE', 'FACEBOOK', 'INSTAGRAM', 'REFERRAL', 'WALK_IN', 'PHONE', 'WHATSAPP', 'OTHER']),
   status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  // Endereço / convênio / observações
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  insurance: z.string().optional(),
+  insuranceNumber: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 // GET /api/patients - Listar pacientes
@@ -31,6 +40,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
     const origin = searchParams.get('origin') || '';
+    // archived=true → lista pacientes inativados (soft delete) para restauração.
+    const archived = searchParams.get('archived') === 'true';
 
     // Buscar usuário com companyId
     const dbUser = await prisma.user.findUnique({
@@ -48,7 +59,7 @@ export async function GET(request: NextRequest) {
     // deletedAt: null garante que pacientes inativados (soft delete) não apareçam.
     let where: any = {
       companyId: dbUser.companyId,
-      deletedAt: null,
+      deletedAt: archived ? { not: null } : null,
     };
 
     // Super Admin pode filtrar por companyId
@@ -157,6 +168,13 @@ export async function POST(request: NextRequest) {
         email: validatedData.email || null,
         origin: validatedData.origin,
         status: validatedData.status,
+        address: validatedData.address || null,
+        city: validatedData.city || null,
+        state: validatedData.state || null,
+        zipCode: validatedData.zipCode || null,
+        insurance: validatedData.insurance || null,
+        insuranceNumber: validatedData.insuranceNumber || null,
+        notes: validatedData.notes || null,
         companyId: dbUser.companyId,
         createdById: dbUser.id,
       },
@@ -177,6 +195,12 @@ export async function POST(request: NextRequest) {
         content: `Paciente ${patient.name} foi cadastrado por ${dbUser.name}`,
         userId: dbUser.id,
       },
+    });
+
+    // Auditoria: paciente criado.
+    await writeAudit({
+      dbUser, action: 'CREATE', entityType: 'PATIENT', entityId: patient.id,
+      newValues: { name: patient.name, cpf: patient.cpf, status: patient.status }, request,
     });
 
     // Dispara automações de "paciente criado" (não bloqueia em caso de falha).

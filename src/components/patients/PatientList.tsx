@@ -22,9 +22,11 @@ interface PatientListProps {
   patients: Patient[];
   onEdit: (patient: Patient) => void;
   onView: (patient: Patient) => void;
+  /** Quando fornecido, exibe ação "Restaurar" (modo arquivados). */
+  onRestore?: (patient: Patient) => void;
 }
 
-export default function PatientList({ patients, onEdit, onView }: PatientListProps) {
+export default function PatientList({ patients, onEdit, onView, onRestore }: PatientListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [originFilter, setOriginFilter] = useState<string>('');
@@ -176,18 +178,29 @@ export default function PatientList({ patients, onEdit, onView }: PatientListPro
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => onView(patient)}
-                    className="text-blue-600 hover:text-blue-900 mr-3"
-                  >
-                    Ver
-                  </button>
-                  <button
-                    onClick={() => onEdit(patient)}
-                    className="text-indigo-600 hover:text-indigo-900"
-                  >
-                    Editar
-                  </button>
+                  {onRestore ? (
+                    <button
+                      onClick={() => onRestore(patient)}
+                      className="text-green-600 hover:text-green-900"
+                    >
+                      Restaurar
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => onView(patient)}
+                        className="text-blue-600 hover:text-blue-900 mr-3"
+                      >
+                        Ver
+                      </button>
+                      <button
+                        onClick={() => onEdit(patient)}
+                        className="text-indigo-600 hover:text-indigo-900"
+                      >
+                        Editar
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

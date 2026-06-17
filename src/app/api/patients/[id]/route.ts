@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { writeAudit } from '@/lib/api/audit';
 
 // Schema de atualização. CPF é imutável (não incluído).
 const UpdatePatientInputSchema = z.object({
@@ -16,6 +17,13 @@ const UpdatePatientInputSchema = z.object({
   email: z.string().optional().nullable(),
   origin: z.enum(['GOOGLE', 'FACEBOOK', 'INSTAGRAM', 'REFERRAL', 'WALK_IN', 'PHONE', 'WHATSAPP', 'OTHER']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  zipCode: z.string().optional().nullable(),
+  insurance: z.string().optional().nullable(),
+  insuranceNumber: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 // Resolve o usuário do banco a partir da sessão Supabase e devolve o escopo de empresa.
@@ -87,6 +95,13 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
         ...(data.email !== undefined && { email: data.email || null }),
         ...(data.origin !== undefined && { origin: data.origin }),
         ...(data.status !== undefined && { status: data.status }),
+        ...(data.address !== undefined && { address: data.address || null }),
+        ...(data.city !== undefined && { city: data.city || null }),
+        ...(data.state !== undefined && { state: data.state || null }),
+        ...(data.zipCode !== undefined && { zipCode: data.zipCode || null }),
+        ...(data.insurance !== undefined && { insurance: data.insurance || null }),
+        ...(data.insuranceNumber !== undefined && { insuranceNumber: data.insuranceNumber || null }),
+        ...(data.notes !== undefined && { notes: data.notes || null }),
       },
       include: {
         tags: true,
@@ -104,6 +119,12 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
       },
     });
 
+    await writeAudit({
+      dbUser: dbUser!, action: 'UPDATE', entityType: 'PATIENT', entityId: patient.id,
+      oldValues: { name: existing.name, status: existing.status },
+      newValues: { name: patient.name, status: patient.status }, request,
+    });
+
     return NextResponse.json(patient);
   } catch (err) {
     console.error('Erro ao atualizar paciente:', err);
@@ -118,7 +139,7 @@ export const PUT = updateHandler;
 export const PATCH = updateHandler;
 
 // DELETE /api/patients/[id] - Inativar (soft delete) um paciente
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
@@ -145,6 +166,11 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
         content: `Paciente ${patient.name} foi inativado por ${dbUser!.name}`,
         userId: dbUser!.id,
       },
+    });
+
+    await writeAudit({
+      dbUser: dbUser!, action: 'ARCHIVE', entityType: 'PATIENT', entityId: patient.id,
+      oldValues: { status: existing.status }, newValues: { status: 'ARCHIVED' }, request,
     });
 
     return NextResponse.json({ success: true });
