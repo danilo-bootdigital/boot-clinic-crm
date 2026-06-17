@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
       email_confirm: true,
     });
     if (authErr || !created?.user) {
+      console.error('createUser auth error:', authErr);
       const msg = /already|registered|exists/i.test(authErr?.message || '') ? 'E-mail já cadastrado' : 'Falha ao criar conta de acesso';
-      return NextResponse.json({ error: msg }, { status: 400 });
+      return NextResponse.json({ error: msg, details: authErr?.message }, { status: 400 });
     }
 
     // Cria a linha no banco com id = UID do Auth, papel e permissões.
