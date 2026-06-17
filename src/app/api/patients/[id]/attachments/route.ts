@@ -51,6 +51,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Arquivo não enviado (campo "file").' }, { status: 400 });
     }
     const blob = file as File;
+    if (blob.size === 0) {
+      return NextResponse.json({ error: 'Arquivo vazio.' }, { status: 400 });
+    }
     if (blob.size > MAX_SIZE) {
       return NextResponse.json({ error: 'Arquivo excede o limite de 10 MB.' }, { status: 400 });
     }

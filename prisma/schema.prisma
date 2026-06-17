@@ -80,7 +80,7 @@ enum UserRole {
 model Patient {
   id          String   @id @default(cuid())
   name        String
-  cpf         String   @unique
+  cpf         String
   birthDate   DateTime
   gender      Gender
   phone       String
@@ -109,6 +109,10 @@ model Patient {
   attachments PatientAttachment[]
   tags        PatientTag[]
 
+  // CPF é único POR EMPRESA (não global): a mesma pessoa pode ser paciente de
+  // várias clínicas. (Reuso de CPF de paciente arquivado segue como dívida
+  // conhecida — exigiria índice único parcial WHERE deleted_at IS NULL.)
+  @@unique([companyId, cpf])
   @@map("patients")
 }
 

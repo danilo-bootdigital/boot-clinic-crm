@@ -13,7 +13,9 @@ const UpdateSchema = z.object({
   cnpj: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   email: z.string().email('E-mail inválido').optional().or(z.literal('')).nullable(),
-  plan: z.string().optional().nullable(),
+  // plan restrito ao catálogo (igual ao POST) — evita plano inexistente que
+  // burla o gating de cobrança (getPlan retorna undefined → tratado como grátis).
+  plan: z.enum(['trial', 'basic', 'pro']).optional(),
   status: z.enum(['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELED']).optional(),
 });
 
@@ -69,6 +71,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!exists) return NextResponse.json({ error: 'Clínica não encontrada' }, { status: 404 });
 
     const d = UpdateSchema.parse(await request.json());
+
+    // Guard de auto-alvo: o super-admin não pode suspender/cancelar a PRÓPRIA
+    // clínica (bloquearia toda a equipe não-super dela). Espelha o DELETE.
+    if (params.id === dbUser!.companyId && (d.status === 'SUSPENDED' || d.status === 'CANCELED')) {
+      return NextResponse.json({ error: 'Você não pode suspender/cancelar a sua própria clínica' }, { status: 400 });
+    }
+
     const company = await prisma.company.update({
       where: { id: params.id },
       data: {
@@ -81,6 +90,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       },
       select: { id: true, name: true, status: true, plan: true },
     });
+
+    // Ao CANCELAR, encerra a assinatura recorrente no Asaas (senão o cartão
+    // continua sendo cobrado mesmo com a clínica cancelada). SUSPENDED apenas
+    // bloqueia acesso (inadimplência transitória) — não cancela.
+    if (d.status === 'CANCELED' && exists.asaasSubscriptionId && isAsaasConfigured()) {
+      await cancelSubscription(exists.asaasSubscriptionId).catch((e) =>
+        console.warn('[asaas] falha ao cancelar assinatura no cancelamento da clínica:', e?.message)
+      );
+    }
+
     return NextResponse.json(company);
   } catch (err) {
     if (err instanceof z.ZodError)

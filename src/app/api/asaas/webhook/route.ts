@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
   try {
     const expected = process.env.ASAAS_WEBHOOK_TOKEN;
     const token = request.headers.get('asaas-access-token');
-    // Se o token estiver configurado, exige correspondência. (Sem token configurado,
-    // aceita — útil em setup inicial, mas recomenda-se sempre configurar.)
-    if (expected && token !== expected) {
+    // Fail-closed: sem ASAAS_WEBHOOK_TOKEN configurado, OU token divergente,
+    // rejeita. Endpoint público que muda estado de assinatura NÃO pode ser
+    // fail-open (senão um POST forjado suspende/ativa qualquer clínica).
+    if (!expected || token !== expected) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
 
@@ -37,20 +38,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, ignored: 'payload sem event/payment' });
     }
 
-    // Localiza a clínica pela assinatura (ou cliente) do Asaas.
+    // Casa a clínica APENAS pela assinatura do SaaS (asaasSubscriptionId).
+    // NÃO casar por asaasCustomerId: um pagamento avulso/antigo do mesmo cliente
+    // mudaria o status da assinatura indevidamente (pagamento errado).
+    if (!payment.subscription) {
+      return NextResponse.json({ received: true, ignored: 'pagamento sem assinatura (não é a assinatura do SaaS)' });
+    }
     const company = await prisma.company.findFirst({
-      where: {
-        deletedAt: null,
-        OR: [
-          payment.subscription ? { asaasSubscriptionId: String(payment.subscription) } : undefined,
-          payment.customer ? { asaasCustomerId: String(payment.customer) } : undefined,
-        ].filter(Boolean) as any,
-      },
+      where: { deletedAt: null, asaasSubscriptionId: String(payment.subscription) },
     });
 
     if (!company) {
       // 200 para o Asaas não reenviar indefinidamente; logamos para auditoria.
-      console.warn('[asaas webhook] clínica não encontrada para', { event, subscription: payment.subscription, customer: payment.customer });
+      console.warn('[asaas webhook] clínica não encontrada para', { event, subscription: payment.subscription });
       return NextResponse.json({ received: true, matched: false });
     }
 

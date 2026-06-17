@@ -45,10 +45,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       if (!tag) return NextResponse.json({ error: 'Tag não encontrada nesta clínica' }, { status: 404 });
     } else {
       const name = d.name!.trim();
-      tag = await prisma.tag.findFirst({ where: { companyId: dbUser!.companyId, name } });
-      if (!tag) {
-        tag = await prisma.tag.create({ data: { name, color: d.color || '#3B82F6', companyId: dbUser!.companyId } });
-      }
+      // upsert no índice único (companyId, name) — evita corrida find-then-create
+      // (dois requests criando a mesma tag → P2002 → 500). Reaproveita se existir.
+      tag = await prisma.tag.upsert({
+        where: { companyId_name: { companyId: dbUser!.companyId, name } },
+        update: {},
+        create: { name, color: d.color || '#3B82F6', companyId: dbUser!.companyId },
+      });
     }
 
     // Vincula (ignora se já vinculada).

@@ -35,8 +35,11 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
     const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    // Clamp p/ evitar NaN/negativos quebrando o Prisma (skip/take inválidos → 500).
+    const pageRaw = parseInt(searchParams.get('page') || '1', 10);
+    const limitRaw = parseInt(searchParams.get('limit') || '10', 10);
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 10;
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
     const origin = searchParams.get('origin') || '';

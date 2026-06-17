@@ -139,8 +139,16 @@ export async function POST(request: NextRequest) {
         return company;
       });
 
-      // 3) Cobrança (Asaas). Não derruba o cadastro se falhar — devolve aviso.
-      const billing = await provisionBilling(company.id, d.plan);
+      // 3) Cobrança (Asaas). A clínica JÁ foi criada (transação commitada), então
+      // uma falha aqui NÃO pode cair no catch de rollback do Auth (deixaria
+      // Company+User órfãos). Qualquer erro vira aviso e a cobrança é refeita depois.
+      let billing: { invoiceUrl: string | null; warning?: string };
+      try {
+        billing = await provisionBilling(company.id, d.plan);
+      } catch (billingErr: any) {
+        console.error('Erro ao provisionar cobrança (clínica já criada):', billingErr);
+        billing = { invoiceUrl: null, warning: `Clínica criada, mas a cobrança falhou: ${billingErr?.message || 'erro'}. Gere a cobrança depois em Cobrança.` };
+      }
 
       return NextResponse.json(
         {

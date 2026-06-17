@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { Prisma } from '@prisma/client';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
@@ -58,6 +59,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     return NextResponse.json(patient);
   } catch (err) {
+    // Corrida: outro request reativou/criou o mesmo CPF entre a checagem e o
+    // update → violação do unique (companyId, cpf). Responde 400, não 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return NextResponse.json({ error: 'Já existe um paciente ativo com este CPF. Não é possível restaurar.' }, { status: 400 });
+    }
     console.error('Erro ao restaurar paciente:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }

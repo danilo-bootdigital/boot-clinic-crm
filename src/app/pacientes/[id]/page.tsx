@@ -49,7 +49,13 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
     const res = await fetch(`/api/patients/${id}`, { cache: 'no-store' })
     if (res.status === 401) { router.push(`/login?redirect=/pacientes/${id}`); return }
     if (res.status === 404) { setError('Paciente não encontrado'); setLoading(false); return }
-    if (res.ok) setPatient(await res.json())
+    if (res.ok) {
+      setPatient(await res.json())
+    } else {
+      // 403 (sem permissão), 500, 503… não deixar a tela em branco.
+      const e = await res.json().catch(() => ({}))
+      setError(e.error || `Não foi possível carregar o paciente (erro ${res.status}).`)
+    }
     setLoading(false)
   }, [id, router])
 

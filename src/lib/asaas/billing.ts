@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { createCustomer, createSubscription, listSubscriptionPayments, isAsaasConfigured } from './client';
+import { createCustomer, createSubscription, cancelSubscription, listSubscriptionPayments, isAsaasConfigured } from './client';
 import { getPlan, TRIAL_DAYS } from './plans';
 import { CompanyStatus } from '@prisma/client';
 
@@ -53,7 +53,9 @@ export async function provisionBilling(companyId: string, planKey: string): Prom
   }
 
   try {
-    // Reaproveita o cliente Asaas se já existir.
+    // Reaproveita o cliente Asaas se já existir. Se criar um novo, PERSISTE já
+    // (antes da assinatura) — assim uma falha na assinatura não deixa cliente
+    // órfão no Asaas nem recria um cliente duplicado no próximo retry.
     let customerId = company.asaasCustomerId;
     if (!customerId) {
       const customer = await createCustomer({
@@ -64,6 +66,15 @@ export async function provisionBilling(companyId: string, planKey: string): Prom
         externalReference: company.id,
       });
       customerId = customer.id;
+      await prisma.company.update({ where: { id: companyId }, data: { asaasCustomerId: customerId } }).catch(() => {});
+    }
+
+    // Cancela uma assinatura anterior antes de criar outra (retry/upgrade) —
+    // evita assinaturas duplicadas cobrando o cartão do cliente em dobro.
+    if (company.asaasSubscriptionId) {
+      await cancelSubscription(company.asaasSubscriptionId).catch((e) =>
+        console.warn('[asaas] falha ao cancelar assinatura anterior:', e?.message)
+      );
     }
 
     const sub = await createSubscription({
