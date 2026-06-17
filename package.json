@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "seed": "node --env-file=.env scripts/seed.mjs",
     "promote-super-admin": "node --env-file=.env scripts/promote-super-admin.mjs",
-    "admin-smoke": "node --env-file=.env scripts/admin-smoke.mjs"
+    "admin-smoke": "node --env-file=.env scripts/admin-smoke.mjs",
+    "asaas-webhook-smoke": "node --env-file=.env scripts/asaas-webhook-smoke.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",

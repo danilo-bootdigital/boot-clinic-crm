@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { Prisma, UserRole, CompanyStatus } from '@prisma/client';
 import { resolveDbUser, requireSuperAdmin } from '@/lib/api/session';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { provisionBilling } from '@/lib/asaas/billing';
+import { getPlan } from '@/lib/asaas/plans';
 
 // Painel SUPER-ADMIN (dono do SaaS). Cruza o limite de empresa — só SUPER_ADMIN.
 
@@ -13,8 +15,8 @@ const CreateSchema = z.object({
   cnpj: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   email: z.string().email('E-mail da clínica inválido').optional().or(z.literal('')).nullable(),
-  plan: z.string().optional().nullable(),
-  status: z.enum(['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELED']).optional(),
+  // Plano define a cobrança: 'trial' (grátis) | 'basic' | 'pro'.
+  plan: z.enum(['trial', 'basic', 'pro']).default('trial'),
   // Dados do usuário OWNER inicial
   ownerName: z.string().min(1, 'Nome do responsável é obrigatório'),
   ownerEmail: z.string().email('E-mail do responsável inválido'),
@@ -91,6 +93,12 @@ export async function POST(request: NextRequest) {
 
     const d = CreateSchema.parse(await request.json());
 
+    // Planos pagos exigem CNPJ (vira o cpfCnpj do cliente no Asaas).
+    const plan = getPlan(d.plan);
+    if (plan?.paid && !d.cnpj) {
+      return NextResponse.json({ error: 'CNPJ é obrigatório para planos pagos (Basic/Pro).' }, { status: 400 });
+    }
+
     // 1) Conta de acesso do OWNER no Supabase Auth (e-mail já confirmado).
     const { data: created, error: authErr } = await admin.auth.admin.createUser({
       email: d.ownerEmail,
@@ -114,8 +122,9 @@ export async function POST(request: NextRequest) {
             cnpj: d.cnpj || null,
             phone: d.phone || null,
             email: d.email || null,
-            plan: d.plan || null,
-            status: (d.status as CompanyStatus) || CompanyStatus.ACTIVE,
+            plan: d.plan,
+            // Começa em TRIAL; provisionBilling ajusta plano/status/datas.
+            status: CompanyStatus.TRIAL,
           },
         });
         await tx.user.create({
@@ -130,8 +139,17 @@ export async function POST(request: NextRequest) {
         return company;
       });
 
+      // 3) Cobrança (Asaas). Não derruba o cadastro se falhar — devolve aviso.
+      const billing = await provisionBilling(company.id, d.plan);
+
       return NextResponse.json(
-        { id: company.id, name: company.name, status: company.status },
+        {
+          id: company.id,
+          name: company.name,
+          plan: d.plan,
+          invoiceUrl: billing.invoiceUrl,
+          warning: billing.warning,
+        },
         { status: 201 }
       );
     } catch (dbErr) {

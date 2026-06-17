@@ -36,9 +36,11 @@ const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:
 const label = 'block text-sm font-medium text-gray-700 mb-1'
 
 const emptyForm = {
-  name: '', cnpj: '', phone: '', email: '', plan: 'trial', status: 'ACTIVE',
+  name: '', cnpj: '', phone: '', email: '', plan: 'trial',
   ownerName: '', ownerEmail: '', ownerPassword: '',
 }
+
+const PLAN_LABELS: Record<string, string> = { trial: 'Trial (grátis)', basic: 'Basic — R$197/mês', pro: 'Pro — R$397/mês' }
 
 export default function AdminPage() {
   const router = useRouter()
@@ -49,6 +51,7 @@ export default function AdminPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/companies', { cache: 'no-store' })
@@ -67,20 +70,53 @@ export default function AdminPage() {
     e.preventDefault()
     setSaving(true)
     setMsg(null)
+    setInvoiceUrl(null)
     const res = await fetch('/api/admin/companies', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
     setSaving(false)
+    const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      setMsg({ type: 'ok', text: 'Clínica criada com sucesso.' })
+      setInvoiceUrl(data.invoiceUrl || null)
+      setMsg({
+        type: 'ok',
+        text: data.warning
+          ? `Clínica criada, mas a cobrança ficou pendente: ${data.warning}`
+          : data.invoiceUrl
+            ? 'Clínica criada. Envie o link da fatura abaixo ao cliente para cadastrar o cartão.'
+            : 'Clínica criada com sucesso.',
+      })
       setForm(emptyForm)
       setShowForm(false)
       load()
     } else {
-      const e = await res.json().catch(() => ({}))
-      setMsg({ type: 'err', text: e.error || 'Falha ao criar a clínica.' })
+      setMsg({ type: 'err', text: data.error || 'Falha ao criar a clínica.' })
+    }
+  }
+
+  // Consulta/gera a cobrança de uma clínica e mostra o link da fatura.
+  async function openBilling(c: Company) {
+    setMsg(null); setInvoiceUrl(null)
+    const res = await fetch(`/api/admin/companies/${c.id}/billing`, { cache: 'no-store' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ type: 'err', text: data.error || 'Falha ao consultar cobrança.' }); return }
+    if (data.invoiceUrl) {
+      setInvoiceUrl(data.invoiceUrl)
+      setMsg({ type: 'ok', text: `Cobrança de "${c.name}" (${PLAN_LABELS[c.plan || 'trial'] || c.plan}) — status da fatura: ${data.lastPaymentStatus || '—'}.` })
+    } else if (!data.asaasConfigured) {
+      setMsg({ type: 'err', text: 'Asaas não configurado no servidor (defina ASAAS_API_KEY).' })
+    } else if ((c.plan === 'basic' || c.plan === 'pro') && !data.asaasSubscriptionId) {
+      // plano pago sem assinatura → tenta gerar
+      const gen = await fetch(`/api/admin/companies/${c.id}/billing`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: c.plan }),
+      })
+      const g = await gen.json().catch(() => ({}))
+      if (gen.ok && g.invoiceUrl) { setInvoiceUrl(g.invoiceUrl); setMsg({ type: 'ok', text: 'Assinatura gerada. Envie o link da fatura ao cliente.' }) }
+      else setMsg({ type: 'err', text: g.warning || g.error || 'Não foi possível gerar a assinatura.' })
+    } else {
+      setMsg({ type: 'ok', text: `"${c.name}" está no plano ${PLAN_LABELS[c.plan || 'trial'] || c.plan} (sem fatura pendente).` })
     }
   }
 
@@ -133,7 +169,13 @@ export default function AdminPage() {
 
       {msg && (
         <div className={`rounded-lg px-4 py-3 text-sm ${msg.type === 'ok' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-          {msg.text}
+          <p>{msg.text}</p>
+          {invoiceUrl && (
+            <a href={invoiceUrl} target="_blank" rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 font-medium underline break-all">
+              Abrir/Copiar link da fatura → {invoiceUrl}
+            </a>
+          )}
         </div>
       )}
 
@@ -155,8 +197,8 @@ export default function AdminPage() {
                 <input className={field} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div>
-                <label className={label}>CNPJ</label>
-                <input className={field} value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
+                <label className={label}>CNPJ {form.plan !== 'trial' && '*'}</label>
+                <input className={field} required={form.plan !== 'trial'} value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
               </div>
               <div>
                 <label className={label}>Telefone</label>
@@ -169,18 +211,15 @@ export default function AdminPage() {
               <div>
                 <label className={label}>Plano</label>
                 <select className={field} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
-                  <option value="trial">Trial</option>
-                  <option value="basic">Basic</option>
-                  <option value="pro">Pro</option>
+                  <option value="trial">Trial (grátis)</option>
+                  <option value="basic">Basic — R$197/mês</option>
+                  <option value="pro">Pro — R$397/mês</option>
                 </select>
-              </div>
-              <div>
-                <label className={label}>Status inicial</label>
-                <select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  <option value="ACTIVE">Ativa</option>
-                  <option value="TRIAL">Teste</option>
-                  <option value="SUSPENDED">Suspensa</option>
-                </select>
+                {(form.plan === 'basic' || form.plan === 'pro') && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Plano pago: o CNPJ é obrigatório. Geramos a assinatura no cartão (recorrente) e um link de fatura para o cliente cadastrar o cartão. A clínica fica em <strong>Teste</strong> até o 1º pagamento.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -253,6 +292,9 @@ export default function AdminPage() {
                     <td className="px-3 py-3 text-muted-foreground">{new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td className="px-3 py-3">
                       <div className="flex justify-end gap-2">
+                        <button onClick={() => openBilling(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10">
+                          Cobrança
+                        </button>
                         {c.status === 'SUSPENDED' || c.status === 'CANCELED' ? (
                           <button onClick={() => setStatus(c, 'ACTIVE')} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-success hover:bg-success/10">
                             Reativar

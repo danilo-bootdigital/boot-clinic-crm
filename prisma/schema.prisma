@@ -18,8 +18,11 @@ model Company {
   email       String?
   // Assinatura SaaS — gerida pelo painel Super-Admin.
   status      CompanyStatus @default(ACTIVE)
-  plan        String?       // ex.: "trial", "basic", "pro" (texto livre por enquanto)
+  plan        String?       // "trial" | "basic" | "pro"
   trialEndsAt DateTime?
+  // Integração Asaas (cobrança recorrente no cartão). Preenchidos para planos pagos.
+  asaasCustomerId     String?
+  asaasSubscriptionId String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?

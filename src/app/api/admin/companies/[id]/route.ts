@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { CompanyStatus } from '@prisma/client';
 import { resolveDbUser, requireSuperAdmin } from '@/lib/api/session';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { cancelSubscription, isAsaasConfigured } from '@/lib/asaas/client';
 
 // /api/admin/companies/[id] - detalhe e atualização de uma clínica (SUPER_ADMIN).
 
@@ -109,6 +110,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
       include: { users: { where: { deletedAt: null }, select: { id: true } } },
     });
     if (!company) return NextResponse.json({ error: 'Clínica não encontrada' }, { status: 404 });
+
+    // Cancela a assinatura no Asaas (se existir) — encerra a cobrança recorrente.
+    if (company.asaasSubscriptionId && isAsaasConfigured()) {
+      await cancelSubscription(company.asaasSubscriptionId).catch((e) =>
+        console.warn('[asaas] falha ao cancelar assinatura no offboarding:', e?.message)
+      );
+    }
 
     // Remove as contas de acesso no Supabase Auth (se a service key existir).
     const admin = createAdminClient();
