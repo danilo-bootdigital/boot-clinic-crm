@@ -448,6 +448,21 @@ model NotificationEvent {
   @@map("notification_events")
 }
 
+// Preferências de notificação por empresa
+model NotificationSetting {
+  id                   String   @id @default(cuid())
+  companyId            String   @unique
+  emailEnabled         Boolean  @default(true)
+  smsEnabled           Boolean  @default(false)
+  whatsappEnabled      Boolean  @default(false)
+  appointmentReminders Boolean  @default(true)
+  followUpReminders     Boolean @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("notification_settings")
+}
+
 // Módulo de Agenda Médica
 model Appointment {
   id                  String   @id @default(cuid())
