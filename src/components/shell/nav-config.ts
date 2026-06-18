@@ -89,6 +89,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   pagar: "Contas a Pagar",
   categorias: "Categorias",
   "centros-custo": "Centros de custo",
+  "fluxo-caixa": "Fluxo de caixa",
   configuracoes: "Configurações",
   audit: "Auditoria",
   admin: "Clínicas",
