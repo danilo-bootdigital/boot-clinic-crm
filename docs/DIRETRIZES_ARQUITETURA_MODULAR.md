@@ -99,6 +99,12 @@ ser acessado por URL direta.
 Módulos futuros sob este padrão: Telemedicina, Anamnese, Prontuário, Contratos,
 Orçamentos, Imagens, Financeiro, IA, Portal do Paciente, Relatórios avançados.
 
+> **Portal do Paciente:** regra estrutural obrigatória em
+> [`DIRETRIZ_PORTAL_PACIENTE.md`](./DIRETRIZ_PORTAL_PACIENTE.md) — identidade
+> `PatientAccount` (conta única multi-clínica), visibilidade clínica default-deny
+> (`INTERNAL` por padrão, `INTERNAL_NOTE` não-compartilhável), endpoints/DTOs
+> próprios e auditoria. **Vinculante para qualquer PR de portal.**
+
 ### Três níveis de controle — desenho previsto
 
 ```
