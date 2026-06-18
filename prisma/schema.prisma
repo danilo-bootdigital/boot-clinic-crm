@@ -4,7 +4,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Runtime do app: role app_user (NOBYPASSRLS) — a RLS das tabelas financeiras
+  // só isola por empresa quando o role de conexão NÃO faz bypass de RLS.
   url      = env("DATABASE_URL")
+  // Migrations/introspection (prisma migrate/db): role privilegiado (postgres),
+  // que tem DDL. O Prisma Client em runtime NÃO usa directUrl.
+  directUrl = env("MIGRATE_DATABASE_URL")
 }
 
 // Multiempresa (cada Company = 1 clínica assinante do SaaS)

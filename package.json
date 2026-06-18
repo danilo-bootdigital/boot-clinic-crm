@@ -21,7 +21,8 @@
     "modular-smoke": "node --env-file=.env scripts/modular-smoke.mjs",
     "financial-smoke": "node --env-file=.env scripts/financial-smoke.mjs",
     "financial-payables-smoke": "node --env-file=.env scripts/financial-payables-smoke.mjs",
-    "financial-rls-check": "node --env-file=.env scripts/financial-rls-check.mjs"
+    "financial-rls-check": "node --env-file=.env scripts/financial-rls-check.mjs",
+    "setup-app-role": "node --env-file=.env scripts/setup-app-role.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",
