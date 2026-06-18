@@ -11,6 +11,7 @@ import {
   Building2,
   Stethoscope,
   Video,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, module: "whatsapp" },
       { label: "Follow-up", href: "/followup", icon: Repeat, module: "followup" },
       { label: "Automações", href: "/automacoes", icon: Workflow, module: "automacoes" },
+      { label: "Financeiro", href: "/financeiro", icon: Wallet, module: "financeiro" },
     ],
   },
   {
@@ -83,6 +85,10 @@ export const ROUTE_LABELS: Record<string, string> = {
   crm: "CRM",
   automacoes: "Automações",
   relatorios: "Relatórios",
+  financeiro: "Financeiro",
+  pagar: "Contas a Pagar",
+  categorias: "Categorias",
+  "centros-custo": "Centros de custo",
   configuracoes: "Configurações",
   audit: "Auditoria",
   admin: "Clínicas",

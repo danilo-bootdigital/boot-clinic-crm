@@ -3,6 +3,7 @@ import { resolveDbUser } from '@/lib/api/session';
 import { effectivePermissions } from '@/lib/api/permissions';
 import { clinicalModuleLevel } from '@/lib/api/clinical-access';
 import { telemedicineModuleVisible } from '@/lib/api/telemedicine-access';
+import { financialModuleLevel } from '@/lib/api/financial-access';
 import { ensureModuleCatalog, getEnabledModules } from '@/lib/api/modules';
 
 // GET /api/me - usuário atual + permissões efetivas por módulo + módulos habilitados
@@ -19,6 +20,9 @@ export async function GET() {
       // Telemedicina: visibilidade vem da matriz papel×ação (um médico vê o menu
       // mesmo sem permissão genérica salva). 'edit' se pode atender, senão 'view'.
       telemedicina: telemedicineModuleVisible(dbUser!) ? 'edit' : 'none',
+      // Financeiro: nível vem da matriz papel×capacidade (FINANCE/RECEPTION veem
+      // o menu mesmo sem permissão genérica salva). 'edit' se cria/baixa.
+      financeiro: financialModuleLevel(dbUser!.role),
     };
     // Módulos habilitados para a clínica (nível SaaS + nível Clínica).
     await ensureModuleCatalog();

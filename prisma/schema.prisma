@@ -758,6 +758,17 @@ enum EntityType {
   TELEMEDICINE_ROOM
   TELEMEDICINE_CONSENT
   TELEMEDICINE_ATTACHMENT
+  // Módulo Financeiro — Contas a Receber (Fase 1)
+  RECEIVABLE
+  RECEIVABLE_INSTALLMENT
+  INSTALLMENT_PAYMENT
+  REVENUE_CATEGORY
+  // Módulo Financeiro — Contas a Pagar (Fase 2)
+  PAYABLE
+  PAYABLE_PAYMENT
+  SUPPLIER
+  EXPENSE_CATEGORY
+  COST_CENTER
 }
 
 enum ActionType {
@@ -778,6 +789,11 @@ enum ActionType {
   DELETE_ATTACHMENT
   ADD_TAG
   REMOVE_TAG
+  // Operações financeiras (Fase 1)
+  SETTLE // baixa de pagamento
+  CANCEL // cancelamento (receita/parcela)
+  REVERSE // estorno de pagamento
+  DELETE // exclusão definitiva (ex.: categoria financeira não usada)
 }
 
 enum ExecutionStatus {
@@ -1381,4 +1397,271 @@ enum TelemedicineAttachmentPhase {
   BEFORE
   DURING
   AFTER
+}
+
+// ============================================================================
+// MÓDULO FINANCEIRO — FASE 1: CONTAS A RECEBER
+// Camada de liquidação sobre entidades existentes. NÃO recria paciente/orçamento:
+// a Receita NASCE de um Orçamento aprovado (ClinicalQuote APPROVED) e/ou Contrato
+// assinado (PatientContract SIGNED) — referência por FK ESCALAR (padrão Deal/
+// Appointment), sem @relation cruzando módulos. Dinheiro em Decimal(12,2) (NUNCA
+// Float). Multi-tenant por companyId + RLS no Postgres (FORCE + GUC app.company_id).
+// Auditoria via AuditLog (EntityType.RECEIVABLE/...). "Vencido" é DERIVADO na
+// leitura (dueDate < now e status PENDENTE/PARCIAL), não é status persistido.
+// ============================================================================
+
+// Categoria de receita por clínica (customizável; defaults auto-semeados).
+model RevenueCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false) // semeada pelo sistema
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receivables Receivable[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("financial_revenue_categories")
+}
+
+// Conta a receber (cabeçalho da receita). Origem escalar: paciente (obrigatório)
+// + orçamento/contrato/deal (opcionais, p/ rastreabilidade e anti-duplicação).
+model Receivable {
+  id                String           @id @default(cuid())
+  companyId         String
+  patientId         String // origem obrigatória (escalar)
+  quoteId           String? // ClinicalQuote APPROVED (origem)
+  contractId        String? // PatientContract SIGNED (origem)
+  dealId            String? // rastreio comercial (origem Fase 7)
+  categoryId        String?
+  description       String
+  originalAmount    Decimal          @db.Decimal(12, 2)
+  discountAmount    Decimal          @default(0) @db.Decimal(12, 2)
+  finalAmount       Decimal          @db.Decimal(12, 2) // = original - desconto
+  installmentsCount Int              @default(1) // 1 = à vista
+  status            ReceivableStatus @default(PENDENTE)
+  issueDate         DateTime         @default(now()) // competência/emissão
+  notes             String?
+  createdById       String
+  canceledAt        DateTime?
+  canceledReason    String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  category     RevenueCategory?        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  installments ReceivableInstallment[]
+
+  @@index([companyId, status])
+  @@index([companyId, patientId])
+  @@index([companyId, issueDate])
+  @@map("financial_receivables")
+}
+
+// Parcela de uma conta a receber. À vista = 1 parcela. Σ amount = Receivable.finalAmount.
+model ReceivableInstallment {
+  id           String            @id @default(cuid())
+  companyId    String // denormalizado p/ RLS + escopo
+  receivableId String
+  number       Int // 1..N
+  amount       Decimal           @db.Decimal(12, 2)
+  dueDate      DateTime // vencimento
+  paidAmount   Decimal           @default(0) @db.Decimal(12, 2) // soma das baixas
+  status       InstallmentStatus @default(PENDENTE)
+  paidAt       DateTime? // quando quitada totalmente
+  notes        String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  receivable Receivable           @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  payments   InstallmentPayment[]
+
+  @@unique([receivableId, number])
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@map("financial_installments")
+}
+
+// Baixa (pagamento recebido) de uma parcela. Estorno via reversedAt (não deleta —
+// rastreabilidade financeira não apaga lançamento). paidAt alimenta o fluxo de caixa.
+model InstallmentPayment {
+  id            String        @id @default(cuid())
+  companyId     String
+  installmentId String
+  amount        Decimal       @db.Decimal(12, 2)
+  method        PaymentMethod
+  paidAt        DateTime      @default(now()) // data efetiva do pagamento
+  notes         String?
+  createdById   String
+  reversedAt    DateTime? // estorno
+  reversedById  String?
+  reverseReason String?
+  createdAt     DateTime      @default(now())
+
+  installment ReceivableInstallment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, paidAt])
+  @@index([installmentId])
+  @@map("financial_payments")
+}
+
+enum ReceivableStatus {
+  PENDENTE
+  PARCIAL
+  PAGO
+  CANCELADO
+}
+
+enum InstallmentStatus {
+  PENDENTE
+  PARCIAL
+  PAGO
+  CANCELADO
+}
+
+// Rótulo MANUAL de como o paciente pagou (sem integração/cobrança real).
+enum PaymentMethod {
+  DINHEIRO
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  TRANSFERENCIA
+  BOLETO
+  CHEQUE
+  OUTRO
+}
+
+// ============================================================================
+// MÓDULO FINANCEIRO — FASE 2: CONTAS A PAGAR
+// Simétrico aos recebíveis (mesma infra: companyId + RLS FORCE+GUC, Decimal(12,2),
+// withFinanceTenant, writeAudit). Despesa nasce de um Fornecedor (opcional) e tem
+// categoria + centro de custo. PayablePayment espelha InstallmentPayment p/ unificar
+// Fluxo de Caixa (Fase 5) e DRE (Fase 11) SEM retrabalho. `professionalId` é o gancho
+// do Repasse Médico (Fase 8). "Vencido" derivado (dueDate < now). Lições da Fase 1
+// já incorporadas: valor coerente, lock na baixa, cancelar só sem pagamento.
+// ============================================================================
+
+// Fornecedor (entidade nova — não existia). Reusada por Contas a Pagar.
+model Supplier {
+  id        String    @id @default(cuid())
+  companyId String
+  name      String
+  document  String? // CNPJ/CPF (opcional)
+  email     String?
+  phone     String?
+  notes     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  payables Payable[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("financial_suppliers")
+}
+
+// Categoria de despesa por clínica (espelho de RevenueCategory; defaults semeados).
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payables Payable[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("financial_expense_categories")
+}
+
+// Centro de custo (Fase 4 antecipada — Payable referencia; defaults semeados).
+model CostCenter {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payables Payable[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("financial_cost_centers")
+}
+
+// Conta a pagar (despesa). Baixa via PayablePayment (parcial/total + estorno).
+model Payable {
+  id             String        @id @default(cuid())
+  companyId      String
+  supplierId     String?
+  categoryId     String? // ExpenseCategory
+  costCenterId   String?
+  professionalId String? // gancho de Repasse Médico (Fase 8) — escalar, sem @relation
+  description    String
+  originalAmount Decimal       @db.Decimal(12, 2)
+  discountAmount Decimal       @default(0) @db.Decimal(12, 2)
+  finalAmount    Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0) @db.Decimal(12, 2) // soma das baixas não estornadas
+  status         PayableStatus @default(PENDENTE)
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime // vencimento
+  notes          String?
+  createdById    String
+  canceledAt     DateTime?
+  canceledReason String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  supplier   Supplier?        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  costCenter CostCenter?      @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  payments   PayablePayment[]
+
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@index([companyId, supplierId])
+  @@map("financial_payables")
+}
+
+// Baixa (pagamento de saída) — idêntico a InstallmentPayment p/ unificar o fluxo de caixa.
+model PayablePayment {
+  id            String        @id @default(cuid())
+  companyId     String
+  payableId     String
+  amount        Decimal       @db.Decimal(12, 2)
+  method        PaymentMethod
+  paidAt        DateTime      @default(now())
+  notes         String?
+  createdById   String
+  reversedAt    DateTime?
+  reversedById  String?
+  reverseReason String?
+  createdAt     DateTime      @default(now())
+
+  payable Payable @relation(fields: [payableId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, paidAt])
+  @@index([payableId])
+  @@map("financial_payable_payments")
+}
+
+enum PayableStatus {
+  PENDENTE
+  PARCIAL
+  PAGO
+  CANCELADO
 }

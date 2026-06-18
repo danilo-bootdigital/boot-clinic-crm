@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { UserRole } from '@prisma/client';
 
-export const MODULES = ['patients', 'clinico', 'telemedicina', 'crm', 'agenda', 'followup', 'whatsapp', 'automacoes', 'dashboard', 'configuracoes'] as const;
+export const MODULES = ['patients', 'clinico', 'telemedicina', 'crm', 'agenda', 'followup', 'whatsapp', 'automacoes', 'financeiro', 'dashboard', 'configuracoes'] as const;
 export type ModuleKey = (typeof MODULES)[number];
 export type PermLevel = 'none' | 'view' | 'edit';
 
@@ -14,6 +14,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   followup: 'Follow-up',
   whatsapp: 'WhatsApp',
   automacoes: 'Automações',
+  financeiro: 'Financeiro',
   dashboard: 'Dashboard',
   configuracoes: 'Configurações',
 };
