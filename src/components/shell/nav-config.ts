@@ -10,6 +10,7 @@ import {
   Settings,
   Building2,
   Stethoscope,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, module: "dashboard" },
       { label: "Pacientes", href: "/pacientes", icon: Users, match: ["/patients"], module: "patients" },
       { label: "Clínico", href: "/clinico", icon: Stethoscope, module: "clinico" },
+      { label: "Telemedicina", href: "/telemedicina", icon: Video, module: "telemedicina" },
       { label: "CRM", href: "/crm", icon: Target, module: "crm" },
       { label: "Agenda", href: "/agenda", icon: CalendarDays, module: "agenda" },
       { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, module: "whatsapp" },
@@ -70,6 +72,9 @@ export const ROUTE_LABELS: Record<string, string> = {
   pacientes: "Pacientes",
   patients: "Pacientes",
   clinico: "Clínico",
+  telemedicina: "Telemedicina",
+  sala: "Sala",
+  tele: "Teleconsulta",
   anamneses: "Anamneses",
   prontuario: "Prontuário",
   contratos: "Contratos",

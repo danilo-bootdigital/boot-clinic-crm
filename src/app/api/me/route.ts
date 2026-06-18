@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { resolveDbUser } from '@/lib/api/session';
 import { effectivePermissions } from '@/lib/api/permissions';
 import { clinicalModuleLevel } from '@/lib/api/clinical-access';
+import { telemedicineModuleVisible } from '@/lib/api/telemedicine-access';
 import { ensureModuleCatalog, getEnabledModules } from '@/lib/api/modules';
 
 // GET /api/me - usuário atual + permissões efetivas por módulo + módulos habilitados
@@ -12,7 +13,13 @@ export async function GET() {
     if (error) return error;
     // O nível do módulo 'clinico' vem da matriz clínica por área (um médico vê
     // o menu mesmo sem permissão genérica salva), não da matriz simples salva.
-    const permissions = { ...effectivePermissions(dbUser!), clinico: clinicalModuleLevel(dbUser!) };
+    const permissions = {
+      ...effectivePermissions(dbUser!),
+      clinico: clinicalModuleLevel(dbUser!),
+      // Telemedicina: visibilidade vem da matriz papel×ação (um médico vê o menu
+      // mesmo sem permissão genérica salva). 'edit' se pode atender, senão 'view'.
+      telemedicina: telemedicineModuleVisible(dbUser!) ? 'edit' : 'none',
+    };
     // Módulos habilitados para a clínica (nível SaaS + nível Clínica).
     await ensureModuleCatalog();
     const enabled = await getEnabledModules({ id: dbUser!.companyId, plan: dbUser!.company?.plan });

@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { UserRole } from '@prisma/client';
 
-export const MODULES = ['patients', 'clinico', 'crm', 'agenda', 'followup', 'whatsapp', 'automacoes', 'dashboard', 'configuracoes'] as const;
+export const MODULES = ['patients', 'clinico', 'telemedicina', 'crm', 'agenda', 'followup', 'whatsapp', 'automacoes', 'dashboard', 'configuracoes'] as const;
 export type ModuleKey = (typeof MODULES)[number];
 export type PermLevel = 'none' | 'view' | 'edit';
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   patients: 'Pacientes',
   clinico: 'Clínico (Anamnese/Prontuário)',
+  telemedicina: 'Telemedicina',
   crm: 'CRM',
   agenda: 'Agenda',
   followup: 'Follow-up',

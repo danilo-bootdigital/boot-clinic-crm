@@ -36,6 +36,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
     patientId: appointment?.patientId ?? '',
     professionalId: appointment?.professionalId ?? defaultProfessionalId ?? '',
     specialtyId: appointment?.specialtyId ?? '',
+    modality: appointment?.modality ?? 'PRESENCIAL',
     type: appointment?.type ?? 'Consulta',
     date: toDateInput(appointment?.startAt) || new Date().toISOString().split('T')[0],
     time: toTimeInput(appointment?.startAt) || '09:00',
@@ -74,6 +75,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
         patientId: form.patientId,
         professionalId: form.professionalId,
         specialtyId: form.specialtyId,
+        modality: form.modality,
         type: form.type,
         startAt,
         durationMinutes: Number(form.durationMinutes),
@@ -136,7 +138,19 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <div>
+          <label className={label}>Modalidade</label>
+          <select className={field} value={form.modality} onChange={(e) => set('modality', e.target.value)}>
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="TELEMEDICINA">Teleconsulta</option>
+          </select>
+        </div>
       </div>
+      {form.modality === 'TELEMEDICINA' && (
+        <p className="rounded-md bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+          Uma sala de vídeo e o link do paciente serão gerados automaticamente, e o link será enviado por WhatsApp.
+        </p>
+      )}
 
       <div>
         <label className={label}>Observações</label>

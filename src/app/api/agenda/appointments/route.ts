@@ -6,6 +6,9 @@ import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
 import { runAutomations } from '@/lib/automations/engine';
+import { isModuleEnabled } from '@/lib/api/modules';
+import { createSessionForAppointment, buildPatientLink, teleEvent } from '@/lib/api/telemedicine';
+import { notifyTeleconsultation } from '@/lib/telemedicine/notify';
 
 const CreateSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -13,6 +16,8 @@ const CreateSchema = z.object({
   specialtyId: z.string().min(1, 'Especialidade é obrigatória'),
   roomId: z.string().optional().or(z.literal('')),
   type: z.string().min(1, 'Tipo é obrigatório'),
+  // Modalidade da consulta: presencial (default) ou teleconsulta.
+  modality: z.enum(['PRESENCIAL', 'TELEMEDICINA']).optional(),
   startAt: z.string().min(1, 'Data/hora é obrigatória'),
   durationMinutes: z.coerce.number().min(5).max(480),
   source: z.string().optional(),
@@ -97,6 +102,7 @@ export async function POST(request: NextRequest) {
     });
     if (conflict) return NextResponse.json({ error: 'Conflito de horário para este profissional' }, { status: 409 });
 
+    const modality = data.modality || 'PRESENCIAL';
     const appt = await prisma.appointment.create({
       data: {
         patientId: data.patientId,
@@ -104,6 +110,7 @@ export async function POST(request: NextRequest) {
         specialtyId: data.specialtyId,
         type: data.type,
         status: 'PENDING',
+        modality,
         startAt,
         endAt,
         durationMinutes: data.durationMinutes,
@@ -115,7 +122,38 @@ export async function POST(request: NextRequest) {
     });
     await runAutomations('APPOINTMENT_CREATED', { companyId: dbUser!.companyId, patientId: appt.patientId, summary: 'Nova consulta agendada' });
 
-    return NextResponse.json(appt, { status: 201 });
+    // Teleconsulta: nasce da Agenda. Gera sala + link + token automaticamente e
+    // dispara o envio do link por WhatsApp (best-effort). Só se o módulo estiver
+    // habilitado para a clínica (nível SaaS + ativação).
+    let teleSession: { id: string; room?: { publicSlug: string; roomUrl: string } | null } | null = null;
+    if (modality === 'TELEMEDICINA' && (await isModuleEnabled({ id: dbUser!.companyId, plan: dbUser!.company?.plan }, 'telemedicina'))) {
+      try {
+        const [patient, professional] = await Promise.all([
+          prisma.patient.findUnique({ where: { id: appt.patientId }, select: { name: true, phone: true, whatsapp: true } }),
+          prisma.professional.findUnique({ where: { id: appt.professionalId }, select: { name: true } }),
+        ]);
+        const session = await createSessionForAppointment(
+          { id: appt.id, patientId: appt.patientId, professionalId: appt.professionalId, companyId: appt.companyId, startAt },
+          dbUser!.id,
+          patient?.name || 'Paciente',
+          professional?.name || 'Profissional',
+        );
+        teleSession = session as any;
+        const phone = patient?.whatsapp || patient?.phone;
+        if (session.room && phone) {
+          const link = buildPatientLink(session.room.publicSlug);
+          await notifyTeleconsultation('CREATED', {
+            companyId: appt.companyId, patientId: appt.patientId, sessionId: session.id,
+            phone, patientName: patient?.name || 'Paciente', link, startAt,
+          });
+          await teleEvent(session.id, appt.companyId, 'LINK_SENT', { actorId: dbUser!.id, metadata: { channel: 'whatsapp' } });
+        }
+      } catch (e) {
+        console.error('Falha ao criar sessão de telemedicina:', e);
+      }
+    }
+
+    return NextResponse.json({ ...appt, teleconsultationId: teleSession?.id ?? null }, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
     console.error('Erro ao criar agendamento:', err);

@@ -538,12 +538,12 @@ model NotificationSetting {
 
 // Módulo de Agenda Médica
 model Appointment {
-  id                 String            @id @default(cuid())
+  id                 String              @id @default(cuid())
   patientId          String
   professionalId     String
   specialtyId        String
   type               String
-  status             AppointmentStatus @default(PENDING)
+  status             AppointmentStatus   @default(PENDING)
   startAt            DateTime
   endAt              DateTime
   durationMinutes    Int
@@ -557,11 +557,20 @@ model Appointment {
   attendedAt         DateTime?
   companyId          String
   dealId             String?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  // Telemedicina (aditivo, nulável): modalidade da consulta + atalho p/ a sala.
+  // PRESENCIAL é o default — backward-compatible com consultas existentes.
+  modality           AppointmentModality @default(PRESENCIAL)
+  roomUrl            String? // URL da sala (espelho de TelemedicineRoom.roomUrl)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   deletedAt          DateTime?
 
   @@map("appointments")
+}
+
+enum AppointmentModality {
+  PRESENCIAL
+  TELEMEDICINA
 }
 
 model Specialty {
@@ -744,6 +753,11 @@ enum EntityType {
   QUOTE
   PATIENT_IMAGE
   PATIENT_DOCUMENT
+  // Módulo Telemedicina
+  TELECONSULTATION
+  TELEMEDICINE_ROOM
+  TELEMEDICINE_CONSENT
+  TELEMEDICINE_ATTACHMENT
 }
 
 enum ActionType {
@@ -847,18 +861,21 @@ model AnamnesisQuestion {
 
 // Anamnese preenchida para um paciente.
 model PatientAnamnesis {
-  id           String          @id @default(cuid())
-  companyId    String
-  patientId    String
-  templateId   String?
-  title        String
-  status       AnamnesisStatus @default(DRAFT)
-  createdById  String
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  deletedAt    DateTime?
+  id                 String          @id @default(cuid())
+  companyId          String
+  patientId          String
+  templateId         String?
+  // Anamnese pré-consulta vinculada a uma teleconsulta / consulta (opcional).
+  appointmentId      String?
+  teleconsultationId String?
+  title              String
+  status             AnamnesisStatus @default(DRAFT)
+  createdById        String
+  reviewedById       String?
+  reviewedAt         DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
 
   answers PatientAnamnesisAnswer[]
 
@@ -887,17 +904,20 @@ model PatientAnamnesisAnswer {
 // Registro de prontuário (evolução, observação, histórico). NÃO é prontuário
 // médico avançado: sem prescrição/CID/TISS.
 model MedicalRecord {
-  id             String            @id @default(cuid())
-  companyId      String
-  patientId      String
-  type           MedicalRecordType @default(EVOLUTION)
-  title          String
-  content        String
-  professionalId String? // profissional responsável pelo registro (Professional)
-  createdById    String // usuário que registrou
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  deletedAt      DateTime?
+  id                 String            @id @default(cuid())
+  companyId          String
+  patientId          String
+  type               MedicalRecordType @default(EVOLUTION)
+  title              String
+  content            String
+  professionalId     String? // profissional responsável pelo registro (Professional)
+  // Registro nascido de uma consulta/teleconsulta (opcional, aditivo).
+  appointmentId      String?
+  teleconsultationId String?
+  createdById        String // usuário que registrou
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
 
   attachments MedicalRecordAttachment[]
 
@@ -1147,4 +1167,218 @@ model PlanFeature {
 
   @@unique([plan, moduleKey])
   @@map("plan_features")
+}
+
+// ============================================================================
+// MÓDULO TELEMEDICINA — centro operacional de atendimento remoto.
+// Toda teleconsulta NASCE da Agenda (Appointment.modality = TELEMEDICINA) e
+// vincula-se ao paciente. Segue o padrão da base: FK escalar + companyId,
+// enriquecimento manual (sem @relation cruzando módulos). Multi-tenant por
+// companyId; auditoria via AuditLog (EntityType.TELECONSULTATION).
+// ============================================================================
+
+// Sessão de teleconsulta — entidade núcleo (1:1 com o Appointment de origem).
+model TelemedicineSession {
+  id              String             @id @default(cuid())
+  companyId       String
+  appointmentId   String             @unique // nasce da agenda
+  patientId       String
+  professionalId  String
+  createdById     String
+  status          TelemedicineStatus @default(AGENDADA)
+  scheduledAt     DateTime // espelho de Appointment.startAt p/ consultas/KPIs
+  // Marcos do atendimento (alimentam duração média / comparecimento no dashboard).
+  patientJoinedAt DateTime?
+  doctorJoinedAt  DateTime?
+  startedAt       DateTime?
+  pausedAt        DateTime?
+  endedAt         DateTime?
+  durationSeconds Int? // calculado no encerramento (startedAt → endedAt)
+  noShowAt        DateTime?
+  canceledAt      DateTime?
+  cancelReason    String?
+  // Registro clínico gerado ao encerrar (gancho com Prontuário).
+  medicalRecordId String?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deletedAt       DateTime?
+
+  room         TelemedicineRoom?
+  participants TelemedicineParticipant[]
+  chat         TelemedicineChat[]
+  attachments  TelemedicineAttachment[]
+  consents     TelemedicineConsent[]
+  events       TelemedicineAuditLog[]
+
+  @@index([companyId, status])
+  @@index([companyId, scheduledAt])
+  @@map("telemedicine_sessions")
+}
+
+// Sala de vídeo. Provider-agnóstico: por padrão geramos uma URL de sala
+// (Jitsi por URL, zero-dependência). roomKey é único e imprevisível.
+model TelemedicineRoom {
+  id         String               @id @default(cuid())
+  companyId  String
+  sessionId  String               @unique
+  provider   TelemedicineProvider @default(JITSI)
+  roomKey    String               @unique // identificador opaco da sala
+  roomUrl    String // URL completa da sala (médico entra autenticado)
+  publicSlug String               @unique // slug do link público do paciente (/tele/[slug])
+  isActive   Boolean              @default(true)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("telemedicine_rooms")
+}
+
+// Participante da sala (paciente, médico, convidado). O paciente acessa por
+// link público com token temporário; o médico acessa autenticado pelo CRM.
+model TelemedicineParticipant {
+  id             String          @id @default(cuid())
+  companyId      String
+  sessionId      String
+  role           ParticipantRole
+  userId         String? // preenchido p/ médico/staff (User)
+  displayName    String
+  token          String          @unique // token de acesso à sala (paciente)
+  tokenExpiresAt DateTime
+  joinedAt       DateTime?
+  leftAt         DateTime?
+  lastSeenAt     DateTime?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("telemedicine_participants")
+}
+
+// Consentimento LGPD do paciente (aceite de teleatendimento). Guarda data/hora,
+// IP, user-agent e o texto aceito (snapshot) para rastreabilidade.
+model TelemedicineConsent {
+  id          String    @id @default(cuid())
+  companyId   String
+  sessionId   String
+  patientId   String
+  consentText String // snapshot do termo aceito
+  accepted    Boolean   @default(false)
+  acceptedAt  DateTime?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("telemedicine_consents")
+}
+
+// Mensagem de chat durante a consulta (texto ou anexo). Vinculada ao paciente.
+model TelemedicineChat {
+  id           String          @id @default(cuid())
+  companyId    String
+  sessionId    String
+  patientId    String
+  senderRole   ParticipantRole
+  senderName   String
+  senderUserId String?
+  body         String? // texto da mensagem
+  attachmentId String? // TelemedicineAttachment quando a mensagem é arquivo
+  createdAt    DateTime        @default(now())
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("telemedicine_chat")
+}
+
+// Anexo/imagem/documento da teleconsulta. Vinculado à sessão E ao paciente —
+// uploads antes/durante/depois. path no storage clínico (signed URL na leitura).
+model TelemedicineAttachment {
+  id           String                         @id @default(cuid())
+  companyId    String
+  sessionId    String
+  patientId    String
+  category     TelemedicineAttachmentCategory @default(OTHER)
+  title        String
+  originalName String
+  url          String // path no storage
+  mimeType     String
+  size         Int
+  phase        TelemedicineAttachmentPhase    @default(DURING) // antes/durante/após
+  uploadedBy   String
+  createdAt    DateTime                       @default(now())
+  deletedAt    DateTime?
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("telemedicine_attachments")
+}
+
+// Trilha de eventos da sala (entrada/saída/anexo/encerramento). Complementa o
+// AuditLog global com granularidade de sala (timeline da teleconsulta).
+model TelemedicineAuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  sessionId String
+  event     String // 'PATIENT_JOINED','DOCTOR_JOINED','STARTED','PAUSED','ENDED'...
+  actorRole String? // ParticipantRole/UserRole textual
+  actorId   String?
+  actorName String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  session TelemedicineSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("telemedicine_audit_logs")
+}
+
+enum TelemedicineStatus {
+  AGENDADA
+  AGUARDANDO_PACIENTE
+  PACIENTE_ENTROU
+  MEDICO_ENTROU
+  EM_ATENDIMENTO
+  PAUSADA
+  FINALIZADA
+  CANCELADA
+  NAO_COMPARECEU
+}
+
+enum TelemedicineProvider {
+  JITSI
+  DAILY
+  TWILIO
+  CUSTOM
+}
+
+enum ParticipantRole {
+  PATIENT
+  DOCTOR
+  GUEST
+}
+
+enum TelemedicineAttachmentCategory {
+  EXAM // exames
+  REPORT // laudos
+  CLINICAL_PHOTO // fotos clínicas
+  DOCUMENT // documentos
+  CONTRACT // contratos
+  OTHER
+}
+
+enum TelemedicineAttachmentPhase {
+  BEFORE
+  DURING
+  AFTER
 }

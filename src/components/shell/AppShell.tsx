@@ -7,7 +7,8 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
 /** Rotas que NÃO usam o shell (sem sidebar/header). */
-const BARE_ROUTES = ["/login"];
+// '/tele' = sala pública da teleconsulta (paciente, sem login nem navegação do CRM).
+const BARE_ROUTES = ["/login", "/tele"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

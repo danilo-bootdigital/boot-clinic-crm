@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
   // (Antes '/' usava startsWith e tornava TODAS as rotas públicas.)
   const exactPublicPaths = ['/', '/login', '/api/whatsapp/webhook', '/api/asaas/webhook']
   // Prefixos com barra final para não casar rotas como /api/publicReport ou /loginX.
-  const prefixPublicPaths = ['/api/auth/', '/api/public/']
+  // '/tele/' é a sala pública da teleconsulta (paciente acessa por link, sem login).
+  const prefixPublicPaths = ['/api/auth/', '/api/public/', '/tele/']
   const isPublicPath =
     exactPublicPaths.includes(pathname) ||
     prefixPublicPaths.some(path => pathname.startsWith(path))

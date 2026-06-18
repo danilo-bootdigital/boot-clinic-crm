@@ -33,8 +33,9 @@ export const MODULE_CATALOG: ModuleDef[] = [
   { key: 'followup',      label: 'Follow-up',      isCore: false, available: true,  order: 6 },
   { key: 'automacoes',    label: 'Automações',     isCore: false, available: true,  order: 7 },
   { key: 'configuracoes', label: 'Configurações',  isCore: true,  available: true,  order: 8 },
+  // Telemedicina — módulo construído (centro de atendimento remoto integrado).
+  { key: 'telemedicina',  label: 'Telemedicina',   isCore: false, available: true,  order: 9 },
   // Futuros (preparados — sem rotas ainda; entram no menu quando construídos).
-  { key: 'telemedicina',         label: 'Telemedicina',          isCore: false, available: false, order: 20 },
   { key: 'financeiro',           label: 'Financeiro',            isCore: false, available: false, order: 21 },
   { key: 'ia',                   label: 'IA',                    isCore: false, available: false, order: 22 },
   { key: 'portal-paciente',      label: 'Portal do Paciente',    isCore: false, available: false, order: 23 },
