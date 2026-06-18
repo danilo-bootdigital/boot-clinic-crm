@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 
 const Schema = z.object({ isActive: z.boolean().optional(), name: z.string().min(1).optional() });
@@ -9,7 +9,7 @@ const Schema = z.object({ isActive: z.boolean().optional(), name: z.string().min
 // PUT /api/automacoes/rules/[id] - ativa/desativa ou renomeia.
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('automacoes');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'automacoes', 'edit');
     if (forbidden) return forbidden;
@@ -33,7 +33,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE /api/automacoes/rules/[id] - remove a regra (e gatilhos/ações).
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('automacoes');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'automacoes', 'edit');
     if (forbidden) return forbidden;

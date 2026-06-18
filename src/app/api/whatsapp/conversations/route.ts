@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
+import { resolveModuleUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { ownsPatient } from '@/lib/api/ownership';
 
@@ -14,7 +14,7 @@ const CreateSchema = z.object({
 // GET /api/whatsapp/conversations
 export async function GET() {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'whatsapp', 'view');
     if (denied) return denied;
@@ -44,7 +44,7 @@ export async function GET() {
 // POST /api/whatsapp/conversations
 export async function POST(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'whatsapp', 'edit') || requireRole(dbUser!, STAFF_ROLES);
     if (forbidden) return forbidden;

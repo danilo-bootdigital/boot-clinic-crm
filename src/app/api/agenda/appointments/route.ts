@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
@@ -22,7 +22,7 @@ const CreateSchema = z.object({
 // GET /api/agenda/appointments?date=YYYY-MM-DD&professionalId=
 export async function GET(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'agenda', 'view');
     if (denied) return denied;
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 // POST /api/agenda/appointments
 export async function POST(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;

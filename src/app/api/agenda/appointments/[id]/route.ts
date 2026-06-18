@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
@@ -19,7 +19,7 @@ const UpdateSchema = z.object({
 // GET /api/agenda/appointments/[id]
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'agenda', 'view');
     if (denied) return denied;
@@ -44,7 +44,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 // PUT/PATCH /api/agenda/appointments/[id]
 async function update(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
 
     const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
@@ -107,7 +107,7 @@ export const PATCH = update;
 // DELETE /api/agenda/appointments/[id] - soft delete
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;

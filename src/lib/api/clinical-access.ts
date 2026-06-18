@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
 import { subscriptionBlock } from '@/lib/api/session';
 import { effectivePermissions, type PermLevel } from '@/lib/api/permissions';
+import { requireModuleEnabled } from '@/lib/api/modules';
 import { UserRole } from '@prisma/client';
 
 // Áreas do Módulo Clínico Documental. O acesso é mais fino que o módulo único
@@ -81,11 +82,18 @@ export async function resolveClinicalUser(area: ClinicalArea, level: 'view' | 'e
   const user = await getCurrentUser();
   if (!user) return { error: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) };
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { company: { select: { status: true, plan: true } } },
+  });
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
 
   const blocked = await subscriptionBlock(dbUser);
   if (blocked) return { error: blocked };
+
+  // Nível Clínica/SaaS: o módulo 'clinico' precisa estar habilitado para a clínica.
+  const moduleOff = await requireModuleEnabled(dbUser, 'clinico');
+  if (moduleOff) return { error: moduleOff };
 
   const denied = requireClinicalArea(dbUser, area, level);
   if (denied) return { error: denied };

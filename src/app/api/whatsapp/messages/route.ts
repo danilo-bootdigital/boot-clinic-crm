@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { sendWhatsappText } from '@/lib/whatsapp/evolution';
 
@@ -18,7 +18,7 @@ function serialize(m: any) {
 // GET /api/whatsapp/messages?conversationId=
 export async function GET(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'whatsapp', 'view');
     if (denied) return denied;
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 // POST /api/whatsapp/messages - envia (via Evolution se configurada) ou grava como pendente.
 export async function POST(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'whatsapp', 'edit');
     if (forbidden) return forbidden;

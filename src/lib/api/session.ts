@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole, CompanyStatus } from '@prisma/client';
+import { requireModuleEnabled } from '@/lib/api/modules';
 
 // Resolve o usuário do banco a partir da sessão Supabase, devolvendo o escopo
 // de empresa. Retorna { error } pronto para responder quando não autenticado.
@@ -15,12 +16,23 @@ export async function resolveDbUser() {
   if (!user) return { error: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) };
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    include: { company: { select: { status: true } } },
+    include: { company: { select: { status: true, plan: true } } },
   });
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
 
   const blocked = await subscriptionBlock(dbUser);
   if (blocked) return { error: blocked };
+  return { dbUser };
+}
+
+// Como resolveDbUser, mas também garante que o MÓDULO está habilitado para a
+// clínica (controle SaaS modular — nível plano + ativação). Drop-in nas rotas:
+// `const { dbUser, error } = await resolveModuleUser('crm')`.
+export async function resolveModuleUser(moduleKey: string) {
+  const { dbUser, error } = await resolveDbUser();
+  if (error) return { error };
+  const moduleOff = await requireModuleEnabled(dbUser!, moduleKey);
+  if (moduleOff) return { error: moduleOff };
   return { dbUser };
 }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 
 const DEFAULTS = [
@@ -15,7 +15,7 @@ const Schema = z.object({ title: z.string().min(1), content: z.string().min(1) }
 // GET /api/whatsapp/quick-replies (cria padrões na 1ª vez)
 export async function GET() {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'whatsapp', 'view');
     if (denied) return denied;
@@ -40,7 +40,7 @@ export async function GET() {
 // POST /api/whatsapp/quick-replies
 export async function POST(request: NextRequest) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'whatsapp', 'edit');
     if (forbidden) return forbidden;

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 import { writeAudit } from '@/lib/api/audit';
 
 // POST /api/patients/[id]/restore - restaura um paciente inativado (soft delete).
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     const blocked = await subscriptionBlock(dbUser);
     if (blocked) return blocked;
+    const moduleOff = await requireModuleEnabled(dbUser, 'patients');
+    if (moduleOff) return moduleOff;
     const forbidden = requirePermission(dbUser, 'patients', 'edit');
     if (forbidden) return forbidden;
 

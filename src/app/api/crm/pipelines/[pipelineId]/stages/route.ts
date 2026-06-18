@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 
 // GET /api/crm/pipelines/[pipelineId]/stages - Etapas de um pipeline
 export async function GET(_request: NextRequest, { params }: { params: { pipelineId: string } }) {
@@ -13,6 +14,8 @@ export async function GET(_request: NextRequest, { params }: { params: { pipelin
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     const blocked = await subscriptionBlock(dbUser);
     if (blocked) return blocked;
+    const moduleOff = await requireModuleEnabled(dbUser, 'crm');
+    if (moduleOff) return moduleOff;
     const denied = requirePermission(dbUser, 'crm', 'view');
     if (denied) return denied;
 

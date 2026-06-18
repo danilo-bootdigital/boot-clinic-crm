@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 
 const UpdateSchema = z.object({
@@ -16,7 +16,7 @@ const UpdateSchema = z.object({
 
 async function update(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('followup');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'followup', 'edit');
     if (forbidden) return forbidden;
@@ -58,7 +58,7 @@ export const PATCH = update;
 // DELETE /api/followup/tasks/[id] - soft delete
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('followup');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'followup', 'edit');
     if (forbidden) return forbidden;

@@ -1100,3 +1100,51 @@ enum DocumentCategory {
   RECEIPT // recibo/comprovante
   OTHER
 }
+
+// =====================================================================
+// CONTROLE SaaS MODULAR (3 níveis): plano contratado → módulo ativo na
+// clínica → permissão do usuário (RBAC). Tudo aditivo e backward-compatible:
+// sem linhas configuradas, todo módulo é considerado habilitado.
+// =====================================================================
+
+// Catálogo de módulos existentes no sistema (fonte de verdade no banco).
+// `isCore` = sempre habilitado (não desligável, evita lockout). `available`
+// = módulo já construído (false = preparado para o futuro, ex.: Telemedicina).
+model Module {
+  id        String   @id @default(cuid())
+  key       String   @unique // 'patients','clinico','telemedicina',...
+  label     String
+  isCore    Boolean  @default(false)
+  available Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("modules")
+}
+
+// Nível Clínica: ativação interna de um módulo para uma clínica.
+// Ausência de linha = habilitado (default). Permite ligar/desligar por clínica.
+model CompanyModule {
+  id        String   @id @default(cuid())
+  companyId String
+  moduleKey String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, moduleKey])
+  @@map("company_modules")
+}
+
+// Nível SaaS: mapa plano → módulos contratados. Se NÃO houver nenhuma linha
+// para um plano, considera-se que o plano contrata todos (backward-compat).
+model PlanFeature {
+  id        String   @id @default(cuid())
+  plan      String // 'trial' | 'basic' | 'pro'
+  moduleKey String
+  createdAt DateTime @default(now())
+
+  @@unique([plan, moduleKey])
+  @@map("plan_features")
+}

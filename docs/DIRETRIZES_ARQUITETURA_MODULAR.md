@@ -70,7 +70,20 @@ atuais foram acrescentados.
 
 ---
 
-## DIRETRIZ 3 — Controle SaaS por Módulo (NÃO implementar agora)
+## DIRETRIZ 3 — Controle SaaS por Módulo ✅ IMPLEMENTADO (2026-06-18)
+
+> **Implementado** nesta data. Tabelas `Module` / `CompanyModule` / `PlanFeature`
+> (migration `20260617220000_add_modular_control`, aplicada). Helper
+> `lib/api/modules.ts` (`getEnabledModules`, `isModuleEnabled`, `requireModuleEnabled`,
+> catálogo + auto-seed) implementa os 3 níveis. `/api/me` devolve `modules` habilitados;
+> `Sidebar` oculta o que não está habilitado; guard de URL nas APIs via
+> `resolveModuleUser(moduleKey)` (session) e `requireModuleEnabled` aplicado em
+> patients/crm/agenda/followup/whatsapp/automacoes/clinico. Admin: `/admin` → botão
+> **Módulos** por clínica (`/api/admin/companies/[id]/modules`). Backward-compatible:
+> sem config, tudo habilitado; módulos `isCore` (dashboard/configuracoes) nunca desligam.
+> Validado por `scripts/modular-smoke.mjs` (default + nível clínica + core + plano + URL guard).
+> Endpoints de **config compartilhada** (specialties/rooms/professionals/schedule-blocks)
+> ficam acessíveis de propósito (professionals é lido pelo Clínico) — preserva integração.
 
 O Boot Clinic CRM é um **SaaS modular**. Todo módulo deve poder ser:
 

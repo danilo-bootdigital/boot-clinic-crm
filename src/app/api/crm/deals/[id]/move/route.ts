@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 import { runAutomations } from '@/lib/automations/engine';
 
 const MoveSchema = z.object({
@@ -22,6 +23,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!dbUser) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     const blocked = await subscriptionBlock(dbUser);
     if (blocked) return blocked;
+    const moduleOff = await requireModuleEnabled(dbUser, 'crm');
+    if (moduleOff) return moduleOff;
     const forbidden = requirePermission(dbUser, 'crm', 'edit');
     if (forbidden) return forbidden;
 

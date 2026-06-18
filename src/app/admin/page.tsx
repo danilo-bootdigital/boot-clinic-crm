@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatCard } from '@/components/ui/stat-card'
 import { LoadingState } from '@/components/ui/loading-state'
+import ModulesPanel from '@/components/admin/ModulesPanel'
 
 type Company = {
   id: string
@@ -52,6 +53,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
+  const [modulesFor, setModulesFor] = useState<Company | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/companies', { cache: 'no-store' })
@@ -295,6 +297,9 @@ export default function AdminPage() {
                         <button onClick={() => openBilling(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10">
                           Cobrança
                         </button>
+                        <button onClick={() => setModulesFor(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted">
+                          Módulos
+                        </button>
                         {c.status === 'SUSPENDED' || c.status === 'CANCELED' ? (
                           <button onClick={() => setStatus(c, 'ACTIVE')} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-success hover:bg-success/10">
                             Reativar
@@ -316,6 +321,10 @@ export default function AdminPage() {
           </div>
         )}
       </SectionCard>
+
+      {modulesFor && (
+        <ModulesPanel companyId={modulesFor.id} companyName={modulesFor.name} onClose={() => setModulesFor(null)} />
+      )}
     </div>
   )
 }

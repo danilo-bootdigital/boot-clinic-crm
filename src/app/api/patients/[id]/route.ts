@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/server';
 import { UserRole } from '@prisma/client';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 import { writeAudit } from '@/lib/api/audit';
 
 // Schema de atualização. CPF é imutável (não incluído).
@@ -36,6 +37,9 @@ async function resolveDbUser() {
 
   const blocked = await subscriptionBlock(dbUser);
   if (blocked) return { error: blocked };
+
+  const moduleOff = await requireModuleEnabled(dbUser, 'patients');
+  if (moduleOff) return { error: moduleOff };
 
   return { dbUser };
 }

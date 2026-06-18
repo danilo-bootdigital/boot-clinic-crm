@@ -6,6 +6,7 @@ import { UserRole } from '@prisma/client';
 import { ownsPatient, ownsUser, ownsStage } from '@/lib/api/ownership';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 
 // Campos editáveis de um deal (todos opcionais).
 const UpdateDealInputSchema = z.object({
@@ -28,6 +29,8 @@ async function resolveDbUser() {
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
   const blocked = await subscriptionBlock(dbUser);
   if (blocked) return { error: blocked };
+  const moduleOff = await requireModuleEnabled(dbUser, 'crm');
+  if (moduleOff) return { error: moduleOff };
   return { dbUser };
 }
 

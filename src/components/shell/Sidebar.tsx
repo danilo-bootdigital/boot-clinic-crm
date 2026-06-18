@@ -24,6 +24,8 @@ export function Sidebar({
   const pathname = usePathname();
   const [perms, setPerms] = useState<Record<string, string> | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  // Módulos habilitados na clínica (plano contratado + ativação). null = carregando.
+  const [modules, setModules] = useState<string[] | null>(null);
 
   useEffect(() => {
     fetch("/api/me")
@@ -31,19 +33,24 @@ export function Sidebar({
       .then((me) => {
         setPerms(me?.permissions ?? null);
         setRole(me?.role ?? null);
+        setModules(Array.isArray(me?.modules) ? me.modules : null);
       })
       .catch(() => {
         setPerms(null);
         setRole(null);
+        setModules(null);
       });
   }, []);
 
-  // Oculta itens cujo módulo o usuário não pode ao menos visualizar.
-  // Enquanto carrega (perms === null), mostra tudo para evitar "piscar".
-  // Itens superAdmin só aparecem para SUPER_ADMIN (nunca enquanto carrega).
+  // Oculta um item se: (a) o módulo não está habilitado na clínica (plano/ativação),
+  // ou (b) o usuário não pode ao menos visualizar (RBAC). Enquanto carrega, mostra
+  // tudo para evitar "piscar". Itens superAdmin só aparecem para SUPER_ADMIN.
   const canSee = (item: { module?: string; superAdmin?: boolean }) => {
     if (item.superAdmin) return role === "SUPER_ADMIN";
-    return !item.module || perms === null || perms[item.module] !== "none";
+    if (!item.module) return true;
+    const moduleEnabled = modules === null || modules.includes(item.module);
+    const hasPerm = perms === null || perms[item.module] !== "none";
+    return moduleEnabled && hasPerm;
   };
 
   return (

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { getCurrentUser } from '@/lib/auth/server';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
+import { requireModuleEnabled } from '@/lib/api/modules';
 
 // Resolve usuário + permissão + posse do paciente (mesma empresa, não arquivado)
 // para as sub-rotas de paciente (timeline/tags/anexos). Devolve { error } pronto
@@ -16,6 +17,9 @@ export async function resolvePatientAccess(patientId: string, level: 'view' | 'e
 
   const blocked = await subscriptionBlock(dbUser);
   if (blocked) return { error: blocked };
+
+  const moduleOff = await requireModuleEnabled(dbUser, 'patients');
+  if (moduleOff) return { error: moduleOff };
 
   const denied = requirePermission(dbUser, 'patients', level);
   if (denied) return { error: denied };

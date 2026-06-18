@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
 
@@ -15,7 +15,7 @@ const Schema = z.object({
 // PATCH /api/agenda/appointments/[id]/operations - workflow de status
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('agenda');
     if (error) return error;
     const forbidden = requirePermission(dbUser!, 'agenda', 'edit');
     if (forbidden) return forbidden;

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { resolveDbUser } from '@/lib/api/session';
+import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { isEvolutionConfigured } from '@/lib/whatsapp/evolution';
 
 // GET /api/whatsapp/status - indica se a Evolution API está configurada.
 export async function GET() {
   try {
-    const { dbUser, error } = await resolveDbUser();
+    const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
     const denied = requirePermission(dbUser!, 'whatsapp', 'view');
     if (denied) return denied;
