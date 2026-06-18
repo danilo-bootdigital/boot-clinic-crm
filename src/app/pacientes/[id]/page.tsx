@@ -7,6 +7,11 @@ import PatientForm from '@/components/patients/PatientForm'
 import Timeline from '@/components/patients/Timeline'
 import Tags from '@/components/patients/Tags'
 import Attachments from '@/components/patients/Attachments'
+import Anamneses from '@/components/clinical/Anamneses'
+import MedicalRecords from '@/components/clinical/MedicalRecords'
+import Contracts from '@/components/clinical/Contracts'
+import Quotes from '@/components/clinical/Quotes'
+import ClinicalImages from '@/components/clinical/ClinicalImages'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -22,17 +27,18 @@ const GENDER_LABELS: Record<string, string> = {
   MALE: 'Masculino', FEMALE: 'Feminino', OTHER: 'Outro', PREFER_NOT_TO_SAY: 'Prefiro não informar',
 }
 
-// Abas ativas + futuras (preparadas, ainda não implementadas).
-const TABS = [
-  { key: 'dados', label: 'Dados', enabled: true },
-  { key: 'timeline', label: 'Timeline', enabled: true },
-  { key: 'tags', label: 'Tags', enabled: true },
-  { key: 'anexos', label: 'Anexos', enabled: true },
-  { key: 'anamnese', label: 'Anamnese', enabled: false },
-  { key: 'prontuario', label: 'Prontuário', enabled: false },
-  { key: 'contratos', label: 'Contratos', enabled: false },
-  { key: 'orcamentos', label: 'Orçamentos', enabled: false },
-  { key: 'imagens', label: 'Imagens', enabled: false },
+// Abas do paciente. As clínicas são liberadas conforme o acesso por área
+// (GET /api/clinico/access). 'area' mapeia a aba para a permissão clínica.
+const TABS: { key: string; label: string; area?: string }[] = [
+  { key: 'dados', label: 'Dados' },
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'anexos', label: 'Anexos' },
+  { key: 'anamnese', label: 'Anamnese', area: 'anamnese' },
+  { key: 'prontuario', label: 'Prontuário', area: 'prontuario' },
+  { key: 'contratos', label: 'Contratos', area: 'contratos' },
+  { key: 'orcamentos', label: 'Orçamentos', area: 'orcamentos' },
+  { key: 'imagens', label: 'Imagens', area: 'imagens' },
 ]
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
@@ -43,6 +49,8 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
   const [tab, setTab] = useState('dados')
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Níveis de acesso por área clínica ('none' | 'view' | 'edit').
+  const [access, setAccess] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,6 +68,14 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
   }, [id, router])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    fetch('/api/clinico/access').then((r) => r.ok ? r.json() : {}).then(setAccess).catch(() => setAccess({}))
+  }, [])
+
+  // Uma aba clínica aparece quando o usuário tem ao menos 'view' na área.
+  const tabEnabled = (t: { area?: string }) => !t.area || access[t.area] === 'view' || access[t.area] === 'edit'
+  const visibleTabs = TABS.filter(tabEnabled)
 
   async function handleUpdate(formData: any) {
     setError(null)
@@ -104,19 +120,16 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
 
       {/* Abas */}
       <div className="flex flex-wrap gap-1 border-b border-border">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
-            disabled={!t.enabled}
-            onClick={() => t.enabled && setTab(t.key)}
-            title={t.enabled ? undefined : 'Em breve'}
+            onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
               tab === t.key ? 'border-primary text-foreground'
-              : t.enabled ? 'border-transparent text-muted-foreground hover:text-foreground'
-              : 'border-transparent text-muted-foreground/40 cursor-not-allowed'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t.label}{!t.enabled && ' ·'}
+            {t.label}
           </button>
         ))}
       </div>
@@ -160,6 +173,11 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {tab === 'timeline' && <Timeline patientId={id} />}
       {tab === 'tags' && <Tags patientId={id} />}
       {tab === 'anexos' && <Attachments patientId={id} />}
+      {tab === 'anamnese' && <Anamneses patientId={id} canEdit={access.anamnese === 'edit'} />}
+      {tab === 'prontuario' && <MedicalRecords patientId={id} canEdit={access.prontuario === 'edit'} />}
+      {tab === 'contratos' && <Contracts patient={patient} canEdit={access.contratos === 'edit'} />}
+      {tab === 'orcamentos' && <Quotes patientId={id} canEdit={access.orcamentos === 'edit'} />}
+      {tab === 'imagens' && <ClinicalImages patientId={id} canEdit={access.imagens === 'edit'} />}
     </div>
   )
 }

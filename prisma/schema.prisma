@@ -9,57 +9,57 @@ datasource db {
 
 // Multiempresa (cada Company = 1 clínica assinante do SaaS)
 model Company {
-  id          String   @id @default(cuid())
-  name        String
-  cnpj        String?  @unique
-  logo        String?
-  address     String?
-  phone       String?
-  email       String?
+  id                  String        @id @default(cuid())
+  name                String
+  cnpj                String?       @unique
+  logo                String?
+  address             String?
+  phone               String?
+  email               String?
   // Assinatura SaaS — gerida pelo painel Super-Admin.
-  status      CompanyStatus @default(ACTIVE)
-  plan        String?       // "trial" | "basic" | "pro"
-  trialEndsAt DateTime?
+  status              CompanyStatus @default(ACTIVE)
+  plan                String? // "trial" | "basic" | "pro"
+  trialEndsAt         DateTime?
   // Integração Asaas (cobrança recorrente no cartão). Preenchidos para planos pagos.
   asaasCustomerId     String?
   asaasSubscriptionId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
 
   // Relacionamentos
-  users        User[]
-  patients     Patient[]
-  tags         Tag[]
+  users    User[]
+  patients Patient[]
+  tags     Tag[]
 
   @@map("companies")
 }
 
 // Situação da assinatura de uma clínica no SaaS.
 enum CompanyStatus {
-  ACTIVE    // assinatura ativa
-  TRIAL     // em período de teste
+  ACTIVE // assinatura ativa
+  TRIAL // em período de teste
   SUSPENDED // acesso bloqueado (ex.: inadimplência) — usuários não-super recebem 403
-  CANCELED  // assinatura encerrada
+  CANCELED // assinatura encerrada
 }
 
 // Usuários e Autenticação
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
+  id          String    @id @default(cuid())
+  email       String    @unique
   name        String
   avatar      String?
   role        UserRole
   companyId   String
   // Permissões por módulo: { patients|crm|agenda|followup|dashboard|configuracoes: 'none'|'view'|'edit' }
   permissions Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   // Relacionamentos
-  company        Company        @relation(fields: [companyId], references: [id])
-  createdPatients Patient[]      // Pacientes criados por este usuário
+  company         Company         @relation(fields: [companyId], references: [id])
+  createdPatients Patient[] // Pacientes criados por este usuário
   timelineEvents  TimelineEvent[] // Eventos de timeline criados por este usuário
 
   @@map("users")
@@ -78,33 +78,33 @@ enum UserRole {
 
 // Módulo de Pacientes - BOOT CLINIC CRM
 model Patient {
-  id          String   @id @default(cuid())
-  name        String
-  cpf         String
-  birthDate   DateTime
-  gender      Gender
-  phone       String
-  whatsapp    String?
-  email       String?
-  origin      PatientOrigin
-  status      PatientStatus @default(ACTIVE)
+  id              String        @id @default(cuid())
+  name            String
+  cpf             String
+  birthDate       DateTime
+  gender          Gender
+  phone           String
+  whatsapp        String?
+  email           String?
+  origin          PatientOrigin
+  status          PatientStatus @default(ACTIVE)
   // Endereço e convênio
   address         String?
   city            String?
   state           String?
   zipCode         String?
-  insurance       String?  // convênio
-  insuranceNumber String?  // número da carteirinha
-  notes           String?  // observações
-  companyId   String
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  insurance       String? // convênio
+  insuranceNumber String? // número da carteirinha
+  notes           String? // observações
+  companyId       String
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
 
   // Relacionamentos
-  company     Company        @relation(fields: [companyId], references: [id])
-  createdBy   User           @relation(fields: [createdById], references: [id])
+  company     Company             @relation(fields: [companyId], references: [id])
+  createdBy   User                @relation(fields: [createdById], references: [id])
   timeline    TimelineEvent[]
   attachments PatientAttachment[]
   tags        PatientTag[]
@@ -142,14 +142,14 @@ enum PatientStatus {
 
 // Timeline de Pacientes
 model TimelineEvent {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   title     String
   content   String
   type      TimelineEventType
   patientId String
   userId    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   // Relacionamentos
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -170,15 +170,15 @@ enum TimelineEventType {
 
 // Anexos de Pacientes
 model PatientAttachment {
-  id          String   @id @default(cuid())
-  filename    String
+  id           String   @id @default(cuid())
+  filename     String
   originalName String
-  mimeType    String
-  size        Int
-  url         String
-  patientId   String
-  uploadedBy  String
-  createdAt   DateTime @default(now())
+  mimeType     String
+  size         Int
+  url          String
+  patientId    String
+  uploadedBy   String
+  createdAt    DateTime @default(now())
 
   // Relacionamentos
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
@@ -195,8 +195,8 @@ model Tag {
   createdAt DateTime @default(now())
 
   // Relacionamentos
-  company   Company        @relation(fields: [companyId], references: [id])
-  patients  PatientTag[]
+  company  Company      @relation(fields: [companyId], references: [id])
+  patients PatientTag[]
 
   // Único por empresa (não global) — cada clínica tem suas próprias tags.
   @@unique([companyId, name])
@@ -219,32 +219,32 @@ model PatientTag {
 
 // Módulo de CRM/Pipeline
 model Pipeline {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   description String?
-  isDefault   Boolean  @default(false)
+  isDefault   Boolean        @default(false)
   status      PipelineStatus @default(ACTIVE)
-  order       Int      @default(0)
+  order       Int            @default(0)
   companyId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   deletedAt   DateTime?
 
   @@map("pipelines")
 }
 
 model PipelineStage {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   order       Int
-  color       String   @default("#3B82F6")
+  color       String    @default("#3B82F6")
   probability Int?
-  isFinal     Boolean  @default(false)
+  isFinal     Boolean   @default(false)
   finalType   FinalType @default(NONE)
   pipelineId  String
   companyId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("pipeline_stages")
 }
@@ -259,39 +259,39 @@ model DealLossReason {
 }
 
 model Deal {
-  id               String   @id @default(cuid())
-  title            String
-  description      String?
-  valueEstimated   Float?
-  priority         Priority @default(MEDIUM)
-  status           DealStatus @default(NEW)
-  source           DealSource @default(OTHER)
-  companyId        String
-  pipelineId       String?
-  stageId          String?
-  patientId        String?
+  id                String     @id @default(cuid())
+  title             String
+  description       String?
+  valueEstimated    Float?
+  priority          Priority   @default(MEDIUM)
+  status            DealStatus @default(NEW)
+  source            DealSource @default(OTHER)
+  companyId         String
+  pipelineId        String?
+  stageId           String?
+  patientId         String?
   responsibleUserId String
-  lossReasonId     String?
-  nextFollowUpAt   DateTime?
-  lastContactAt    DateTime?
-  wonAt            DateTime?
-  lostAt           DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deletedAt        DateTime?
+  lossReasonId      String?
+  nextFollowUpAt    DateTime?
+  lastContactAt     DateTime?
+  wonAt             DateTime?
+  lostAt            DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
 
   @@map("deals")
 }
 
 model DealActivity {
-  id            String   @id @default(cuid())
-  type          ActivityType
-  title         String
-  description   String?
-  companyId     String
-  dealId        String
-  authorId      String
-  createdAt     DateTime @default(now())
+  id          String       @id @default(cuid())
+  type        ActivityType
+  title       String
+  description String?
+  companyId   String
+  dealId      String
+  authorId    String
+  createdAt   DateTime     @default(now())
 
   @@map("deal_activities")
 }
@@ -351,19 +351,19 @@ enum ActivityType {
 
 // Módulo de Follow-up e Automações
 model FollowUpTemplate {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   name            String
   description     String?
   content         String
   type            FollowUpType
-  dueHours        Int      // Horas após o gatilho
-  isRecurring     Boolean  @default(false)
+  dueHours        Int // Horas após o gatilho
+  isRecurring     Boolean         @default(false)
   recurrenceType  RecurrenceType?
-  recurrenceEvery Int?    // Dias/semanas/meses
-  isActive        Boolean  @default(true)
+  recurrenceEvery Int? // Dias/semanas/meses
+  isActive        Boolean         @default(true)
   companyId       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
 
   @@unique([companyId, name])
@@ -371,127 +371,127 @@ model FollowUpTemplate {
 }
 
 model FollowUpTask {
-  id              String   @id @default(cuid())
-  title           String
-  description     String?
-  dueDate         DateTime
-  status          TaskStatus @default(PENDING)
-  priority        Priority @default(MEDIUM)
-  type            TaskType
-  templateId      String?
-  assignedToId    String?
-  createdById     String
-  completedAt     DateTime?
-  canceledAt      DateTime?
-  canceledReason  String?
-  companyId       String
-  patientId       String?
-  dealId          String?
-  appointmentId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id             String     @id @default(cuid())
+  title          String
+  description    String?
+  dueDate        DateTime
+  status         TaskStatus @default(PENDING)
+  priority       Priority   @default(MEDIUM)
+  type           TaskType
+  templateId     String?
+  assignedToId   String?
+  createdById    String
+  completedAt    DateTime?
+  canceledAt     DateTime?
+  canceledReason String?
+  companyId      String
+  patientId      String?
+  dealId         String?
+  appointmentId  String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
 
   @@map("follow_up_tasks")
 }
 
 model AutomationRule {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  isActive        Boolean  @default(true)
-  companyId       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  companyId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
   @@unique([companyId, name])
   @@map("automation_rules")
 }
 
 model AutomationTrigger {
-  id              String   @id @default(cuid())
-  ruleId          String
-  entityType      EntityType
-  event           String   // Evento específico (paciente.criado, pipeline.movido, etc.)
-  condition       String?  // Condição JSON para execução
-  companyId       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id         String     @id @default(cuid())
+  ruleId     String
+  entityType EntityType
+  event      String // Evento específico (paciente.criado, pipeline.movido, etc.)
+  condition  String? // Condição JSON para execução
+  companyId  String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deletedAt  DateTime?
 
   @@unique([companyId, ruleId, entityType, event])
   @@map("automation_triggers")
 }
 
 model AutomationAction {
-  id              String   @id @default(cuid())
-  ruleId          String
-  actionType      ActionType
-  config          String   // Configuração JSON da ação
-  order           Int
-  companyId       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id         String     @id @default(cuid())
+  ruleId     String
+  actionType ActionType
+  config     String // Configuração JSON da ação
+  order      Int
+  companyId  String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deletedAt  DateTime?
 
   @@unique([companyId, ruleId, order])
   @@map("automation_actions")
 }
 
 model AutomationExecution {
-  id              String   @id @default(cuid())
-  ruleId          String
-  triggerId       String
-  status          ExecutionStatus @default(PENDING)
-  startedAt       DateTime @default(now())
-  completedAt     DateTime?
-  error           String?
-  result          String?  // Resultado JSON
-  companyId       String
-  patientId       String?
-  dealId          String?
-  taskId          String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id          String          @id @default(cuid())
+  ruleId      String
+  triggerId   String
+  status      ExecutionStatus @default(PENDING)
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+  error       String?
+  result      String? // Resultado JSON
+  companyId   String
+  patientId   String?
+  dealId      String?
+  taskId      String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
 
   @@map("automation_executions")
 }
 
 model NotificationEvent {
-  id              String   @id @default(cuid())
-  title           String
-  message         String
-  type            NotificationType
-  priority        Priority @default(MEDIUM)
-  isRead          Boolean  @default(false)
-  userId          String
-  companyId       String
-  patientId       String?
-  dealId          String?
-  metadata        String?  // Dados adicionais JSON
-  readAt          DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  type      NotificationType
+  priority  Priority         @default(MEDIUM)
+  isRead    Boolean          @default(false)
+  userId    String
+  companyId String
+  patientId String?
+  dealId    String?
+  metadata  String? // Dados adicionais JSON
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
 
   @@map("notification_events")
 }
 
 // Módulo de WhatsApp (estrutura interna; envio real via Evolution API quando configurada)
 model WhatsAppConversation {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   companyId     String
   patientId     String?
   contactName   String
   contactPhone  String
-  status        String   @default("OPEN") // OPEN | CLOSED
+  status        String    @default("OPEN") // OPEN | CLOSED
   lastMessage   String?
   lastMessageAt DateTime?
-  unreadCount   Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  unreadCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
   @@map("whatsapp_conversations")
@@ -502,7 +502,7 @@ model WhatsAppMessage {
   companyId      String
   conversationId String
   content        String
-  direction      String   // INCOMING | OUTGOING
+  direction      String // INCOMING | OUTGOING
   status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED
   createdAt      DateTime @default(now())
 
@@ -510,12 +510,12 @@ model WhatsAppMessage {
 }
 
 model WhatsAppQuickReply {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   companyId String
   title     String
   content   String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
   deletedAt DateTime?
 
   @@map("whatsapp_quick_replies")
@@ -529,7 +529,7 @@ model NotificationSetting {
   smsEnabled           Boolean  @default(false)
   whatsappEnabled      Boolean  @default(false)
   appointmentReminders Boolean  @default(true)
-  followUpReminders     Boolean @default(true)
+  followUpReminders    Boolean  @default(true)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -538,39 +538,39 @@ model NotificationSetting {
 
 // Módulo de Agenda Médica
 model Appointment {
-  id                  String   @id @default(cuid())
-  patientId           String
-  professionalId      String
+  id                 String            @id @default(cuid())
+  patientId          String
+  professionalId     String
   specialtyId        String
-  type                String
-  status              AppointmentStatus @default(PENDING)
-  startAt             DateTime
-  endAt               DateTime
-  durationMinutes     Int
-  source              String
-  notes               String?
-  createdById         String
-  confirmedAt         DateTime?
-  canceledAt          DateTime?
-  cancellationReason  String?
-  noShowAt            DateTime?
-  attendedAt          DateTime?
-  companyId           String
-  dealId              String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  type               String
+  status             AppointmentStatus @default(PENDING)
+  startAt            DateTime
+  endAt              DateTime
+  durationMinutes    Int
+  source             String
+  notes              String?
+  createdById        String
+  confirmedAt        DateTime?
+  canceledAt         DateTime?
+  cancellationReason String?
+  noShowAt           DateTime?
+  attendedAt         DateTime?
+  companyId          String
+  dealId             String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
 
   @@map("appointments")
 }
 
 model Specialty {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   companyId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@unique([companyId, name])
@@ -578,40 +578,40 @@ model Specialty {
 }
 
 model Professional {
-  id          String   @id @default(cuid())
-  name        String
-  crm         String?
-  phone       String?
-  email       String?
-  companyId   String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  id        String    @id @default(cuid())
+  name      String
+  crm       String?
+  phone     String?
+  email     String?
+  companyId String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@map("professionals")
 }
 
 model ProfessionalSpecialty {
-  id            String   @id @default(cuid())
+  id             String   @id @default(cuid())
   professionalId String
-  specialtyId   String
-  companyId     String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  specialtyId    String
+  companyId      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([professionalId, specialtyId])
   @@map("professional_specialties")
 }
 
 model Room {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   companyId   String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@unique([companyId, name])
@@ -619,14 +619,14 @@ model Room {
 }
 
 model AppointmentType {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
-  duration    Int      // minutos
+  duration    Int // minutos
   companyId   String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@unique([companyId, name])
@@ -634,55 +634,55 @@ model AppointmentType {
 }
 
 model ProfessionalSchedule {
-  id          String   @id @default(cuid())
+  id             String    @id @default(cuid())
   professionalId String
-  dayOfWeek   Int      // 0-6 (Domingo-Sábado)
-  startTime   String   // HH:mm
-  endTime     String   // HH:mm
-  isActive    Boolean  @default(true)
-  companyId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  dayOfWeek      Int // 0-6 (Domingo-Sábado)
+  startTime      String // HH:mm
+  endTime        String // HH:mm
+  isActive       Boolean   @default(true)
+  companyId      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   @@map("professional_schedules")
 }
 
 model ScheduleBlock {
-  id          String   @id @default(cuid())
-  professionalId String
-  date        DateTime
-  startTime   String   // HH:mm
-  endTime     String   // HH:mm
-  reason      String?
-  isRecurring Boolean  @default(false)
+  id               String    @id @default(cuid())
+  professionalId   String
+  date             DateTime
+  startTime        String // HH:mm
+  endTime          String // HH:mm
+  reason           String?
+  isRecurring      Boolean   @default(false)
   recurringPattern String? // daily, weekly, monthly
-  companyId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  companyId        String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
 
   @@map("schedule_blocks")
 }
 
 model AppointmentStatusHistory {
-  id            String   @id @default(cuid())
+  id            String            @id @default(cuid())
   appointmentId String
   status        AppointmentStatus
   notes         String?
   changedById   String
-  createdAt     DateTime @default(now())
+  createdAt     DateTime          @default(now())
 
   @@map("appointment_status_history")
 }
 
 model AppointmentReminder {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   appointmentId String
   type          ReminderType
   sentAt        DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@map("appointment_reminders")
 }
@@ -737,6 +737,13 @@ enum EntityType {
   DEAL
   APPOINTMENT
   WHATSAPP_CONVERSATION
+  // Módulo Clínico Documental
+  ANAMNESIS
+  MEDICAL_RECORD
+  CONTRACT
+  QUOTE
+  PATIENT_IMAGE
+  PATIENT_DOCUMENT
 }
 
 enum ActionType {
@@ -776,18 +783,320 @@ enum NotificationType {
 
 // Sistema de Auditoria
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  userName    String?
-  action      ActionType
-  entityType  EntityType
-  entityId    String
-  oldValues   Json?
-  newValues   Json?
-  ipAddress   String?
-  userAgent   String?
-  timestamp   DateTime @default(now())
-  companyId   String
+  id         String     @id @default(cuid())
+  userId     String?
+  userName   String?
+  action     ActionType
+  entityType EntityType
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime   @default(now())
+  companyId  String
 
   @@map("audit_logs")
+}
+
+// =====================================================================
+// MÓDULO CLÍNICO DOCUMENTAL
+// Anamnese · Prontuário · Contratos · Orçamentos · Imagens/Anexos.
+// Escopo multiempresa (companyId) e vínculo ao paciente (patientId).
+// Sem prescrição, CID, TISS ou IA médica — apenas documental/operacional.
+// FKs por escalar (companyId/patientId) seguindo o padrão de Deal/Appointment.
+// =====================================================================
+
+// ---- ANAMNESE DIGITAL ----
+
+// Modelo de anamnese por especialidade (catálogo da clínica).
+model AnamnesisTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  specialty   String? // especialidade alvo (texto livre)
+  description String?
+  isActive    Boolean   @default(true)
+  companyId   String
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  questions AnamnesisQuestion[]
+
+  @@map("anamnesis_templates")
+}
+
+// Pergunta personalizável de um modelo de anamnese.
+model AnamnesisQuestion {
+  id         String                @id @default(cuid())
+  templateId String
+  companyId  String
+  label      String
+  type       AnamnesisQuestionType @default(TEXT)
+  options    Json? // alternativas para MULTIPLE_CHOICE/SINGLE_CHOICE
+  required   Boolean               @default(false)
+  order      Int                   @default(0)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  template AnamnesisTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("anamnesis_questions")
+}
+
+// Anamnese preenchida para um paciente.
+model PatientAnamnesis {
+  id           String          @id @default(cuid())
+  companyId    String
+  patientId    String
+  templateId   String?
+  title        String
+  status       AnamnesisStatus @default(DRAFT)
+  createdById  String
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+
+  answers PatientAnamnesisAnswer[]
+
+  @@map("patient_anamneses")
+}
+
+// Resposta de uma pergunta dentro de uma anamnese preenchida.
+model PatientAnamnesisAnswer {
+  id          String   @id @default(cuid())
+  companyId   String
+  anamnesisId String
+  questionId  String?
+  label       String // rótulo da pergunta (snapshot)
+  value       String? // resposta em texto (ou opção escolhida / sim-não)
+  fileUrl     String? // path no storage quando a resposta é upload
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  anamnesis PatientAnamnesis @relation(fields: [anamnesisId], references: [id], onDelete: Cascade)
+
+  @@map("patient_anamnesis_answers")
+}
+
+// ---- PRONTUÁRIO OPERACIONAL ----
+
+// Registro de prontuário (evolução, observação, histórico). NÃO é prontuário
+// médico avançado: sem prescrição/CID/TISS.
+model MedicalRecord {
+  id             String            @id @default(cuid())
+  companyId      String
+  patientId      String
+  type           MedicalRecordType @default(EVOLUTION)
+  title          String
+  content        String
+  professionalId String? // profissional responsável pelo registro (Professional)
+  createdById    String // usuário que registrou
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+
+  attachments MedicalRecordAttachment[]
+
+  @@map("medical_records")
+}
+
+model MedicalRecordAttachment {
+  id           String   @id @default(cuid())
+  companyId    String
+  recordId     String
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String // path no storage (signed URL na leitura)
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+
+  record MedicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@map("medical_record_attachments")
+}
+
+// ---- CONTRATOS PERSONALIZÁVEIS ----
+
+// Modelo de contrato com variáveis dinâmicas no corpo (ex.: {{nome_paciente}}).
+model ContractTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  content     String // corpo com variáveis {{...}}
+  isActive    Boolean   @default(true)
+  companyId   String
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@map("contract_templates")
+}
+
+// Contrato gerado para um paciente (conteúdo já com variáveis resolvidas).
+model PatientContract {
+  id          String         @id @default(cuid())
+  companyId   String
+  patientId   String
+  templateId  String?
+  title       String
+  content     String
+  variables   Json? // snapshot das variáveis usadas
+  value       Float?
+  status      ContractStatus @default(DRAFT)
+  createdById String
+  sentAt      DateTime?
+  signedAt    DateTime?
+  canceledAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@map("patient_contracts")
+}
+
+// ---- ORÇAMENTOS CLÍNICOS ----
+
+model ClinicalQuote {
+  id          String      @id @default(cuid())
+  companyId   String
+  patientId   String
+  title       String
+  status      QuoteStatus @default(DRAFT)
+  discount    Float       @default(0) // valor absoluto de desconto
+  subtotal    Float       @default(0)
+  total       Float       @default(0)
+  validUntil  DateTime?
+  notes       String?
+  createdById String
+  sentAt      DateTime?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  items ClinicalQuoteItem[]
+
+  @@map("clinical_quotes")
+}
+
+model ClinicalQuoteItem {
+  id          String   @id @default(cuid())
+  companyId   String
+  quoteId     String
+  description String // procedimento
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  quote ClinicalQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("clinical_quote_items")
+}
+
+// ---- IMAGENS E ANEXOS CLÍNICOS ----
+
+// Imagem clínica do paciente (antes/depois, exame, etc.). Path no storage.
+model PatientImage {
+  id          String        @id @default(cuid())
+  companyId   String
+  patientId   String
+  category    ImageCategory @default(OTHER)
+  description String?
+  url         String // path no storage (signed URL na leitura)
+  mimeType    String
+  size        Int
+  takenAt     DateTime?
+  uploadedBy  String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  @@map("patient_images")
+}
+
+// Documento clínico do paciente (exame, laudo, termo, contrato assinado...).
+model PatientDocument {
+  id           String           @id @default(cuid())
+  companyId    String
+  patientId    String
+  category     DocumentCategory @default(OTHER)
+  title        String
+  originalName String
+  url          String // path no storage (signed URL na leitura)
+  mimeType     String
+  size         Int
+  uploadedBy   String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  deletedAt    DateTime?
+
+  @@map("patient_documents")
+}
+
+// ---- ENUMS DO MÓDULO CLÍNICO ----
+
+enum AnamnesisQuestionType {
+  TEXT
+  TEXTAREA
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  BOOLEAN
+  NUMBER
+  DATE
+  FILE
+}
+
+enum AnamnesisStatus {
+  DRAFT // rascunho
+  FILLED // preenchida
+  REVIEWED // revisada
+  ARCHIVED // arquivada
+}
+
+enum MedicalRecordType {
+  EVOLUTION // evolução clínica
+  OBSERVATION // observação interna
+  HISTORY // histórico de atendimento
+  PROCEDURE // procedimento realizado
+}
+
+enum ContractStatus {
+  DRAFT // rascunho
+  SENT // enviado
+  SIGNED // assinado
+  CANCELED // cancelado
+}
+
+enum QuoteStatus {
+  DRAFT // rascunho
+  SENT // enviado
+  APPROVED // aprovado
+  REJECTED // recusado
+}
+
+enum ImageCategory {
+  BEFORE // antes
+  AFTER // depois
+  EXAM // exame
+  CLINICAL // clínica geral
+  DOCUMENT // documento
+  OTHER
+}
+
+enum DocumentCategory {
+  EXAM // exame
+  REPORT // laudo
+  CONTRACT // contrato
+  CONSENT // termo de consentimento
+  RECEIPT // recibo/comprovante
+  OTHER
 }
