@@ -7,7 +7,6 @@ import { requirePermission, sanitizePermissions } from '@/lib/api/permissions';
 import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAudit } from '@/lib/api/audit';
-import { syncProfessionalForUser } from '@/lib/api/professional-sync';
 
 const Schema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(160).optional(),
@@ -107,9 +106,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
     await writeAudit({ dbUser: dbUser!, action: 'UPDATE', entityType: 'USER', entityId: params.id, oldValues, newValues, request });
 
-    // Mantém o profissional da agenda em sincronia (papel pode ter mudado de/para DOCTOR).
-    await syncProfessionalForUser({ ...user, companyId: dbUser!.companyId });
-
     return NextResponse.json(user);
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
@@ -149,11 +145,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     await prisma.user.update({
       where: { id: params.id },
       data: { deletedAt: new Date(), email: `removido_${params.id}@deleted.local` },
-    });
-    // Remove também o profissional vinculado dos seletores da agenda.
-    await prisma.professional.updateMany({
-      where: { userId: params.id, deletedAt: null },
-      data: { deletedAt: new Date(), isActive: false },
     });
     return NextResponse.json({ success: true });
   } catch (err) {
