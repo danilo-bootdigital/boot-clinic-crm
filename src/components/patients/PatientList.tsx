@@ -150,7 +150,7 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
                   ) : (
                     <>
                       <button onClick={() => onView(patient)} className="text-primary hover:text-accent-foreground mr-3">Ver</button>
-                      <button onClick={() => onEdit(patient)} className="text-indigo-600 hover:text-indigo-900">Editar</button>
+                      <button onClick={() => onEdit(patient)} className="text-primary hover:text-accent-foreground">Editar</button>
                     </>
                   )}
                 </td>

@@ -8,7 +8,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { QUOTE_STATUS_LABELS } from '@/lib/validations/clinical'
 
 const STATUS_TONE: Record<string, any> = { DRAFT: 'warning', SENT: 'info', APPROVED: 'success', REJECTED: 'destructive' }
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 const brl = (n: number) => `R$ ${Number(n || 0).toFixed(2)}`
 
 type Item = { description: string; quantity: number; unitPrice: number }
@@ -62,40 +62,40 @@ export default function Quotes({ patientId, canEdit = true }: { patientId: strin
         ? <ActionButton variant="outline" icon={<ArrowLeft />} onClick={() => { setCreating(false); setError(null) }}>Voltar</ActionButton>
         : <ActionButton icon={<Plus />} onClick={() => setCreating(true)}>Novo orçamento</ActionButton>)}
     >
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
 
       {creating ? (
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
             <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Itens / procedimentos</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Itens / procedimentos</label>
             <div className="space-y-2">
               {items.map((it, idx) => (
                 <div key={idx} className="flex gap-2">
                   <input className={field + ' flex-1'} placeholder="Descrição" value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} />
                   <input type="number" min="1" className={field + ' w-20'} value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
                   <input type="number" step="0.01" className={field + ' w-28'} placeholder="Valor unit." value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
-                  <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="p-2 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="p-2 rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => setItems([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="mt-2 text-sm text-blue-600 hover:underline">+ Adicionar item</button>
+            <button type="button" onClick={() => setItems([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="mt-2 text-sm text-primary hover:underline">+ Adicionar item</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Desconto (R$)</label><input type="number" step="0.01" className={field} value={discount} onChange={(e) => setDiscount(e.target.value)} /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Validade</label><input type="date" className={field} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Desconto (R$)</label><input type="number" step="0.01" className={field} value={discount} onChange={(e) => setDiscount(e.target.value)} /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Validade</label><input type="date" className={field} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /></div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Observações</label><textarea className={field} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div><label className="block text-sm font-medium text-foreground mb-1">Observações</label><textarea className={field} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
           <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{brl(subtotal)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Desconto</span><span>- {brl(Number(discount) || 0)}</span></div>
             <div className="flex justify-between font-semibold mt-1 border-t pt-1"><span>Total</span><span>{brl(total)}</span></div>
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t">
-            <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar orçamento</button>
+            <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar orçamento</button>
           </div>
         </form>
       ) : rows === null ? (
@@ -116,9 +116,9 @@ export default function Quotes({ patientId, canEdit = true }: { patientId: strin
                 </div>
                 {canEdit && q.status !== 'REJECTED' && q.status !== 'APPROVED' && (
                   <div className="flex shrink-0 gap-1">
-                    {q.status === 'DRAFT' && <button onClick={() => setStatus(q.id, 'SENT')} title="Enviar" className="p-2 rounded-md text-blue-600 hover:bg-blue-50"><Send className="h-4 w-4" /></button>}
-                    <button onClick={() => setStatus(q.id, 'APPROVED')} title="Aprovar" className="p-2 rounded-md text-green-600 hover:bg-green-50"><CheckCircle2 className="h-4 w-4" /></button>
-                    <button onClick={() => setStatus(q.id, 'REJECTED')} title="Recusar" className="p-2 rounded-md text-red-600 hover:bg-red-50"><XCircle className="h-4 w-4" /></button>
+                    {q.status === 'DRAFT' && <button onClick={() => setStatus(q.id, 'SENT')} title="Enviar" className="p-2 rounded-md text-primary hover:bg-accent"><Send className="h-4 w-4" /></button>}
+                    <button onClick={() => setStatus(q.id, 'APPROVED')} title="Aprovar" className="p-2 rounded-md text-success hover:bg-success/10"><CheckCircle2 className="h-4 w-4" /></button>
+                    <button onClick={() => setStatus(q.id, 'REJECTED')} title="Recusar" className="p-2 rounded-md text-destructive hover:bg-destructive/10"><XCircle className="h-4 w-4" /></button>
                   </div>
                 )}
               </div>

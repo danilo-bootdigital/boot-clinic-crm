@@ -5,7 +5,7 @@ import { Upload, Trash2, FileText, ExternalLink } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
 import { IMAGE_CATEGORIES, IMAGE_CATEGORY_LABELS, DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from '@/lib/validations/clinical'
 
-const field = 'px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+const field = 'px-2 py-1.5 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function ClinicalImages({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
   const [images, setImages] = useState<any[] | null>(null)
@@ -61,7 +61,7 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
             <select className={field} value={imgCat} onChange={(e) => setImgCat(e.target.value)}>
               {IMAGE_CATEGORIES.map((c) => <option key={c} value={c}>{IMAGE_CATEGORY_LABELS[c]}</option>)}
             </select>
-            <button onClick={() => imgInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={() => imgInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
               <Upload className="h-4 w-4" /> {busy ? 'Enviando...' : 'Enviar imagem'}
             </button>
             <input ref={imgInput} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload('images', f, imgCat); e.target.value = '' }} />
@@ -81,7 +81,7 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
                   : <div className="grid h-32 w-full place-items-center bg-muted text-muted-foreground"><FileText className="h-6 w-6" /></div>}
                 <div className="flex items-center justify-between px-2 py-1 text-xs">
                   <span className="truncate text-muted-foreground">{IMAGE_CATEGORY_LABELS[img.category] || img.category}</span>
-                  {canEdit && <button onClick={() => removeImage(img.id)} className="text-red-600 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" /></button>}
+                  {canEdit && <button onClick={() => removeImage(img.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
                 </div>
               </div>
             ))}
@@ -97,7 +97,7 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
             <select className={field} value={docCat} onChange={(e) => setDocCat(e.target.value)}>
               {DOCUMENT_CATEGORIES.map((c) => <option key={c} value={c}>{DOCUMENT_CATEGORY_LABELS[c]}</option>)}
             </select>
-            <button onClick={() => docInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={() => docInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
               <Upload className="h-4 w-4" /> {busy ? 'Enviando...' : 'Enviar documento'}
             </button>
             <input ref={docInput} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload('documents', f, docCat); e.target.value = '' }} />
@@ -120,8 +120,8 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="p-2 rounded-md text-blue-600 hover:bg-blue-50"><ExternalLink className="h-4 w-4" /></a>}
-                  {canEdit && <button onClick={() => removeDoc(d.id)} className="p-2 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>}
+                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="p-2 rounded-md text-primary hover:bg-accent"><ExternalLink className="h-4 w-4" /></a>}
+                  {canEdit && <button onClick={() => removeDoc(d.id)} className="p-2 rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>}
                 </div>
               </div>
             ))}

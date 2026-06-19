@@ -45,8 +45,8 @@ const STATUS_STYLES: Record<Company['status'], string> = {
   CANCELED: 'bg-muted text-muted-foreground',
 }
 
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-const label = 'block text-sm font-medium text-gray-700 mb-1'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+const label = 'block text-sm font-medium text-foreground mb-1'
 
 const emptyForm = {
   name: '', cnpj: '', phone: '', email: '', plan: 'trial',

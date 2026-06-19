@@ -98,7 +98,7 @@ export default function TelePublicPage() {
           </button>
         )}
 
-        {err && <p className="mt-3 text-center text-xs text-red-600">{err}</p>}
+        {err && <p className="mt-3 text-center text-xs text-destructive">{err}</p>}
         <p className="mt-4 text-center text-[11px] text-muted-foreground">Use um ambiente reservado e com boa conexão. Seus dados são protegidos conforme a LGPD.</p>
       </div>
     </div>

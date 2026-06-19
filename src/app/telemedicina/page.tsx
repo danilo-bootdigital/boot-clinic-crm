@@ -32,11 +32,11 @@ const STATUS_LABEL: Record<string, string> = {
   FINALIZADA: 'Finalizada', CANCELADA: 'Cancelada', NAO_COMPARECEU: 'Não compareceu',
 }
 const STATUS_TONE: Record<string, string> = {
-  AGENDADA: 'bg-blue-100 text-blue-700', AGUARDANDO_PACIENTE: 'bg-amber-100 text-amber-700',
-  PACIENTE_ENTROU: 'bg-indigo-100 text-indigo-700', MEDICO_ENTROU: 'bg-indigo-100 text-indigo-700',
-  EM_ATENDIMENTO: 'bg-emerald-100 text-emerald-700', PAUSADA: 'bg-orange-100 text-orange-700',
-  FINALIZADA: 'bg-green-100 text-green-700', CANCELADA: 'bg-red-100 text-red-700',
-  NAO_COMPARECEU: 'bg-rose-100 text-rose-700',
+  AGENDADA: 'bg-muted text-muted-foreground', AGUARDANDO_PACIENTE: 'bg-warning/15 text-warning',
+  PACIENTE_ENTROU: 'bg-accent text-accent-foreground', MEDICO_ENTROU: 'bg-accent text-accent-foreground',
+  EM_ATENDIMENTO: 'bg-success/15 text-success', PAUSADA: 'bg-warning/15 text-warning',
+  FINALIZADA: 'bg-muted text-foreground', CANCELADA: 'bg-destructive/15 text-destructive',
+  NAO_COMPARECEU: 'bg-destructive/15 text-destructive',
 }
 
 export default function TelemedicinaPage() {

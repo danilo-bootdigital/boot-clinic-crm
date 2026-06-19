@@ -55,7 +55,7 @@ export default function ModulesPanel({ companyId, companyName, onClose }: { comp
         </div>
 
         <div className="p-5">
-          {err && <p className="mb-3 text-sm text-red-600">{err}</p>}
+          {err && <p className="mb-3 text-sm text-destructive">{err}</p>}
           {rows === null ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Carregando...</p>
           ) : (
@@ -98,9 +98,9 @@ function Row({ m, busy, onToggle }: { m: ModuleRow; busy: boolean; onToggle: (v:
         disabled={m.isCore || busy}
         onClick={() => onToggle(!m.enabled)}
         title={m.isCore ? 'Módulo essencial — sempre ativo' : undefined}
-        className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-50 ${m.enabled ? 'bg-primary' : 'bg-gray-300'}`}
+        className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-50 ${m.enabled ? 'bg-primary' : 'bg-muted'}`}
       >
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${m.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-card transition-transform ${m.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
       </button>
     </div>
   )

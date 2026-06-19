@@ -154,34 +154,34 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-muted p-4">
       {/* Filtros */}
-      <div className="mb-6 bg-white rounded-lg shadow p-4">
+      <div className="mb-6 bg-card rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Buscar
             </label>
             <input
               type="text"
               placeholder="Título, descrição..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-border rounded-md"
               value={filters.search}
               onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Responsável
             </label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-border rounded-md"
               value={filters.responsibleUserId}
               onChange={(e) => setFilters(prev => ({ ...prev, responsibleUserId: e.target.value }))}
             >
@@ -190,11 +190,11 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Origem
             </label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-border rounded-md"
               value={filters.source}
               onChange={(e) => setFilters(prev => ({ ...prev, source: e.target.value }))}
             >
@@ -210,11 +210,11 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Status
             </label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              className="w-full px-3 py-2 border border-border rounded-md"
               value={filters.status}
               onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             >
@@ -241,7 +241,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
           return (
             <div
               key={stage.id}
-              className="bg-white rounded-lg shadow"
+              className="bg-card rounded-lg shadow"
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(stage.id)}
             >
@@ -251,13 +251,13 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                 style={{ backgroundColor: stage.color + '20' }}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-gray-900">{stage.name}</h3>
-                  <span className="text-sm text-gray-500">
+                  <h3 className="font-semibold text-foreground">{stage.name}</h3>
+                  <span className="text-sm text-muted-foreground">
                     {stageDeals.length} deal{stageDeals.length !== 1 ? 's' : ''}
                   </span>
                 </div>
                 {stageValue > 0 && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Total: R$ {stageValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                 )}
@@ -271,26 +271,26 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                     draggable
                     onDragStart={() => handleDragStart(deal)}
                     onClick={() => onDealClick?.(deal)}
-                    className="bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                    className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-sm text-gray-900 truncate">
+                      <h4 className="font-medium text-sm text-foreground truncate">
                         {deal.title}
                       </h4>
                       {deal.priority === 'URGENT' && (
-                        <span className="px-1 py-0.5 text-xs bg-red-100 text-red-800 rounded">
+                        <span className="px-1 py-0.5 text-xs bg-destructive/15 text-destructive rounded">
                           Urgente
                         </span>
                       )}
                     </div>
 
                     {deal.valueEstimated && (
-                      <p className="text-xs text-gray-600 mb-1">
+                      <p className="text-xs text-muted-foreground mb-1">
                         R$ {deal.valueEstimated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
                     )}
 
-                    <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{deal.source}</span>
                       {deal.lastContactAt && (
                         <span>
@@ -300,11 +300,11 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                     </div>
 
                     {deal.patient && (
-                      <div className="mt-2 pt-2 border-t border-gray-100">
-                        <p className="text-xs text-gray-600">
+                      <div className="mt-2 pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground">
                           {deal.patient.name}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {deal.patient.phone}
                         </p>
                       </div>
@@ -312,7 +312,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
 
                     {deal.nextFollowUpAt && (
                       <div className="mt-2">
-                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-accent text-accent-foreground">
                           Follow-up: {new Date(deal.nextFollowUpAt).toLocaleDateString()}
                         </span>
                       </div>
@@ -321,7 +321,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                 ))}
 
                 {stageDeals.length === 0 && (
-                  <div className="text-center py-8 text-gray-400 text-sm">
+                  <div className="text-center py-8 text-muted-foreground text-sm">
                     Nenhum deal nesta etapa
                   </div>
                 )}

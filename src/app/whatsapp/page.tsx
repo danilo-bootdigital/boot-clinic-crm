@@ -57,14 +57,14 @@ export default function WhatsAppPage() {
         <SectionCard title="Nova conversa">
           <form onSubmit={createConversation} className="space-y-4 max-w-lg">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome do contato *</label>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} required />
+              <label className="block text-sm font-medium text-foreground mb-1">Nome do contato *</label>
+              <input className="w-full px-3 py-2 border border-border rounded-md text-sm" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (com DDD) *</label>
-              <input className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="(11) 99999-9999" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} required />
+              <label className="block text-sm font-medium text-foreground mb-1">Telefone (com DDD) *</label>
+              <input className="w-full px-3 py-2 border border-border rounded-md text-sm" placeholder="(11) 99999-9999" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} required />
             </div>
-            <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Criar conversa</button>
+            <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Criar conversa</button>
           </form>
         </SectionCard>
       ) : (

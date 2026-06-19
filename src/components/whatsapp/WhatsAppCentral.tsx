@@ -166,16 +166,16 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-muted">
       {/* Lista de Conversas */}
-      <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Conversas</h2>
+      <div className="w-1/3 bg-card border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">Conversas</h2>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
@@ -183,31 +183,31 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
               <div
                 key={conversation.id}
                 onClick={() => setSelectedConversation(conversation)}
-                className={`p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 ${
-                  selectedConversation?.id === conversation.id ? 'bg-blue-50' : ''
+                className={`p-4 border-b border-border cursor-pointer hover:bg-muted ${
+                  selectedConversation?.id === conversation.id ? 'bg-accent' : ''
                 }`}
               >
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0">
-                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
+                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium">
                       {conversation.contact?.name?.charAt(0) || '?'}
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">
+                      <h3 className="text-sm font-medium text-foreground truncate">
                         {conversation.contact?.name || conversation.contact?.phone}
                       </h3>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {conversation.lastMessageAt && new Date(conversation.lastMessageAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 truncate">
+                    <p className="text-sm text-muted-foreground truncate">
                       {conversation.lastMessage || conversation.messages?.[0]?.content}
                     </p>
                     {conversation.patient && (
                       <div className="mt-1">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-success/15 text-success">
                           Paciente: {conversation.patient.name}
                         </span>
                       </div>
@@ -225,30 +225,30 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
         {selectedConversation ? (
           <>
             {/* Cabeçalho da Conversa */}
-            <div className="p-4 border-b border-gray-200 bg-white">
+            <div className="p-4 border-b border-border bg-card">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
+                  <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium">
                     {selectedConversation.contact?.name?.charAt(0) || '?'}
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900">
+                    <h3 className="text-lg font-medium text-foreground">
                       {selectedConversation.contact?.name || selectedConversation.contact?.phone}
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       {selectedConversation.contact?.phone}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                    selectedConversation.status === 'OPEN' ? 'bg-green-100 text-green-800' :
-                    selectedConversation.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
+                    selectedConversation.status === 'OPEN' ? 'bg-success/15 text-success' :
+                    selectedConversation.status === 'PENDING' ? 'bg-warning/15 text-warning' :
+                    'bg-muted text-foreground'
                   }`}>
                     {selectedConversation.status}
                   </span>
-                  <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                  <button className="px-3 py-1 text-sm bg-primary text-white rounded hover:bg-primary/90">
                     Transferir
                   </button>
                 </div>
@@ -256,7 +256,7 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
             </div>
 
             {/* Área de Mensagens */}
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 bg-muted">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
@@ -266,8 +266,8 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                     <div
                       className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                         message.direction === 'INCOMING'
-                          ? 'bg-white text-gray-900 border border-gray-200'
-                          : 'bg-blue-600 text-white'
+                          ? 'bg-card text-foreground border border-border'
+                          : 'bg-primary text-white'
                       }`}
                     >
                       <p className="text-sm">{message.content}</p>
@@ -282,26 +282,26 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
 
             {/* Painel Lateral com Dados do Paciente */}
             {patientData && (
-              <div className="w-80 bg-white border-l border-gray-200 p-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Informações do Paciente</h3>
+              <div className="w-80 bg-card border-l border-border p-4">
+                <h3 className="text-lg font-medium text-foreground mb-4">Informações do Paciente</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Nome</label>
-                    <p className="text-sm text-gray-900">{patientData.name}</p>
+                    <label className="text-sm font-medium text-foreground">Nome</label>
+                    <p className="text-sm text-foreground">{patientData.name}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">CPF</label>
-                    <p className="text-sm text-gray-900">{patientData.cpf}</p>
+                    <label className="text-sm font-medium text-foreground">CPF</label>
+                    <p className="text-sm text-foreground">{patientData.cpf}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Telefone</label>
-                    <p className="text-sm text-gray-900">{patientData.phone}</p>
+                    <label className="text-sm font-medium text-foreground">Telefone</label>
+                    <p className="text-sm text-foreground">{patientData.phone}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">E-mail</label>
-                    <p className="text-sm text-gray-900">{patientData.email || 'Não informado'}</p>
+                    <label className="text-sm font-medium text-foreground">E-mail</label>
+                    <p className="text-sm text-foreground">{patientData.email || 'Não informado'}</p>
                   </div>
-                  <button className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                  <button className="w-full px-3 py-2 bg-primary text-white rounded hover:bg-primary/90">
                     Criar Nova Consulta
                   </button>
                 </div>
@@ -309,7 +309,7 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
             )}
 
             {/* Área de Envio de Mensagens */}
-            <div className="p-4 bg-white border-t border-gray-200">
+            <div className="p-4 bg-card border-t border-border">
               <div className="flex items-end space-x-3">
                 <div className="flex-1">
                   <textarea
@@ -317,14 +317,14 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Digite sua mensagem..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                     rows={2}
                   />
                 </div>
                 <button
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
                 >
                   Enviar
                 </button>
@@ -333,13 +333,13 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
               {/* Mensagens Rápidas */}
               {quickReplies.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-sm text-gray-600 mb-2">Mensagens Rápidas:</p>
+                  <p className="text-sm text-muted-foreground mb-2">Mensagens Rápidas:</p>
                   <div className="flex flex-wrap gap-2">
                     {quickReplies.map((quickReply) => (
                       <button
                         key={quickReply.id}
                         onClick={() => handleQuickReply(quickReply.content || quickReply.message)}
-                        className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        className="px-3 py-1 text-sm bg-muted text-foreground rounded hover:bg-muted"
                       >
                         {quickReply.title}
                       </button>
@@ -350,15 +350,15 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-gray-50">
+          <div className="flex-1 flex items-center justify-center bg-muted">
             <div className="text-center">
-              <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-12 h-12 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Selecione uma conversa</h3>
-              <p className="text-gray-600">Escolha uma conversa para começar a conversar</p>
+              <h3 className="text-lg font-medium text-foreground mb-2">Selecione uma conversa</h3>
+              <p className="text-muted-foreground">Escolha uma conversa para começar a conversar</p>
             </div>
           </div>
         )}
