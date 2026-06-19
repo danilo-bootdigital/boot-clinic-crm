@@ -9,6 +9,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useKpis } from '@/components/dashboard/use-kpis'
+import { RankBarChart } from '@/components/charts'
+
+const STATUS_LABEL: Record<string, string> = {
+  SCHEDULED: 'Agendadas', CONFIRMED: 'Confirmadas', ATTENDED: 'Compareceram',
+  NO_SHOW: 'Faltaram', CANCELED: 'Canceladas', IN_PROGRESS: 'Em andamento',
+}
 
 export default function AgendaDashboard() {
   const { kpis, loading } = useKpis()
@@ -20,6 +26,9 @@ export default function AgendaDashboard() {
   const attended = s.ATTENDED ?? 0
   const noShow = s.NO_SHOW ?? 0
   const rate = attended + noShow > 0 ? Math.round((attended / (attended + noShow)) * 100) : 0
+  const statusData = Object.entries(s as Record<string, number>)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => ({ label: STATUS_LABEL[k] ?? k, value: n }))
 
   return (
     <div className="space-y-6">
@@ -31,6 +40,12 @@ export default function AgendaDashboard() {
         <StatCard label="Este Mês" value={String(a.thisMonth ?? 0)} hint="Consultas" tone="primary" icon={<CalendarDays className="h-[18px] w-[18px]" />} />
         <StatCard label="Comparecimento" value={`${rate}%`} hint="Este mês" tone="success" icon={<CheckCircle2 className="h-[18px] w-[18px]" />} />
       </div>
+
+      {statusData.length > 0 && (
+        <SectionCard title="Status das consultas" description="Distribuição no mês atual">
+          <RankBarChart data={statusData} labelWidth={108} />
+        </SectionCard>
+      )}
 
       <SectionCard title="Agenda do dia" description="Acesse a agenda completa para ver e gerenciar as consultas">
         <EmptyState
