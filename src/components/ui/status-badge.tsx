@@ -5,7 +5,7 @@ type StatusTone = "success" | "warning" | "destructive" | "info" | "neutral";
 
 const toneStyles: Record<StatusTone, string> = {
   success: "bg-success/10 text-success ring-success/20",
-  warning: "bg-warning/10 text-[hsl(32_85%_38%)] ring-warning/30",
+  warning: "bg-warning/15 text-warning-strong ring-warning/30",
   destructive: "bg-destructive/10 text-destructive ring-destructive/20",
   info: "bg-primary/10 text-primary ring-primary/20",
   neutral: "bg-muted text-muted-foreground ring-border",

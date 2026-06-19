@@ -11,6 +11,7 @@ import { ScheduleBlocks } from '@/components/agenda/ScheduleBlocks'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
+import { Tabs } from '@/components/ui/tabs'
 
 type Tab = 'agenda' | 'salas' | 'especialidades' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
@@ -95,17 +96,11 @@ export default function AgendaPage() {
       />
 
       {/* Abas */}
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => { setTab(t.key); setMode('grid'); setSelected(null); setError(null) }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => { setTab(v as Tab); setMode('grid'); setSelected(null); setError(null) }}
+        items={TABS.map((t) => ({ value: t.key, label: t.label }))}
+      />
 
       {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
