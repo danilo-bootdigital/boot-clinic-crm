@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { StatCard } from '@/components/ui/stat-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import ModulesPanel from '@/components/admin/ModulesPanel'
+import UsersPanel from '@/components/admin/UsersPanel'
 
 type Company = {
   id: string
@@ -65,6 +66,8 @@ export default function AdminPage() {
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
   const [modulesFor, setModulesFor] = useState<Company | null>(null)
+  const [usersFor, setUsersFor] = useState<Company | null>(null)
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
 
@@ -167,6 +170,16 @@ export default function AdminPage() {
     else setMsg({ type: 'err', text: data.error || 'Falha ao atualizar a clínica.' })
   }
 
+  // Gera/rotaciona o token do webhook WhatsApp da clínica e mostra a URL pronta.
+  async function genWhatsappToken(c: Company) {
+    setMsg(null); setInvoiceUrl(null); setWhatsappUrl(null)
+    const res = await fetch(`/api/admin/companies/${c.id}/whatsapp-token`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ type: 'err', text: data.error || 'Falha ao gerar token do webhook.' }); return }
+    setWhatsappUrl(data.url)
+    setMsg({ type: 'ok', text: `Webhook WhatsApp de "${c.name}" gerado. Configure esta URL na instância da Evolution desta clínica:` })
+  }
+
   async function setStatus(c: Company, status: Company['status']) {
     const res = await fetch(`/api/admin/companies/${c.id}`, {
       method: 'PATCH',
@@ -222,6 +235,9 @@ export default function AdminPage() {
               className="mt-2 inline-flex items-center gap-1 font-medium underline break-all">
               Abrir/Copiar link da fatura → {invoiceUrl}
             </a>
+          )}
+          {whatsappUrl && (
+            <code className="mt-2 block break-all rounded bg-background/60 px-2 py-1 font-mono text-xs">{whatsappUrl}</code>
           )}
         </div>
       )}
@@ -403,6 +419,12 @@ export default function AdminPage() {
                         <button onClick={() => setModulesFor(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted">
                           Módulos
                         </button>
+                        <button onClick={() => setUsersFor(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted">
+                          Usuários
+                        </button>
+                        <button onClick={() => genWhatsappToken(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted">
+                          Webhook WA
+                        </button>
                         {c.status === 'SUSPENDED' || c.status === 'CANCELED' ? (
                           <button onClick={() => setStatus(c, 'ACTIVE')} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-success hover:bg-success/10">
                             Reativar
@@ -427,6 +449,10 @@ export default function AdminPage() {
 
       {modulesFor && (
         <ModulesPanel companyId={modulesFor.id} companyName={modulesFor.name} onClose={() => setModulesFor(null)} />
+      )}
+
+      {usersFor && (
+        <UsersPanel companyId={usersFor.id} companyName={usersFor.name} onClose={() => setUsersFor(null)} />
       )}
     </div>
   )
