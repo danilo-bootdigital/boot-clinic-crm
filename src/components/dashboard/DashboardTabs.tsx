@@ -27,7 +27,7 @@ export function DashboardTabs() {
               className={cn(
                 "whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
                 active
-                  ? "border-primary text-primary"
+                  ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
               )}
             >

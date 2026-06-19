@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { DealSource } from '@/lib/validations/crm';
+import { FunnelPipeline } from '@/components/charts';
 
 enum DealStatus {
   NEW = "NEW",
@@ -231,6 +232,21 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
           </div>
         </div>
       </div>
+
+      {/* Funil do pipeline */}
+      {stages.length > 0 && deals.length > 0 && (
+        <div className="mb-6 rounded-xl border border-border bg-card p-5 shadow-card">
+          <h3 className="mb-1 text-base font-semibold text-foreground">Funil do pipeline</h3>
+          <p className="mb-2 text-sm text-muted-foreground">Negócios por estágio</p>
+          <FunnelPipeline
+            data={stages.map((stage) => ({
+              name: stage.name,
+              value: getDealsByStage(stage.id).length,
+            }))}
+            valueFormatter={(n) => `${n} deal${n !== 1 ? 's' : ''}`}
+          />
+        </div>
+      )}
 
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

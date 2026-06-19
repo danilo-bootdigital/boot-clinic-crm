@@ -108,7 +108,7 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="bg-card rounded-lg shadow">
+      <div className="bg-card rounded-xl border border-border shadow-card">
         {/* Cabeçalho */}
         <div className="border-b border-border p-6">
           <div className="flex justify-between items-start">
