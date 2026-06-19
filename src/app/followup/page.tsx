@@ -8,6 +8,9 @@ import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { FilterSelect } from '@/components/ui/filter-bar'
 
 const PRIORITY = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
 const PRIORITY_LABELS: Record<string, string> = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', URGENT: 'Urgente' }
@@ -58,8 +61,6 @@ export default function FollowUpPage() {
     load()
   }
 
-  const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -80,15 +81,15 @@ export default function FollowUpPage() {
           <form onSubmit={create} className="space-y-4 max-w-2xl">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
-              <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+              <Input className="w-full" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div><label className="block text-sm font-medium text-foreground mb-1">Vencimento *</label><input type="date" className={field} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required /></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Prioridade</label><select className={field} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{PRIORITY.map((x) => <option key={x} value={x}>{PRIORITY_LABELS[x]}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Tipo</label><select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((x) => <option key={x} value={x}>{TYPE_LABELS[x]}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-foreground mb-1">Paciente</label><select className={field} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}><option value="">—</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Vencimento *</label><Input type="date" className="w-full" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Prioridade</label><FilterSelect className="w-full" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{PRIORITY.map((x) => <option key={x} value={x}>{PRIORITY_LABELS[x]}</option>)}</FilterSelect></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Tipo</label><FilterSelect className="w-full" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((x) => <option key={x} value={x}>{TYPE_LABELS[x]}</option>)}</FilterSelect></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Paciente</label><FilterSelect className="w-full" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}><option value="">—</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</FilterSelect></div>
             </div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Descrição</label><textarea className={field} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Descrição</label><Textarea className="w-full" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div className="flex justify-end gap-3 pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button></div>
           </form>
         </SectionCard>

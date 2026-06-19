@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { FinanceTabs } from '@/components/financial/FinanceTabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { payableCan } from '@/lib/financial-caps'
 
@@ -64,8 +65,6 @@ export default function FornecedoresPage() {
     if (!res.ok) setError((await res.json().catch(() => ({}))).error || 'Erro'); else load()
   }
 
-  const fieldCls = 'h-10 w-full rounded-lg border border-border bg-background px-3 text-sm'
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <PageHeader title="Financeiro" description="Fornecedores" icon={<Truck className="h-5 w-5" />}
@@ -87,7 +86,7 @@ export default function FornecedoresPage() {
             <label className="space-y-1"><span className="text-sm font-medium">Telefone</span>
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
             <label className="space-y-1 sm:col-span-2"><span className="text-sm font-medium">Observações</span>
-              <textarea className={fieldCls + ' h-20 py-2'} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+              <Textarea className="w-full" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Ativo
             </label>

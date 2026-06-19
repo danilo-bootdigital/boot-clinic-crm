@@ -5,6 +5,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateDealSchema, UpdateDealSchema, DealSource, Priority } from '@/lib/validations/crm';
 import { CreateDealInput, UpdateDealInput } from '@/lib/validations/crm';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { FilterSelect } from '@/components/ui/filter-bar';
 
 interface Patient {
   id: string;
@@ -134,7 +137,7 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-card rounded-lg shadow">
+      <div className="bg-card rounded-xl border border-border shadow-card">
         <div className="border-b border-border px-6 py-4">
           <h2 className="text-xl font-semibold text-foreground">
             {deal ? 'Editar Deal' : 'Criar Novo Deal'}
@@ -150,10 +153,10 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
               <label className="block text-sm font-medium text-foreground mb-1">
                 Título *
               </label>
-              <input
+              <Input
                 type="text"
                 {...register('title')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full"
               />
               {errors.title && (
                 <p className="mt-1 text-sm text-destructive">{errors.title.message}</p>
@@ -164,10 +167,10 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
               <label className="block text-sm font-medium text-foreground mb-1">
                 Descrição
               </label>
-              <textarea
+              <Textarea
                 {...register('description')}
                 rows={3}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full"
               />
             </div>
 
@@ -176,11 +179,11 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Valor Estimado (R$)
                 </label>
-                <input
+                <Input
                   type="number"
                   step="0.01"
                   {...register('valueEstimated', { valueAsNumber: true })}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 />
               </div>
 
@@ -188,15 +191,15 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Prioridade
                 </label>
-                <select
+                <FilterSelect
                   {...register('priority')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 >
                   <option value={Priority.LOW}>Baixa</option>
                   <option value={Priority.MEDIUM}>Média</option>
                   <option value={Priority.HIGH}>Alta</option>
                   <option value={Priority.URGENT}>Urgente</option>
-                </select>
+                </FilterSelect>
               </div>
             </div>
 
@@ -205,10 +208,10 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Pipeline *
                 </label>
-                <select
+                <FilterSelect
                   {...register('pipelineId')}
                   onChange={(e) => handlePipelineChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 >
                   <option value="">Selecione um pipeline</option>
                   {pipelines.map((pipeline) => (
@@ -216,7 +219,7 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                       {pipeline.name}
                     </option>
                   ))}
-                </select>
+                </FilterSelect>
                 {errors.pipelineId && (
                   <p className="mt-1 text-sm text-destructive">{errors.pipelineId.message}</p>
                 )}
@@ -226,9 +229,9 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Etapa *
                 </label>
-                <select
+                <FilterSelect
                   {...register('stageId')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 >
                   <option value="">Selecione uma etapa</option>
                   {stages.map((stage) => (
@@ -236,7 +239,7 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                       {stage.name}
                     </option>
                   ))}
-                </select>
+                </FilterSelect>
                 {errors.stageId && (
                   <p className="mt-1 text-sm text-destructive">{errors.stageId.message}</p>
                 )}
@@ -247,9 +250,9 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
               <label className="block text-sm font-medium text-foreground mb-1">
                 Paciente (opcional)
               </label>
-              <select
+              <FilterSelect
                 {...register('patientId')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full"
               >
                 <option value="">Selecione um paciente</option>
                 {patients.map((patient) => (
@@ -257,7 +260,7 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                     {patient.name} - {patient.cpf}
                   </option>
                 ))}
-              </select>
+              </FilterSelect>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -265,9 +268,9 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Origem
                 </label>
-                <select
+                <FilterSelect
                   {...register('source')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 >
                   <option value={DealSource.WEBSITE}>Website</option>
                   <option value={DealSource.REFERRAL}>Indicação</option>
@@ -277,16 +280,16 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                   <option value={DealSource.WALK_IN}>Passagem</option>
                   <option value={DealSource.EMAIL}>E-mail</option>
                   <option value={DealSource.OTHER}>Outro</option>
-                </select>
+                </FilterSelect>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Responsável *
                 </label>
-                <select
+                <FilterSelect
                   {...register('responsibleUserId')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 >
                   <option value="">Selecione um responsável</option>
                   {users.map((user) => (
@@ -294,7 +297,7 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                       {user.name}
                     </option>
                   ))}
-                </select>
+                </FilterSelect>
                 {errors.responsibleUserId && (
                   <p className="mt-1 text-sm text-destructive">{errors.responsibleUserId.message}</p>
                 )}
@@ -306,10 +309,10 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Próximo Follow-up
                 </label>
-                <input
+                <Input
                   type="date"
                   {...register('nextFollowUpAt')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 />
               </div>
 
@@ -317,10 +320,10 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Último Contato
                 </label>
-                <input
+                <Input
                   type="date"
                   {...register('lastContactAt')}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full"
                 />
               </div>
             </div>

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { DealSource } from '@/lib/validations/crm';
 import { FunnelPipeline } from '@/components/charts';
+import { Input } from '@/components/ui/input';
+import { FilterSelect } from '@/components/ui/filter-bar';
 
 enum DealStatus {
   NEW = "NEW",
@@ -163,16 +165,16 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
   return (
     <div className="min-h-screen bg-muted p-4">
       {/* Filtros */}
-      <div className="mb-6 bg-card rounded-lg shadow p-4">
+      <div className="mb-6 bg-card rounded-xl border border-border shadow-card p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               Buscar
             </label>
-            <input
+            <Input
               type="text"
               placeholder="Título, descrição..."
-              className="w-full px-3 py-2 border border-border rounded-md"
+              className="w-full"
               value={filters.search}
               onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
             />
@@ -181,21 +183,21 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
             <label className="block text-sm font-medium text-foreground mb-1">
               Responsável
             </label>
-            <select
-              className="w-full px-3 py-2 border border-border rounded-md"
+            <FilterSelect
+              className="w-full"
               value={filters.responsibleUserId}
               onChange={(e) => setFilters(prev => ({ ...prev, responsibleUserId: e.target.value }))}
             >
               <option value="">Todos</option>
               {/* Aqui carregar usuários disponíveis */}
-            </select>
+            </FilterSelect>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               Origem
             </label>
-            <select
-              className="w-full px-3 py-2 border border-border rounded-md"
+            <FilterSelect
+              className="w-full"
               value={filters.source}
               onChange={(e) => setFilters(prev => ({ ...prev, source: e.target.value }))}
             >
@@ -208,14 +210,14 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
               <option value="WALK_IN">Passagem</option>
               <option value="EMAIL">E-mail</option>
               <option value="OTHER">Outro</option>
-            </select>
+            </FilterSelect>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
               Status
             </label>
-            <select
-              className="w-full px-3 py-2 border border-border rounded-md"
+            <FilterSelect
+              className="w-full"
               value={filters.status}
               onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
             >
@@ -228,7 +230,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
               <option value={DealStatus.QUOTE_SENT}>Orçamento enviado</option>
               <option value={DealStatus.WON}>Ganho</option>
               <option value={DealStatus.LOST}>Perdido</option>
-            </select>
+            </FilterSelect>
           </div>
         </div>
       </div>
@@ -257,7 +259,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
           return (
             <div
               key={stage.id}
-              className="bg-card rounded-lg shadow"
+              className="bg-card rounded-xl border border-border shadow-card"
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(stage.id)}
             >

@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { StatCard } from '@/components/ui/stat-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
+import { Input } from '@/components/ui/input'
 
 const brl = (n: number) => `R$ ${(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 const ORIGIN_LABELS: Record<string, string> = { GOOGLE: 'Google', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', REFERRAL: 'Indicação', WALK_IN: 'Passagem', PHONE: 'Telefone', WHATSAPP: 'WhatsApp', OTHER: 'Outros' }
@@ -68,8 +69,8 @@ export default function RelatoriosPage() {
       />
 
       <div className="flex flex-wrap items-end gap-3">
-        <div><label className="block text-xs text-muted-foreground mb-1">De</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" /></div>
-        <div><label className="block text-xs text-muted-foreground mb-1">Até</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" /></div>
+        <div><label className="block text-xs text-muted-foreground mb-1">De</label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-auto" /></div>
+        <div><label className="block text-xs text-muted-foreground mb-1">Até</label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-auto" /></div>
       </div>
 
       {loading ? <LoadingState rows={4} label="Gerando relatório" />

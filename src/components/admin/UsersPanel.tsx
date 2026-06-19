@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 
 interface UserRow { id: string; name: string; email: string; role: string }
 
@@ -51,8 +53,6 @@ export default function UsersPanel({ companyId, companyName, onClose }: { compan
       : { type: 'err', text: (await res.json().catch(() => ({}))).error || 'Falha ao redefinir senha' })
   }
 
-  const input = 'w-full px-2 py-1.5 border border-border rounded text-sm'
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4" onClick={onClose}>
       <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-card" onClick={(e) => e.stopPropagation()}>
@@ -87,16 +87,16 @@ export default function UsersPanel({ companyId, companyName, onClose }: { compan
                   {editId === u.id && (
                     <div className="mt-3 rounded-lg border border-border p-3">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Nome</label><input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-                        <div><label className="mb-1 block text-xs font-medium text-muted-foreground">E-mail (login)</label><input type="email" className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                        <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Nome</label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+                        <div><label className="mb-1 block text-xs font-medium text-muted-foreground">E-mail (login)</label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                         <div>
                           <label className="mb-1 block text-xs font-medium text-muted-foreground">Papel</label>
                           {u.role === 'SUPER_ADMIN' ? (
                             <p className="px-2 py-1.5 text-sm text-muted-foreground">Super Admin (não editável aqui)</p>
                           ) : (
-                            <select className={input} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                            <FilterSelect className="w-full" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                               {ROLES.map((r) => <option key={r} value={r}>{LABELS[r]}</option>)}
-                            </select>
+                            </FilterSelect>
                           )}
                         </div>
                       </div>

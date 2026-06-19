@@ -8,6 +8,8 @@ import {
   MessageSquare, Copy, Phone, FileText, ClipboardList, FileSignature, Receipt, Image as ImageIcon, Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { LoadingState } from '@/components/ui/loading-state'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -153,8 +155,8 @@ export default function ConsultaPage() {
           {access.canProntuario && (
             <div className="rounded-xl border border-border bg-card p-4">
               <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4" /> Evolução clínica (prontuário)</h3>
-              <input value={recordTitle} onChange={(e) => setRecordTitle(e.target.value)} placeholder="Título" className="mb-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
-              <textarea value={recordContent} onChange={(e) => setRecordContent(e.target.value)} placeholder="Descreva a evolução do atendimento…" rows={4} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+              <Input value={recordTitle} onChange={(e) => setRecordTitle(e.target.value)} placeholder="Título" className="mb-2 w-full" />
+              <Textarea value={recordContent} onChange={(e) => setRecordContent(e.target.value)} placeholder="Descreva a evolução do atendimento…" rows={4} className="w-full" />
               <div className="mt-2 flex justify-end"><Button size="sm" onClick={saveRecord} disabled={busy}>Salvar no prontuário</Button></div>
             </div>
           )}
@@ -170,7 +172,7 @@ export default function ConsultaPage() {
                 {(data.chat || []).length === 0 && <p className="text-xs text-muted-foreground">Sem mensagens.</p>}
               </div>
               <div className="flex gap-2">
-                <input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendChat()} placeholder="Mensagem…" className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm" />
+                <Input value={chatText} onChange={(e) => setChatText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendChat()} placeholder="Mensagem…" className="flex-1" />
                 <Button size="icon" onClick={sendChat}><Send className="h-4 w-4" /></Button>
               </div>
             </div>

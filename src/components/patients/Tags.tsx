@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 
 interface TagsProps {
   patientId: string
@@ -53,11 +54,11 @@ export default function Tags({ patientId }: TagsProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={addTag} className="mb-4 flex gap-2">
-          <input
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nova tag (ex.: VIP)"
-            className="flex-1 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1"
           />
           <button type="submit" disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
             {saving ? '...' : 'Adicionar'}

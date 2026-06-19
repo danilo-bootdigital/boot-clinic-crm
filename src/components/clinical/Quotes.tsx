@@ -5,10 +5,11 @@ import { Plus, ArrowLeft, Trash2, Send, CheckCircle2, XCircle } from 'lucide-rea
 import { SectionCard } from '@/components/ui/section-card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ActionButton } from '@/components/ui/action-button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { QUOTE_STATUS_LABELS } from '@/lib/validations/clinical'
 
 const STATUS_TONE: Record<string, any> = { DRAFT: 'warning', SENT: 'info', APPROVED: 'success', REJECTED: 'destructive' }
-const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 const brl = (n: number) => `R$ ${Number(n || 0).toFixed(2)}`
 
 type Item = { description: string; quantity: number; unitPrice: number }
@@ -68,16 +69,16 @@ export default function Quotes({ patientId, canEdit = true }: { patientId: strin
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
-            <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <Input className="w-full" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Itens / procedimentos</label>
             <div className="space-y-2">
               {items.map((it, idx) => (
                 <div key={idx} className="flex gap-2">
-                  <input className={field + ' flex-1'} placeholder="Descrição" value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} />
-                  <input type="number" min="1" className={field + ' w-20'} value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
-                  <input type="number" step="0.01" className={field + ' w-28'} placeholder="Valor unit." value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                  <Input className="flex-1" placeholder="Descrição" value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} />
+                  <Input type="number" min="1" className="w-20" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                  <Input type="number" step="0.01" className="w-28" placeholder="Valor unit." value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
                   <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="p-2 rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
@@ -85,10 +86,10 @@ export default function Quotes({ patientId, canEdit = true }: { patientId: strin
             <button type="button" onClick={() => setItems([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="mt-2 text-sm text-primary hover:underline">+ Adicionar item</button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-foreground mb-1">Desconto (R$)</label><input type="number" step="0.01" className={field} value={discount} onChange={(e) => setDiscount(e.target.value)} /></div>
-            <div><label className="block text-sm font-medium text-foreground mb-1">Validade</label><input type="date" className={field} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Desconto (R$)</label><Input type="number" step="0.01" className="w-full" value={discount} onChange={(e) => setDiscount(e.target.value)} /></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Validade</label><Input type="date" className="w-full" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /></div>
           </div>
-          <div><label className="block text-sm font-medium text-foreground mb-1">Observações</label><textarea className={field} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div><label className="block text-sm font-medium text-foreground mb-1">Observações</label><Textarea className="w-full" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
           <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{brl(subtotal)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Desconto</span><span>- {brl(Number(discount) || 0)}</span></div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Textarea } from '@/components/ui/textarea';
 
 interface WhatsAppConversation {
   id: string;
@@ -312,12 +313,12 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
             <div className="p-4 bg-card border-t border-border">
               <div className="flex items-end space-x-3">
                 <div className="flex-1">
-                  <textarea
+                  <Textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Digite sua mensagem..."
-                    className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    className="w-full resize-none"
                     rows={2}
                   />
                 </div>

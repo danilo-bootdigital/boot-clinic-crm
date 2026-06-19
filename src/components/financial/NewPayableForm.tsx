@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { brl } from '@/lib/financial-format'
 
 interface Named { id: string; name: string }
@@ -76,24 +77,24 @@ export function NewPayableForm({ onCreated, onCancel }: { onCreated: () => void;
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="space-y-1">
           <span className="text-sm font-medium">Fornecedor</span>
-          <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+          <FilterSelect className="w-full" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
             <option value="">— sem fornecedor —</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          </FilterSelect>
         </label>
         <label className="space-y-1">
           <span className="text-sm font-medium">Categoria</span>
-          <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <FilterSelect className="w-full" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">— sem categoria —</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </FilterSelect>
         </label>
         <label className="space-y-1">
           <span className="text-sm font-medium">Centro de custo</span>
-          <select className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
+          <FilterSelect className="w-full" value={costCenterId} onChange={(e) => setCostCenterId(e.target.value)}>
             <option value="">— sem centro —</option>
             {costCenters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </FilterSelect>
         </label>
       </div>
 
