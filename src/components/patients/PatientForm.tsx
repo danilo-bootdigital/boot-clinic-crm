@@ -80,7 +80,7 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-card rounded-lg shadow p-6">
+      <div className="bg-card rounded-xl border border-border shadow-card p-6">
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">

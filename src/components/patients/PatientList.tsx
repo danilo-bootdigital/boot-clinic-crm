@@ -74,7 +74,7 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
   return (
     <div className="space-y-4">
       {/* Filtros (server-side) */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-card rounded-lg shadow">
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-card rounded-xl border border-border shadow-card">
         <div className="flex-1">
           <input
             type="text"
@@ -112,7 +112,7 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
       </div>
 
       {/* Lista de Pacientes */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
         <table className="w-full">
           <thead className="bg-muted">
             <tr>

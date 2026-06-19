@@ -17,6 +17,9 @@ import {
   Tooltip,
   Cell,
   Legend,
+  FunnelChart,
+  Funnel,
+  LabelList,
 } from 'recharts'
 
 // Sequência teal para categorias (do mais forte ao mais claro).
@@ -96,6 +99,58 @@ export function RankBarChart({
           ))}
         </Bar>
       </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+export interface FunnelDatum {
+  name: string
+  value: number
+}
+
+/** Funil de pipeline comercial — estágios na ordem (não reordena por valor). */
+export function FunnelPipeline({
+  data,
+  height = 260,
+  valueFormatter = defaultFmt,
+}: {
+  data: FunnelDatum[]
+  height?: number
+  valueFormatter?: Formatter
+}) {
+  const colored = data.map((d, i) => ({ ...d, fill: VIZ_SEQUENCE[i % VIZ_SEQUENCE.length] }))
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <FunnelChart>
+        <Tooltip
+          content={({ active, payload }: any) =>
+            active && payload?.length ? (
+              <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-popover">
+                <p className="text-xs font-semibold text-foreground">{payload[0]?.payload?.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {valueFormatter(Number(payload[0]?.value ?? 0))}
+                </p>
+              </div>
+            ) : null
+          }
+        />
+        <Funnel dataKey="value" data={colored} isAnimationActive={false}>
+          <LabelList
+            position="right"
+            dataKey="name"
+            stroke="none"
+            fill="#333333"
+            fontSize={12}
+          />
+          <LabelList
+            position="left"
+            dataKey="value"
+            stroke="none"
+            fill="#666666"
+            fontSize={12}
+          />
+        </Funnel>
+      </FunnelChart>
     </ResponsiveContainer>
   )
 }
