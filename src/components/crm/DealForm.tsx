@@ -134,9 +134,9 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="text-xl font-semibold text-gray-900">
+      <div className="bg-card rounded-lg shadow">
+        <div className="border-b border-border px-6 py-4">
+          <h2 className="text-xl font-semibold text-foreground">
             {deal ? 'Editar Deal' : 'Criar Novo Deal'}
           </h2>
         </div>
@@ -144,53 +144,53 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
         <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
           {/* Informações Básicas */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Informações Básicas</h3>
+            <h3 className="text-lg font-medium text-foreground">Informações Básicas</h3>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Título *
               </label>
               <input
                 type="text"
                 {...register('title')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
               {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+                <p className="mt-1 text-sm text-destructive">{errors.title.message}</p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Descrição
               </label>
               <textarea
                 {...register('description')}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Valor Estimado (R$)
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   {...register('valueEstimated', { valueAsNumber: true })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Prioridade
                 </label>
                 <select
                   {...register('priority')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value={Priority.LOW}>Baixa</option>
                   <option value={Priority.MEDIUM}>Média</option>
@@ -202,13 +202,13 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Pipeline *
                 </label>
                 <select
                   {...register('pipelineId')}
                   onChange={(e) => handlePipelineChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">Selecione um pipeline</option>
                   {pipelines.map((pipeline) => (
@@ -218,17 +218,17 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                   ))}
                 </select>
                 {errors.pipelineId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.pipelineId.message}</p>
+                  <p className="mt-1 text-sm text-destructive">{errors.pipelineId.message}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Etapa *
                 </label>
                 <select
                   {...register('stageId')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">Selecione uma etapa</option>
                   {stages.map((stage) => (
@@ -238,18 +238,18 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                   ))}
                 </select>
                 {errors.stageId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.stageId.message}</p>
+                  <p className="mt-1 text-sm text-destructive">{errors.stageId.message}</p>
                 )}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Paciente (opcional)
               </label>
               <select
                 {...register('patientId')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">Selecione um paciente</option>
                 {patients.map((patient) => (
@@ -262,12 +262,12 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Origem
                 </label>
                 <select
                   {...register('source')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value={DealSource.WEBSITE}>Website</option>
                   <option value={DealSource.REFERRAL}>Indicação</option>
@@ -281,12 +281,12 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Responsável *
                 </label>
                 <select
                   {...register('responsibleUserId')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">Selecione um responsável</option>
                   {users.map((user) => (
@@ -296,49 +296,49 @@ export default function DealForm({ deal, onSubmit, onCancel }: DealFormProps) {
                   ))}
                 </select>
                 {errors.responsibleUserId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.responsibleUserId.message}</p>
+                  <p className="mt-1 text-sm text-destructive">{errors.responsibleUserId.message}</p>
                 )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Próximo Follow-up
                 </label>
                 <input
                   type="date"
                   {...register('nextFollowUpAt')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Último Contato
                 </label>
                 <input
                   type="date"
                   {...register('lastContactAt')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
             </div>
           </div>
 
           {/* Botões de Ação */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+          <div className="flex justify-end space-x-3 pt-6 border-t border-border">
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 border border-border rounded-md text-foreground hover:bg-muted"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
             >
               {isSubmitting ? 'Salvando...' : 'Salvar'}
             </button>

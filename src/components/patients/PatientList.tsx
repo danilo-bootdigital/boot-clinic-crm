@@ -38,13 +38,13 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return 'bg-green-100 text-green-800';
+        return 'bg-success/15 text-success';
       case 'INACTIVE':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-warning/15 text-warning';
       case 'ARCHIVED':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
     }
   };
 
@@ -74,18 +74,18 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
   return (
     <div className="space-y-4">
       {/* Filtros (server-side) */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-white rounded-lg shadow">
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-card rounded-lg shadow">
         <div className="flex-1">
           <input
             type="text"
             placeholder="Buscar por nome, CPF, telefone ou e-mail..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
             value={filters.search}
             onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
           />
         </div>
         <select
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
           value={filters.status}
           onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
         >
@@ -95,7 +95,7 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
           <option value={PatientStatus.ARCHIVED}>Arquivado</option>
         </select>
         <select
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
           value={filters.origin}
           onChange={(e) => onFiltersChange({ ...filters, origin: e.target.value })}
         >
@@ -112,32 +112,32 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
       </div>
 
       {/* Lista de Pacientes */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-muted">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origem</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Nome</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">CPF</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Telefone</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Origem</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Ações</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-card divide-y divide-border">
             {patients.map((patient) => (
-              <tr key={patient.id} className="hover:bg-gray-50">
+              <tr key={patient.id} className="hover:bg-muted">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{patient.name}</div>
-                      {patient.email && <div className="text-sm text-gray-500">{patient.email}</div>}
+                      <div className="text-sm font-medium text-foreground">{patient.name}</div>
+                      {patient.email && <div className="text-sm text-muted-foreground">{patient.email}</div>}
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{patient.cpf}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatPhone(patient.phone)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getOriginLabel(patient.origin)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{patient.cpf}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{formatPhone(patient.phone)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{getOriginLabel(patient.origin)}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(patient.status)}`}>
                     {patient.status === PatientStatus.ACTIVE ? 'Ativo' :
@@ -146,11 +146,11 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {onRestore ? (
-                    <button onClick={() => onRestore(patient)} className="text-green-600 hover:text-green-900">Restaurar</button>
+                    <button onClick={() => onRestore(patient)} className="text-success hover:text-success">Restaurar</button>
                   ) : (
                     <>
-                      <button onClick={() => onView(patient)} className="text-blue-600 hover:text-blue-900 mr-3">Ver</button>
-                      <button onClick={() => onEdit(patient)} className="text-indigo-600 hover:text-indigo-900">Editar</button>
+                      <button onClick={() => onView(patient)} className="text-primary hover:text-accent-foreground mr-3">Ver</button>
+                      <button onClick={() => onEdit(patient)} className="text-primary hover:text-accent-foreground">Editar</button>
                     </>
                   )}
                 </td>
@@ -160,27 +160,27 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
         </table>
 
         {patients.length === 0 && (
-          <div className="text-center py-8 text-gray-500">Nenhum paciente encontrado</div>
+          <div className="text-center py-8 text-muted-foreground">Nenhum paciente encontrado</div>
         )}
 
         {/* Paginação (server-side) */}
         {pagination && pagination.pages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3 text-sm">
-            <span className="text-gray-500">
+          <div className="flex items-center justify-between border-t border-border px-6 py-3 text-sm">
+            <span className="text-muted-foreground">
               Página {pagination.page} de {pagination.pages} · {pagination.total} paciente{pagination.total === 1 ? '' : 's'}
             </span>
             <div className="flex gap-2">
               <button
                 disabled={pagination.page <= 1}
                 onClick={() => onPageChange?.(pagination.page - 1)}
-                className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-md border border-border px-3 py-1 disabled:opacity-40 hover:bg-muted"
               >
                 Anterior
               </button>
               <button
                 disabled={pagination.page >= pagination.pages}
                 onClick={() => onPageChange?.(pagination.page + 1)}
-                className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40 hover:bg-gray-50"
+                className="rounded-md border border-border px-3 py-1 disabled:opacity-40 hover:bg-muted"
               >
                 Próxima
               </button>

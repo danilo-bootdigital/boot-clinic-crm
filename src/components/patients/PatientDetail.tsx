@@ -37,13 +37,13 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return 'bg-green-100 text-green-800';
+        return 'bg-success/15 text-success';
       case 'INACTIVE':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-warning/15 text-warning';
       case 'ARCHIVED':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted text-foreground';
     }
   };
 
@@ -108,22 +108,22 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-card rounded-lg shadow">
         {/* Cabeçalho */}
-        <div className="border-b border-gray-200 p-6">
+        <div className="border-b border-border p-6">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{patient.name}</h1>
+              <h1 className="text-2xl font-bold text-foreground">{patient.name}</h1>
               <div className="mt-2 flex items-center space-x-4">
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(patient.status)}`}>
                   {patient.status === 'ACTIVE' ? 'Ativo' :
                    patient.status === 'INACTIVE' ? 'Inativo' : 'Arquivado'}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">
                   Criado em: {new Date(patient.createdAt).toLocaleDateString('pt-BR')}
                 </span>
                 {patient.createdBy && (
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     Por: {patient.createdBy.name}
                   </span>
                 )}
@@ -131,7 +131,7 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
             </div>
             <button
               onClick={() => onEdit(patient)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
             >
               Editar Paciente
             </button>
@@ -139,14 +139,14 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
         </div>
 
         {/* Abas */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav className="-mb-px flex space-x-8 px-6">
             <button
               onClick={() => setActiveTab('info')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'info'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               Informações
@@ -155,8 +155,8 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
               onClick={() => setActiveTab('contacts')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'contacts'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               Contatos
@@ -165,8 +165,8 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
               onClick={() => setActiveTab('addresses')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'addresses'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               Endereços
@@ -175,8 +175,8 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
               onClick={() => activeTab === 'documents'}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'documents'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               Documentos
@@ -185,8 +185,8 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
               onClick={() => setActiveTab('timeline')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'timeline'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               }`}
             >
               Timeline
@@ -201,23 +201,23 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Dados Pessoais
                   </h3>
                   <dl className="mt-4 space-y-3">
                     <div>
-                      <dt className="text-sm font-medium text-gray-500">CPF</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{patient.cpf}</dd>
+                      <dt className="text-sm font-medium text-muted-foreground">CPF</dt>
+                      <dd className="mt-1 text-sm text-foreground">{patient.cpf}</dd>
                     </div>
                     <div>
-                      <dt className="text-sm font-medium text-gray-500">Data de Nascimento</dt>
-                      <dd className="mt-1 text-sm text-gray-900">
+                      <dt className="text-sm font-medium text-muted-foreground">Data de Nascimento</dt>
+                      <dd className="mt-1 text-sm text-foreground">
                         {new Date(patient.birthDate).toLocaleDateString('pt-BR')}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-sm font-medium text-gray-500">Sexo/Gênero</dt>
-                      <dd className="mt-1 text-sm text-gray-900">
+                      <dt className="text-sm font-medium text-muted-foreground">Sexo/Gênero</dt>
+                      <dd className="mt-1 text-sm text-foreground">
                         {patient.gender === 'MALE' ? 'Masculino' :
                          patient.gender === 'FEMALE' ? 'Feminino' :
                          patient.gender === 'OTHER' ? 'Outro' : 'Prefere não informar'}
@@ -227,24 +227,24 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Contato
                   </h3>
                   <dl className="mt-4 space-y-3">
                     <div>
-                      <dt className="text-sm font-medium text-gray-500">Telefone Principal</dt>
-                      <dd className="mt-1 text-sm text-gray-900">{formatPhone(patient.phone)}</dd>
+                      <dt className="text-sm font-medium text-muted-foreground">Telefone Principal</dt>
+                      <dd className="mt-1 text-sm text-foreground">{formatPhone(patient.phone)}</dd>
                     </div>
                     {patient.whatsapp && (
                       <div>
-                        <dt className="text-sm font-medium text-gray-500">WhatsApp</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{formatPhone(patient.whatsapp)}</dd>
+                        <dt className="text-sm font-medium text-muted-foreground">WhatsApp</dt>
+                        <dd className="mt-1 text-sm text-foreground">{formatPhone(patient.whatsapp)}</dd>
                       </div>
                     )}
                     {patient.email && (
                       <div>
-                        <dt className="text-sm font-medium text-gray-500">E-mail</dt>
-                        <dd className="mt-1 text-sm text-gray-900">{patient.email}</dd>
+                        <dt className="text-sm font-medium text-muted-foreground">E-mail</dt>
+                        <dd className="mt-1 text-sm text-foreground">{patient.email}</dd>
                       </div>
                     )}
                   </dl>
@@ -252,31 +252,31 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
               </div>
 
               <div>
-                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                   Informações da Clínica
                 </h3>
                 <dl className="mt-4 space-y-3">
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Origem</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{getOriginLabel(patient.origin)}</dd>
+                    <dt className="text-sm font-medium text-muted-foreground">Origem</dt>
+                    <dd className="mt-1 text-sm text-foreground">{getOriginLabel(patient.origin)}</dd>
                   </div>
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Clínica</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{patient.clinic?.name}</dd>
+                    <dt className="text-sm font-medium text-muted-foreground">Clínica</dt>
+                    <dd className="mt-1 text-sm text-foreground">{patient.clinic?.name}</dd>
                   </div>
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Empresa</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{patient.company?.name}</dd>
+                    <dt className="text-sm font-medium text-muted-foreground">Empresa</dt>
+                    <dd className="mt-1 text-sm text-foreground">{patient.company?.name}</dd>
                   </div>
                 </dl>
               </div>
 
               {patient.notes && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Observações
                   </h3>
-                  <div className="mt-2 text-sm text-gray-900 bg-gray-50 p-4 rounded-md">
+                  <div className="mt-2 text-sm text-foreground bg-muted p-4 rounded-md">
                     {patient.notes}
                   </div>
                 </div>
@@ -284,7 +284,7 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
 
               {patient.tags && patient.tags.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Tags
                   </h3>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -306,24 +306,24 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
           {/* Contatos */}
           {activeTab === 'contacts' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Contatos do Paciente</h3>
+              <h3 className="text-lg font-medium text-foreground">Contatos do Paciente</h3>
               {patient.contacts && patient.contacts.length > 0 ? (
                 <div className="space-y-3">
                   {patient.contacts.map((contact, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div key={index} className="border border-border rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-medium text-gray-900">
+                          <h4 className="font-medium text-foreground">
                             {getContactTypeLabel(contact.type)}
                           </h4>
-                          <p className="mt-1 text-sm text-gray-600">{contact.value}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{contact.value}</p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">Nenhum contato cadastrado</p>
+                <p className="text-muted-foreground">Nenhum contato cadastrado</p>
               )}
             </div>
           )}
@@ -331,32 +331,32 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
           {/* Endereços */}
           {activeTab === 'addresses' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Endereços do Paciente</h3>
+              <h3 className="text-lg font-medium text-foreground">Endereços do Paciente</h3>
               {patient.addresses && patient.addresses.length > 0 ? (
                 <div className="space-y-3">
                   {patient.addresses.map((address, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div key={index} className="border border-border rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div>
                           {address.isMain && (
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-accent text-accent-foreground">
                               Principal
                             </span>
                           )}
-                          <h4 className="mt-2 font-medium text-gray-900">
+                          <h4 className="mt-2 font-medium text-foreground">
                             {address.street}, {address.number || 's/n'}{address.complement ? ` - ${address.complement}` : ''}
                           </h4>
-                          <p className="mt-1 text-sm text-gray-600">
+                          <p className="mt-1 text-sm text-muted-foreground">
                             {address.district}, {address.city} - {address.state}
                           </p>
-                          <p className="mt-1 text-sm text-gray-600">{address.zipCode}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{address.zipCode}</p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">Nenhum endereço cadastrado</p>
+                <p className="text-muted-foreground">Nenhum endereço cadastrado</p>
               )}
             </div>
           )}
@@ -364,28 +364,28 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
           {/* Documentos */}
           {activeTab === 'documents' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Documentos do Paciente</h3>
+              <h3 className="text-lg font-medium text-foreground">Documentos do Paciente</h3>
               {patient.documents && patient.documents.length > 0 ? (
                 <div className="space-y-3">
                   {patient.documents.map((document, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div key={index} className="border border-border rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-medium text-gray-900">
+                          <h4 className="font-medium text-foreground">
                             {getDocumentTypeLabel(document.type)}: {document.number}
                           </h4>
                           {document.issuer && (
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-muted-foreground">
                               Órgão emissor: {document.issuer}
                             </p>
                           )}
                           {document.issueDate && (
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-muted-foreground">
                               Emissão: {new Date(document.issueDate).toLocaleDateString('pt-BR')}
                             </p>
                           )}
                           {document.expiryDate && (
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-muted-foreground">
                               Validade: {new Date(document.expiryDate).toLocaleDateString('pt-BR')}
                             </p>
                           )}
@@ -395,7 +395,7 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">Nenhum documento cadastrado</p>
+                <p className="text-muted-foreground">Nenhum documento cadastrado</p>
               )}
             </div>
           )}
@@ -403,33 +403,33 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
           {/* Timeline */}
           {activeTab === 'timeline' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Timeline do Paciente</h3>
+              <h3 className="text-lg font-medium text-foreground">Timeline do Paciente</h3>
               {patient.timelineEvents && patient.timelineEvents.length > 0 ? (
                 <div className="space-y-4">
                   {patient.timelineEvents.map((event, index) => (
                     <div key={index} className="relative">
-                      <div className="absolute left-0 top-0 h-full w-0.5 bg-gray-200"></div>
+                      <div className="absolute left-0 top-0 h-full w-0.5 bg-muted"></div>
                       <div className="flex items-start">
-                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 text-sm">
+                        <div className="flex-shrink-0 w-8 h-8 bg-accent rounded-full flex items-center justify-center">
+                          <span className="text-primary text-sm">
                             {event.type === 'CREATED' ? 'C' :
                              event.type === 'UPDATED' ? 'U' :
                              event.type === 'INACTIVATED' ? 'A' : 'E'}
                           </span>
                         </div>
                         <div className="ml-4 flex-1">
-                          <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="bg-muted rounded-lg p-4">
                             <div className="flex justify-between items-start">
-                              <h4 className="font-medium text-gray-900">{event.title}</h4>
-                              <span className="text-sm text-gray-500">
+                              <h4 className="font-medium text-foreground">{event.title}</h4>
+                              <span className="text-sm text-muted-foreground">
                                 {new Date(event.createdAt).toLocaleString('pt-BR')}
                               </span>
                             </div>
                             {event.content && (
-                              <p className="mt-2 text-sm text-gray-600">{event.content}</p>
+                              <p className="mt-2 text-sm text-muted-foreground">{event.content}</p>
                             )}
                             {event.author && (
-                              <p className="mt-2 text-sm text-gray-500">
+                              <p className="mt-2 text-sm text-muted-foreground">
                                 Por: {event.author.name}
                               </p>
                             )}
@@ -440,7 +440,7 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">Nenhum evento na timeline</p>
+                <p className="text-muted-foreground">Nenhum evento na timeline</p>
               )}
             </div>
           )}

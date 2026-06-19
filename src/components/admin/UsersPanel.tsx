@@ -51,7 +51,7 @@ export default function UsersPanel({ companyId, companyName, onClose }: { compan
       : { type: 'err', text: (await res.json().catch(() => ({}))).error || 'Falha ao redefinir senha' })
   }
 
-  const input = 'w-full px-2 py-1.5 border border-gray-300 rounded text-sm'
+  const input = 'w-full px-2 py-1.5 border border-border rounded text-sm'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4" onClick={onClose}>

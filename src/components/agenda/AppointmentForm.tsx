@@ -86,12 +86,12 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
     }
   }
 
-  const field = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const label = 'block text-sm font-medium text-gray-700 mb-1'
+  const field = 'w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring'
+  const label = 'block text-sm font-medium text-foreground mb-1'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
-      {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>}
+      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
       <div>
         <label className={label}>Paciente *</label>
@@ -99,7 +99,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
           <option value="">Selecione um paciente</option>
           {patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        {patients.length === 0 && <p className="mt-1 text-xs text-gray-500">Nenhum paciente cadastrado — cadastre em Pacientes primeiro.</p>}
+        {patients.length === 0 && <p className="mt-1 text-xs text-muted-foreground">Nenhum paciente cadastrado — cadastre em Pacientes primeiro.</p>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -158,8 +158,8 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
       </div>
 
       <div className="flex justify-end gap-3 pt-2 border-t">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Cancelar</button>
-        <button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted">Cancelar</button>
+        <button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
           {saving ? 'Salvando…' : 'Salvar'}
         </button>
       </div>

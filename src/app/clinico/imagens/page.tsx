@@ -56,8 +56,8 @@ export default function ImagensPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Link href={`/pacientes/${d.patientId}`} className="text-sm text-blue-600 hover:underline">{d.patientName || 'Ver paciente'}</Link>
-                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="p-2 rounded-md text-blue-600 hover:bg-blue-50"><ExternalLink className="h-4 w-4" /></a>}
+                  <Link href={`/pacientes/${d.patientId}`} className="text-sm text-primary hover:underline">{d.patientName || 'Ver paciente'}</Link>
+                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="p-2 rounded-md text-primary hover:bg-accent"><ExternalLink className="h-4 w-4" /></a>}
                 </div>
               </div>
             ))}

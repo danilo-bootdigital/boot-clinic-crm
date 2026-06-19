@@ -21,8 +21,8 @@ const ROLE_LABELS: Record<string, string> = {
   RECEPTION: 'Recepção', FINANCE: 'Financeiro', MARKETING: 'Marketing', ATTENDANCE: 'Atendimento',
 }
 
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-const label = 'block text-sm font-medium text-gray-700 mb-1'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+const label = 'block text-sm font-medium text-foreground mb-1'
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
@@ -80,8 +80,8 @@ function ClinicaTab({ router }: { router: any }) {
         </div>
         <div><label className={label}>E-mail</label><input type="email" className={field} value={form.email || ''} onChange={(e) => set('email', e.target.value)} /></div>
         <div><label className={label}>Endereço</label><input className={field} value={form.address || ''} onChange={(e) => set('address', e.target.value)} /></div>
-        {msg && <p className="text-sm text-gray-600">{msg}</p>}
-        <div className="pt-2 border-t"><button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button></div>
+        {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
+        <div className="pt-2 border-t"><button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button></div>
       </form>
     </SectionCard>
   )
@@ -101,7 +101,7 @@ function PermissionMatrix({ value, onChange }: { value: Record<string, string>; 
       {MODULES.map(([m, lbl]) => (
         <div key={m} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
           <span className="text-sm text-foreground">{lbl}</span>
-          <select className="px-2 py-1 border border-gray-300 rounded text-sm" value={value[m] || 'none'} onChange={(e) => onChange({ ...value, [m]: e.target.value })}>
+          <select className="px-2 py-1 border border-border rounded text-sm" value={value[m] || 'none'} onChange={(e) => onChange({ ...value, [m]: e.target.value })}>
             {LEVELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
@@ -188,7 +188,7 @@ function UsuariosTab() {
       <SectionCard title="Equipe e Permissões">
         <div className="mb-4">
           {!adding ? (
-            <button onClick={() => setAdding(true)} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">+ Adicionar usuário</button>
+            <button onClick={() => setAdding(true)} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">+ Adicionar usuário</button>
           ) : (
             <form onSubmit={createUser} className="space-y-4 rounded-lg border border-border p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -204,8 +204,8 @@ function UsuariosTab() {
                   : <PermissionMatrix value={form.permissions} onChange={(v) => setForm({ ...form, permissions: v })} />}
               </div>
               <div className="flex gap-3 pt-2 border-t">
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Criar usuário</button>
-                <button type="button" onClick={() => setAdding(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Criar usuário</button>
+                <button type="button" onClick={() => setAdding(false)} className="px-4 py-2 text-sm border border-border rounded-md hover:bg-muted">Cancelar</button>
               </div>
             </form>
           )}
@@ -221,7 +221,7 @@ function UsuariosTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   <select
-                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                    className="px-3 py-1.5 border border-border rounded-md text-sm disabled:bg-muted disabled:text-muted-foreground"
                     value={u.role}
                     disabled={!me || !canManageTarget(me.role, u.role)}
                     onChange={(e) => changeRole(u.id, e.target.value)}>
@@ -230,21 +230,21 @@ function UsuariosTab() {
                   {me && (canManageTarget(me.role, u.role) || me.id === u.id) && (
                     <button
                       onClick={() => { setEditProfile(editProfile === u.id ? null : u.id); setProfileForm({ name: u.name || '', email: u.email || '' }) }}
-                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                      className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
                       Editar
                     </button>
                   )}
                   {!ADMIN_ROLE(u.role) && me && canManageTarget(me.role, u.role) && (
                     <button
                       onClick={() => { setEditing(editing === u.id ? null : u.id); setPerms({ ...emptyPerms(), ...(u.permissions || {}) }) }}
-                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                      className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
                       Permissões
                     </button>
                   )}
                   {me && (canManageTarget(me.role, u.role) || me.id === u.id) && (
                     <button
                       onClick={() => resetPassword(u.id, u.name)}
-                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                      className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">
                       Redefinir senha
                     </button>
                   )}
@@ -265,8 +265,8 @@ function UsuariosTab() {
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">O e-mail é o login: ao alterá-lo, sincronizamos automaticamente no Supabase Auth.</p>
                   <div className="mt-3 flex gap-2">
-                    <button onClick={() => saveProfile(u.id)} className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar</button>
-                    <button onClick={() => setEditProfile(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Cancelar</button>
+                    <button onClick={() => saveProfile(u.id)} className="px-3 py-1.5 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button>
+                    <button onClick={() => setEditProfile(null)} className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">Cancelar</button>
                   </div>
                 </div>
               )}
@@ -274,8 +274,8 @@ function UsuariosTab() {
                 <div className="mt-3 rounded-lg border border-border p-3">
                   <PermissionMatrix value={perms} onChange={setPerms} />
                   <div className="mt-3 flex gap-2">
-                    <button onClick={() => savePerms(u.id)} className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar permissões</button>
-                    <button onClick={() => setEditing(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Fechar</button>
+                    <button onClick={() => savePerms(u.id)} className="px-3 py-1.5 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar permissões</button>
+                    <button onClick={() => setEditing(null)} className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">Fechar</button>
                   </div>
                 </div>
               )}
@@ -322,7 +322,7 @@ function NotificacoesTab() {
             <div><p className="text-sm font-medium text-foreground">{title}</p><p className="text-xs text-muted-foreground">{desc}</p></div>
             <button onClick={() => toggle(key)} role="switch" aria-checked={!!s[key]}
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${s[key] ? 'bg-primary' : 'bg-muted'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${s[key] ? 'left-[22px]' : 'left-0.5'}`} />
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all ${s[key] ? 'left-[22px]' : 'left-0.5'}`} />
             </button>
           </div>
         ))}

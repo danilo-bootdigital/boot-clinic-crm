@@ -141,7 +141,7 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
         <CardContent>
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded animate-pulse" />
+              <div key={i} className="h-16 bg-muted rounded animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -165,7 +165,7 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
       </CardHeader>
       <CardContent>
         {showForm && (
-          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-gray-50">
+          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-muted">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Profissional</label>
@@ -263,16 +263,16 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
         )}
 
         {blocks.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">
+          <p className="text-center text-muted-foreground py-4">
             Nenhum bloqueio encontrado
           </p>
         ) : (
           <div className="space-y-3">
             {blocks.map((block) => (
-              <div key={block.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+              <div key={block.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2">
-                    <Clock className="h-4 w-4 text-gray-500" />
+                    <Clock className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">{block.professionalName}</span>
                     <Badge variant="secondary">
                       {formatDateTime(block.date, block.startTime)} - {block.endTime}
@@ -284,7 +284,7 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
                     )}
                   </div>
                   {block.reason && (
-                    <p className="text-sm text-gray-600 mt-1">{block.reason}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{block.reason}</p>
                   )}
                 </div>
                 <div className="flex items-center space-x-2">

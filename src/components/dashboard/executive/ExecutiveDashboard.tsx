@@ -12,7 +12,7 @@ const brl = (n: number) => `R$ ${(n || 0).toLocaleString('pt-BR', { minimumFract
 
 function Delta({ cur, prev }: { cur: number; prev: number }) {
   const diff = cur - prev
-  const tone = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-muted-foreground'
+  const tone = diff > 0 ? 'text-success' : diff < 0 ? 'text-destructive' : 'text-muted-foreground'
   return <span className={`text-xs ${tone}`}>{diff >= 0 ? '+' : ''}{diff} vs. mês anterior</span>
 }
 

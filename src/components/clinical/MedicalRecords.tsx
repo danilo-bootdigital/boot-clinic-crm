@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { ActionButton } from '@/components/ui/action-button'
 import { MEDICAL_RECORD_TYPES, RECORD_TYPE_LABELS } from '@/lib/validations/clinical'
 
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function MedicalRecords({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
   const [rows, setRows] = useState<any[] | null>(null)
@@ -46,19 +46,19 @@ export default function MedicalRecords({ patientId, canEdit = true }: { patientI
         : <ActionButton icon={<Plus />} onClick={() => setCreating(true)}>Novo registro</ActionButton>)}
     >
       {!canEdit && <p className="mb-3 text-xs text-muted-foreground">Você tem acesso somente de leitura ao prontuário.</p>}
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
 
       {creating ? (
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Tipo</label>
               <select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                 {MEDICAL_RECORD_TYPES.map((t) => <option key={t} value={t}>{RECORD_TYPE_LABELS[t]}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Profissional</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Profissional</label>
               <select className={field} value={form.professionalId} onChange={(e) => setForm({ ...form, professionalId: e.target.value })}>
                 <option value="">—</option>
                 {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -66,15 +66,15 @@ export default function MedicalRecords({ patientId, canEdit = true }: { patientI
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
             <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo *</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Conteúdo *</label>
             <textarea className={field} rows={5} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} required />
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t">
-            <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar</button>
+            <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button>
           </div>
         </form>
       ) : rows === null ? (

@@ -60,13 +60,13 @@ export default function Timeline({ patientId }: TimelineProps) {
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Adicionar anotação..."
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <button type="submit" disabled={saving} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
             {saving ? '...' : 'Adicionar'}
           </button>
         </form>
-        {err && <p className="mb-2 text-sm text-red-600">{err}</p>}
+        {err && <p className="mb-2 text-sm text-destructive">{err}</p>}
 
         {events === null ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Carregando...</p>
@@ -75,7 +75,7 @@ export default function Timeline({ patientId }: TimelineProps) {
         ) : (
           <ul className="space-y-3">
             {events.map((ev) => (
-              <li key={ev.id} className="border-l-2 border-blue-200 pl-3">
+              <li key={ev.id} className="border-l-2 border-primary/30 pl-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">{ev.title}</span>
                   <span className="text-xs text-muted-foreground">{new Date(ev.createdAt).toLocaleString('pt-BR')}</span>

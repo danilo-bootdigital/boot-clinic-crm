@@ -68,8 +68,8 @@ export default function RelatoriosPage() {
       />
 
       <div className="flex flex-wrap items-end gap-3">
-        <div><label className="block text-xs text-muted-foreground mb-1">De</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" /></div>
-        <div><label className="block text-xs text-muted-foreground mb-1">Até</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" /></div>
+        <div><label className="block text-xs text-muted-foreground mb-1">De</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" /></div>
+        <div><label className="block text-xs text-muted-foreground mb-1">Até</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" /></div>
       </div>
 
       {loading ? <LoadingState rows={4} label="Gerando relatório" />

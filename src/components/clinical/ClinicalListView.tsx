@@ -47,7 +47,7 @@ export default function ClinicalListView({ title, description, icon, endpoint, e
               <div key={row.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">{renderRow(row)}</div>
                 {row.patientId && (
-                  <Link href={`/pacientes/${row.patientId}`} className="shrink-0 text-sm text-blue-600 hover:underline">
+                  <Link href={`/pacientes/${row.patientId}`} className="shrink-0 text-sm text-primary hover:underline">
                     {row.patientName || 'Ver paciente'}
                   </Link>
                 )}

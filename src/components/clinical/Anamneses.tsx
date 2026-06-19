@@ -8,7 +8,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { ANAMNESIS_STATUS_LABELS } from '@/lib/validations/clinical'
 
 const STATUS_TONE: Record<string, any> = { DRAFT: 'warning', FILLED: 'info', REVIEWED: 'success', ARCHIVED: 'neutral' }
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function Anamneses({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
   const [rows, setRows] = useState<any[] | null>(null)
@@ -60,16 +60,16 @@ export default function Anamneses({ patientId, canEdit = true }: { patientId: st
         ? <ActionButton variant="outline" icon={<ArrowLeft />} onClick={() => { setCreating(false); setError(null) }}>Voltar</ActionButton>
         : <ActionButton icon={<Plus />} onClick={() => setCreating(true)}>Nova anamnese</ActionButton>)}
     >
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
 
       {creating ? (
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
             <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Modelo (opcional)</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Modelo (opcional)</label>
             <select className={field} value={templateId} onChange={(e) => { setTemplateId(e.target.value); setAnswers({}) }}>
               <option value="">— Sem modelo (texto livre) —</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.specialty ? ` · ${t.specialty}` : ''}</option>)}
@@ -77,7 +77,7 @@ export default function Anamneses({ patientId, canEdit = true }: { patientId: st
           </div>
           {selectedTemplate?.questions?.map((q: any) => (
             <div key={q.id}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{q.label}{q.required && ' *'}</label>
+              <label className="block text-sm font-medium text-foreground mb-1">{q.label}{q.required && ' *'}</label>
               {q.type === 'BOOLEAN' ? (
                 <select className={field} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
                   <option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option>
@@ -95,7 +95,7 @@ export default function Anamneses({ patientId, canEdit = true }: { patientId: st
             </div>
           ))}
           <div className="flex justify-end gap-3 pt-2 border-t">
-            <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar</button>
+            <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button>
           </div>
         </form>
       ) : rows === null ? (
@@ -116,8 +116,8 @@ export default function Anamneses({ patientId, canEdit = true }: { patientId: st
                 </div>
                 {canEdit && a.status !== 'ARCHIVED' && (
                   <div className="flex shrink-0 gap-1">
-                    {a.status !== 'REVIEWED' && <button onClick={() => setStatus(a.id, 'REVIEWED')} title="Marcar revisada" className="p-2 rounded-md text-green-600 hover:bg-green-50"><Check className="h-4 w-4" /></button>}
-                    <button onClick={() => setStatus(a.id, 'ARCHIVED')} title="Arquivar" className="p-2 rounded-md text-gray-500 hover:bg-gray-100"><Archive className="h-4 w-4" /></button>
+                    {a.status !== 'REVIEWED' && <button onClick={() => setStatus(a.id, 'REVIEWED')} title="Marcar revisada" className="p-2 rounded-md text-success hover:bg-success/10"><Check className="h-4 w-4" /></button>}
+                    <button onClick={() => setStatus(a.id, 'ARCHIVED')} title="Arquivar" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><Archive className="h-4 w-4" /></button>
                   </div>
                 )}
               </div>

@@ -88,7 +88,7 @@ export function Specialties({ professionalId }: SpecialtiesProps) {
         <CardContent>
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded animate-pulse" />
+              <div key={i} className="h-16 bg-muted rounded animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -109,7 +109,7 @@ export function Specialties({ professionalId }: SpecialtiesProps) {
       </CardHeader>
       <CardContent>
         {showForm && (
-          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-gray-50">
+          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-muted">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Nome</label>
@@ -142,17 +142,17 @@ export function Specialties({ professionalId }: SpecialtiesProps) {
         )}
 
         {specialties.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">
+          <p className="text-center text-muted-foreground py-4">
             Nenhuma especialidade encontrada
           </p>
         ) : (
           <div className="space-y-3">
             {specialties.map((specialty) => (
-              <div key={specialty.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+              <div key={specialty.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted">
                 <div>
                   <h3 className="font-medium">{specialty.name}</h3>
                   {specialty.description && (
-                    <p className="text-sm text-gray-600 mt-1">{specialty.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{specialty.description}</p>
                   )}
                 </div>
                 <div className="flex items-center space-x-2">
