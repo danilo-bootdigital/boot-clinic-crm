@@ -20,8 +20,8 @@ const ACTIONS: [string, string][] = [
   ['SEND_NOTIFICATION', 'Criar notificação'],
 ]
 const ACTION_LABEL: Record<string, string> = Object.fromEntries(ACTIONS)
-const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-const label = 'block text-sm font-medium text-gray-700 mb-1'
+const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+const label = 'block text-sm font-medium text-foreground mb-1'
 
 export default function AutomacoesPage() {
   const router = useRouter()
@@ -79,7 +79,7 @@ export default function AutomacoesPage() {
             {form.actionType === 'CREATE_FOLLOW_UP'
               ? <div><label className={label}>Vencimento (dias a partir de hoje)</label><input type="number" min={0} className={field} value={form.dueInDays} onChange={(e) => setForm({ ...form, dueInDays: e.target.value })} /></div>
               : <div><label className={label}>Mensagem</label><textarea className={field} rows={2} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /></div>}
-            <div className="pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Criar automação</button></div>
+            <div className="pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Criar automação</button></div>
           </form>
         </SectionCard>
       ) : loading ? <LoadingState rows={4} label="Carregando automações" />
@@ -99,8 +99,8 @@ export default function AutomacoesPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <button onClick={() => toggle(r)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">{r.isActive ? 'Desativar' : 'Ativar'}</button>
-                    <button onClick={() => remove(r)} title="Remover" className="p-2 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                    <button onClick={() => toggle(r)} className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">{r.isActive ? 'Desativar' : 'Ativar'}</button>
+                    <button onClick={() => remove(r)} title="Remover" className="p-2 rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
               ))}

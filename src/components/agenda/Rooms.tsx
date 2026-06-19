@@ -89,7 +89,7 @@ export function Rooms({ professionalId }: RoomsProps) {
         <CardContent>
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded animate-pulse" />
+              <div key={i} className="h-16 bg-muted rounded animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -113,7 +113,7 @@ export function Rooms({ professionalId }: RoomsProps) {
       </CardHeader>
       <CardContent>
         {showForm && (
-          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-gray-50">
+          <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-muted">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Nome da Sala</label>
@@ -146,22 +146,22 @@ export function Rooms({ professionalId }: RoomsProps) {
         )}
 
         {rooms.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">
+          <p className="text-center text-muted-foreground py-4">
             Nenhuma sala encontrada
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {rooms.map((room) => (
-              <div key={room.id} className="p-4 border rounded-lg hover:bg-gray-50">
+              <div key={room.id} className="p-4 border rounded-lg hover:bg-muted">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="font-medium">{room.name}</h3>
                     {room.description && (
-                      <p className="text-sm text-gray-600 mt-1">{room.description}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{room.description}</p>
                     )}
                   </div>
                   <div className="flex items-center space-x-2 ml-4">
-                    <Badge variant="secondary" className={room.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                    <Badge variant="secondary" className={room.isActive ? 'bg-success/15 text-success' : 'bg-muted text-foreground'}>
                       {room.isActive ? 'Ativa' : 'Inativa'}
                     </Badge>
                     <Button

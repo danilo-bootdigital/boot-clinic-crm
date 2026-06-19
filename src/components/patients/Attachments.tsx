@@ -64,11 +64,11 @@ export default function Attachments({ patientId }: AttachmentsProps) {
       <CardContent>
         <div className="mb-4">
           <input ref={inputRef} type="file" onChange={onFile} className="hidden" id="att-input" />
-          <label htmlFor="att-input" className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          <label htmlFor="att-input" className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
             <Upload className="h-4 w-4" /> {uploading ? 'Enviando...' : 'Enviar arquivo'}
           </label>
         </div>
-        {err && <p className="mb-2 text-sm text-red-600">{err}</p>}
+        {err && <p className="mb-2 text-sm text-destructive">{err}</p>}
 
         {items === null ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Carregando...</p>

@@ -100,8 +100,8 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">Carregando agenda...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="mt-2 text-muted-foreground">Carregando agenda...</p>
         </div>
       </div>
     );
@@ -123,7 +123,7 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
               <div
                 key={offset}
                 className={`flex-1 text-center p-4 border-r cursor-pointer ${
-                  isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                  isSelected ? 'bg-accent' : 'hover:bg-muted'
                 }`}
                 onClick={() => {
                   const newDate = new Date(selectedDate);
@@ -131,11 +131,11 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
                   // Aqui você atualizaria o selectedDate
                 }}
               >
-                <div className="text-sm font-medium text-gray-500">
+                <div className="text-sm font-medium text-muted-foreground">
                   {date.toLocaleDateString('pt-BR', { weekday: 'short' })}
                 </div>
                 <div className={`text-lg font-semibold ${
-                  isToday ? 'text-blue-600' : 'text-gray-900'
+                  isToday ? 'text-primary' : 'text-foreground'
                 }`}>
                   {formatDate(date)}
                 </div>
@@ -150,7 +150,7 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
           <div className="w-20 border-r">
             {timeSlots.map((time) => (
               <div key={time} className="h-16 border-b flex items-center justify-end pr-2">
-                <span className="text-sm text-gray-500">{time}</span>
+                <span className="text-sm text-muted-foreground">{time}</span>
               </div>
             ))}
           </div>
@@ -165,29 +165,29 @@ export function AgendaView({ selectedDate, professionalId, onAppointmentClick }:
                 <div key={time} className="h-16 border-b flex">
                   {appointment ? (
                     <div
-                      className="w-full h-full p-2 m-1 bg-blue-100 border border-blue-300 rounded cursor-pointer hover:bg-blue-200"
+                      className="w-full h-full p-2 m-1 bg-accent border border-primary rounded cursor-pointer hover:bg-accent"
                       onClick={() => onAppointmentClick(appointment)}
                     >
-                      <div className="text-sm font-medium text-blue-900 truncate">
+                      <div className="text-sm font-medium text-accent-foreground truncate">
                         {appointment.patient?.name || 'Paciente'}
                       </div>
-                      <div className="text-xs text-blue-700">
+                      <div className="text-xs text-primary">
                         {appointment.professional?.name || 'Profissional'}
                       </div>
-                      <div className="text-xs text-blue-600">
+                      <div className="text-xs text-primary">
                         {appointment.specialty?.name || 'Especialidade'}
                       </div>
                     </div>
                   ) : covering ? (
                     <div
-                      className="w-full h-full p-2 m-1 bg-blue-50 border border-blue-200 rounded cursor-pointer hover:bg-blue-100"
+                      className="w-full h-full p-2 m-1 bg-accent border border-primary/30 rounded cursor-pointer hover:bg-accent"
                       onClick={() => onAppointmentClick(covering)}
                     >
-                      <div className="text-xs text-blue-500 text-center">Ocupado</div>
+                      <div className="text-xs text-primary text-center">Ocupado</div>
                     </div>
                   ) : (
-                    <div className="w-full h-full p-2 m-1 bg-gray-50 border border-gray-200 rounded opacity-50">
-                      <div className="text-xs text-gray-400 text-center">Disponível</div>
+                    <div className="w-full h-full p-2 m-1 bg-muted border border-border rounded opacity-50">
+                      <div className="text-xs text-muted-foreground text-center">Disponível</div>
                     </div>
                   )}
                 </div>

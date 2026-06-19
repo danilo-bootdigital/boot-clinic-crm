@@ -58,7 +58,7 @@ export default function FollowUpPage() {
     load()
   }
 
-  const field = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
   return (
     <div className="space-y-6">
@@ -79,17 +79,17 @@ export default function FollowUpPage() {
         <SectionCard title="Nova Tarefa">
           <form onSubmit={create} className="space-y-4 max-w-2xl">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
               <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Vencimento *</label><input type="date" className={field} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Prioridade</label><select className={field} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{PRIORITY.map((x) => <option key={x} value={x}>{PRIORITY_LABELS[x]}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label><select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((x) => <option key={x} value={x}>{TYPE_LABELS[x]}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Paciente</label><select className={field} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}><option value="">—</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Vencimento *</label><input type="date" className={field} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required /></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Prioridade</label><select className={field} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{PRIORITY.map((x) => <option key={x} value={x}>{PRIORITY_LABELS[x]}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Tipo</label><select className={field} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((x) => <option key={x} value={x}>{TYPE_LABELS[x]}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-foreground mb-1">Paciente</label><select className={field} value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}><option value="">—</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
             </div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label><textarea className={field} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div className="flex justify-end gap-3 pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar</button></div>
+            <div><label className="block text-sm font-medium text-foreground mb-1">Descrição</label><textarea className={field} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+            <div className="flex justify-end gap-3 pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button></div>
           </form>
         </SectionCard>
       ) : loading ? (
@@ -114,11 +114,11 @@ export default function FollowUpPage() {
                 <div className="flex shrink-0 gap-1">
                   {t.status !== 'COMPLETED' && t.status !== 'CANCELED' && (
                     <>
-                      <button onClick={() => setStatus(t.id, 'COMPLETED')} title="Concluir" className="p-2 rounded-md text-green-600 hover:bg-green-50"><Check className="h-4 w-4" /></button>
-                      <button onClick={() => setStatus(t.id, 'CANCELED')} title="Cancelar" className="p-2 rounded-md text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                      <button onClick={() => setStatus(t.id, 'COMPLETED')} title="Concluir" className="p-2 rounded-md text-success hover:bg-success/10"><Check className="h-4 w-4" /></button>
+                      <button onClick={() => setStatus(t.id, 'CANCELED')} title="Cancelar" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
                     </>
                   )}
-                  <button onClick={() => remove(t.id)} title="Excluir" className="p-2 rounded-md text-red-600 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => remove(t.id)} title="Excluir" className="p-2 rounded-md text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
             ))}

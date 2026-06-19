@@ -112,8 +112,8 @@ export default function AgendaPage() {
       {tab === 'agenda' && mode === 'grid' && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm" />
-            <select value={professionalId} onChange={(e) => setProfessionalId(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" />
+            <select value={professionalId} onChange={(e) => setProfessionalId(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm">
               <option value="">Todos os profissionais</option>
               {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
@@ -138,13 +138,13 @@ export default function AgendaPage() {
       {tab === 'agenda' && mode === 'detail' && selected && (
         <SectionCard title={selected.patient?.name || 'Agendamento'} className="max-w-2xl">
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-gray-500">Profissional</dt><dd>{selected.professional?.name || '—'}</dd></div>
-            <div><dt className="text-gray-500">Especialidade</dt><dd>{selected.specialty?.name || '—'}</dd></div>
-            <div><dt className="text-gray-500">Início</dt><dd>{selected.startAt ? new Date(selected.startAt).toLocaleString('pt-BR') : '—'}</dd></div>
-            <div><dt className="text-gray-500">Tipo</dt><dd>{selected.type || '—'}</dd></div>
-            <div><dt className="text-gray-500">Status</dt><dd>{STATUS_LABELS[selected.status] || selected.status}</dd></div>
+            <div><dt className="text-muted-foreground">Profissional</dt><dd>{selected.professional?.name || '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Especialidade</dt><dd>{selected.specialty?.name || '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Início</dt><dd>{selected.startAt ? new Date(selected.startAt).toLocaleString('pt-BR') : '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Tipo</dt><dd>{selected.type || '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Status</dt><dd>{STATUS_LABELS[selected.status] || selected.status}</dd></div>
           </dl>
-          {selected.notes && <p className="mt-3 text-sm text-gray-600">{selected.notes}</p>}
+          {selected.notes && <p className="mt-3 text-sm text-muted-foreground">{selected.notes}</p>}
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
             <ActionButton onClick={() => operation('confirm')}>Confirmar</ActionButton>
             <ActionButton variant="outline" onClick={() => operation('attend')}>Compareceu</ActionButton>
