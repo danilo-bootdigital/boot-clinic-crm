@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
+import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy'
 
 type Tab = 'clinica' | 'usuarios' | 'notificacoes'
 const TABS: { key: Tab; label: string }[] = [
@@ -115,7 +116,10 @@ function UsuariosTab() {
   const [msg, setMsg] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [perms, setPerms] = useState<Record<string, string>>(emptyPerms())
+  const [editProfile, setEditProfile] = useState<string | null>(null)
+  const [profileForm, setProfileForm] = useState<{ name: string; email: string }>({ name: '', email: '' })
   const [adding, setAdding] = useState(false)
+  const [me, setMe] = useState<{ id: string; role: string } | null>(null)
   const [form, setForm] = useState<any>({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms() })
 
   const load = useCallback(async () => {
@@ -125,6 +129,11 @@ function UsuariosTab() {
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
+  // Papel/id do ator — usados como defesa adicional (a regra obrigatória é no backend).
+  useEffect(() => { fetch('/api/me').then((r) => r.json()).then((m) => m?.id && setMe({ id: m.id, role: m.role })).catch(() => {}) }, [])
+
+  // Papéis que o ator pode atribuir (para os selects). Vazio até /api/me carregar (fail-closed).
+  const assignable = me ? ROLES.filter((r) => canAssignRole(me.role, r)) : []
 
   async function changeRole(id: string, role: string) {
     setMsg(null)
@@ -138,6 +147,21 @@ function UsuariosTab() {
     if (!res.ok) setMsg((await res.json().catch(() => ({}))).error || 'Falha ao salvar permissões')
     else { setMsg('Permissões salvas.'); setEditing(null) }
     load()
+  }
+  async function saveProfile(id: string) {
+    setMsg(null)
+    const res = await fetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileForm) })
+    if (!res.ok) setMsg((await res.json().catch(() => ({}))).error || 'Falha ao salvar dados do usuário')
+    else { setMsg('Dados do usuário salvos.'); setEditProfile(null) }
+    load()
+  }
+  async function resetPassword(id: string, name: string) {
+    const pwd = window.prompt(`Nova senha provisória para ${name} (mín. 6 caracteres):`)
+    if (pwd === null) return
+    if (pwd.length < 6) { setMsg('A senha deve ter ao menos 6 caracteres.'); return }
+    setMsg(null)
+    const res = await fetch(`/api/users/${id}/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pwd }) })
+    setMsg(res.ok ? 'Senha redefinida. Informe a nova senha provisória ao usuário.' : ((await res.json().catch(() => ({}))).error || 'Falha ao redefinir senha'))
   }
   async function removeUser(id: string, name: string) {
     if (!confirm(`Remover o usuário ${name}? A conta de acesso será excluída.`)) return
@@ -171,7 +195,7 @@ function UsuariosTab() {
                 <div><label className={label}>Nome *</label><input className={field} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
                 <div><label className={label}>E-mail *</label><input type="email" className={field} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
                 <div><label className={label}>Senha inicial *</label><input type="text" className={field} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} minLength={6} required /></div>
-                <div><label className={label}>Papel</label><select className={field} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+                <div><label className={label}>Papel</label><select className={field} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{assignable.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
               </div>
               <div>
                 <label className={label}>Permissões por módulo</label>
@@ -196,23 +220,56 @@ function UsuariosTab() {
                   <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <select className="px-3 py-1.5 border border-gray-300 rounded-md text-sm" value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}>
-                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  <select
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                    value={u.role}
+                    disabled={!me || !canManageTarget(me.role, u.role)}
+                    onChange={(e) => changeRole(u.id, e.target.value)}>
+                    {ROLES.filter((r) => r === u.role || (me && canAssignRole(me.role, r))).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </select>
-                  {!ADMIN_ROLE(u.role) && (
+                  {me && (canManageTarget(me.role, u.role) || me.id === u.id) && (
+                    <button
+                      onClick={() => { setEditProfile(editProfile === u.id ? null : u.id); setProfileForm({ name: u.name || '', email: u.email || '' }) }}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                      Editar
+                    </button>
+                  )}
+                  {!ADMIN_ROLE(u.role) && me && canManageTarget(me.role, u.role) && (
                     <button
                       onClick={() => { setEditing(editing === u.id ? null : u.id); setPerms({ ...emptyPerms(), ...(u.permissions || {}) }) }}
                       className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
                       Permissões
                     </button>
                   )}
-                  <button
-                    onClick={() => removeUser(u.id, u.name)}
-                    className="px-3 py-1.5 text-sm border border-destructive/30 text-destructive rounded-md hover:bg-destructive/10">
-                    Remover
-                  </button>
+                  {me && (canManageTarget(me.role, u.role) || me.id === u.id) && (
+                    <button
+                      onClick={() => resetPassword(u.id, u.name)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                      Redefinir senha
+                    </button>
+                  )}
+                  {me && canManageTarget(me.role, u.role) && me.id !== u.id && (
+                    <button
+                      onClick={() => removeUser(u.id, u.name)}
+                      className="px-3 py-1.5 text-sm border border-destructive/30 text-destructive rounded-md hover:bg-destructive/10">
+                      Remover
+                    </button>
+                  )}
                 </div>
               </div>
+              {editProfile === u.id && (
+                <div className="mt-3 rounded-lg border border-border p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label className={label}>Nome</label><input className={field} value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} /></div>
+                    <div><label className={label}>E-mail (login)</label><input type="email" className={field} value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} /></div>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">O e-mail é o login: ao alterá-lo, sincronizamos automaticamente no Supabase Auth.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => saveProfile(u.id)} className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700">Salvar</button>
+                    <button onClick={() => setEditProfile(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Cancelar</button>
+                  </div>
+                </div>
+              )}
               {editing === u.id && (
                 <div className="mt-3 rounded-lg border border-border p-3">
                   <PermissionMatrix value={perms} onChange={setPerms} />
