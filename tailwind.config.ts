@@ -11,14 +11,17 @@ const config: Config = {
   theme: {
     container: {
       center: true,
-      padding: "2rem",
+      padding: "1.5rem",
       screens: {
-        "2xl": "1400px",
+        "2xl": "1240px",
       },
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Manrope", "system-ui", "sans-serif"],
+      },
+      maxWidth: {
+        content: "1240px",
       },
       colors: {
         border: "hsl(var(--border))",
@@ -87,9 +90,16 @@ const config: Config = {
         popover: "0 8px 24px -4px rgb(16 24 40 / 0.12), 0 4px 8px -4px rgb(16 24 40 / 0.06)",
       },
       fontSize: {
+        // escala tipográfica do Design System v2 (Manrope)
+        h1: ["1.75rem", { lineHeight: "2.125rem", fontWeight: "700", letterSpacing: "-0.02em" }],
+        h2: ["1.375rem", { lineHeight: "1.875rem", fontWeight: "600", letterSpacing: "-0.015em" }],
+        h3: ["1.125rem", { lineHeight: "1.625rem", fontWeight: "600", letterSpacing: "-0.01em" }],
+        h4: ["0.9375rem", { lineHeight: "1.375rem", fontWeight: "600" }],
+        body: ["0.875rem", { lineHeight: "1.375rem" }],
+        small: ["0.8125rem", { lineHeight: "1.25rem" }],
         // escala compacta de SaaS
         caption: ["0.75rem", { lineHeight: "1rem" }],
-        label: ["0.8125rem", { lineHeight: "1.25rem", fontWeight: "500" }],
+        label: ["0.75rem", { lineHeight: "1rem", fontWeight: "600", letterSpacing: "0.06em" }],
       },
       keyframes: {
         "accordion-down": {

@@ -4,59 +4,59 @@
 
 /*
  * ============================================================
- *  BOOT CLINIC CRM — Design System
+ *  BOOT CLINIC CRM — Design System v2 (saúde premium)
  *  Paleta oficial mapeada para tokens HSL (shadcn).
- *  Background #F6F8FA · Cards #FFFFFF · Bordas #E5E7EB
- *  Texto #111827 / #6B7280 · Azul #2563EB · Verde #10B981
- *  Amarelo #F59E0B · Vermelho #EF4444
+ *  Canvas #F5F5F5 · Cards #FFFFFF · Bordas #E5E5E5
+ *  Texto #333333 / #666666 · Teal #26C6A3 · Success #2BB783
+ *  Warning #F4B400 · Danger #E53935 · Fonte Manrope
  * ============================================================
  */
 
 @layer base {
   :root {
     /* Superfícies */
-    --background: 210 24% 97%;        /* #F6F8FA */
-    --foreground: 222 47% 11%;        /* #111827 */
+    --background: 0 0% 96%;           /* #F5F5F5 — canvas */
+    --foreground: 0 0% 20%;           /* #333333 */
     --card: 0 0% 100%;                /* #FFFFFF */
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 0 0% 20%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 0 0% 20%;
 
-    /* Marca / Azul médico */
-    --primary: 221 83% 53%;           /* #2563EB */
+    /* Marca / Teal saúde */
+    --primary: 167 68% 46%;           /* #26C6A3 */
     --primary-foreground: 0 0% 100%;
 
     /* Neutros */
-    --secondary: 210 24% 97%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 220 16% 96%;
-    --muted-foreground: 220 9% 46%;   /* #6B7280 */
-    --accent: 214 95% 96%;            /* azul muito claro p/ hover/seleção */
-    --accent-foreground: 221 83% 40%;
+    --secondary: 0 0% 96%;            /* #F5F5F5 */
+    --secondary-foreground: 0 0% 20%;
+    --muted: 0 0% 94%;                /* #F0F0F0 — header de tabela, hover */
+    --muted-foreground: 0 0% 40%;     /* #666666 */
+    --accent: 167 60% 95%;            /* #E9FAF5 — teal lavado p/ hover/seleção */
+    --accent-foreground: 166 80% 30%; /* #0F8A6E — teal escuro p/ texto sobre accent */
 
     /* Estados semânticos */
-    --success: 160 84% 39%;           /* #10B981 */
+    --success: 158 62% 44%;           /* #2BB783 — distinto da marca */
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;            /* #F59E0B */
+    --warning: 44 92% 48%;            /* #F4B400 */
     --warning-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;         /* #EF4444 */
+    --destructive: 1 78% 55%;         /* #E53935 */
     --destructive-foreground: 0 0% 100%;
-    --info: 221 83% 53%;
+    --info: 167 68% 46%;
     --info-foreground: 0 0% 100%;
 
     /* Linhas e campos */
-    --border: 220 13% 91%;            /* #E5E7EB */
-    --input: 220 13% 91%;
-    --ring: 221 83% 53%;
+    --border: 0 0% 90%;               /* #E5E5E5 */
+    --input: 0 0% 90%;
+    --ring: 167 68% 46%;
 
-    /* Sidebar (chrome) */
-    --sidebar: 222 47% 11%;           /* navy profundo */
-    --sidebar-foreground: 215 20% 75%;
-    --sidebar-muted: 217 19% 55%;
-    --sidebar-accent: 221 83% 53%;
-    --sidebar-border: 217 33% 20%;
+    /* Sidebar (chrome) — clara, estilo Attio */
+    --sidebar: 0 0% 100%;             /* #FFFFFF */
+    --sidebar-foreground: 0 0% 40%;   /* #666 — item inativo */
+    --sidebar-muted: 0 0% 56%;        /* ícones e títulos de seção */
+    --sidebar-accent: 167 60% 95%;    /* #E9FAF5 — fundo do item ativo */
+    --sidebar-border: 0 0% 90%;       /* #E5E5E5 */
 
-    --radius: 0.625rem;               /* 10px — base do sistema */
+    --radius: 0.75rem;                /* 12px — base do sistema (cards/botões) */
   }
 }
 
@@ -75,10 +75,11 @@
     font-feature-settings: "cv11", "ss01";
   }
 
-  /* Tipografia base do design system */
-  h1 { @apply text-2xl font-semibold tracking-tight text-foreground; }
-  h2 { @apply text-xl font-semibold tracking-tight text-foreground; }
-  h3 { @apply text-base font-semibold text-foreground; }
+  /* Tipografia base do design system (Manrope) */
+  h1 { font-size: 1.75rem; line-height: 2.125rem; font-weight: 700; letter-spacing: -0.02em; color: hsl(var(--foreground)); }
+  h2 { font-size: 1.375rem; line-height: 1.875rem; font-weight: 600; letter-spacing: -0.015em; color: hsl(var(--foreground)); }
+  h3 { font-size: 1.125rem; line-height: 1.625rem; font-weight: 600; letter-spacing: -0.01em; color: hsl(var(--foreground)); }
+  h4 { font-size: 0.9375rem; line-height: 1.375rem; font-weight: 600; color: hsl(var(--foreground)); }
 }
 
 @layer utilities {
