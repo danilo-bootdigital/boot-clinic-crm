@@ -774,6 +774,9 @@ enum EntityType {
   SUPPLIER
   EXPENSE_CATEGORY
   COST_CENTER
+  // Administração — cadastros de acesso/conta (auditoria de edição)
+  USER
+  COMPANY
 }
 
 enum ActionType {
