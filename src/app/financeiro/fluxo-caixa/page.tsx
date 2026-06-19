@@ -8,6 +8,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FinanceTabs } from '@/components/financial/FinanceTabs'
 import { payableCan } from '@/lib/financial-caps'
 import { brl } from '@/lib/financial-format'
+import { SectionCard } from '@/components/ui/section-card'
+import { GroupedBarChart } from '@/components/charts'
+
+/** R$ compacto para eixo (ex.: R$ 12k). */
+const brlAxis = (n: number) =>
+  Math.abs(n) >= 1000 ? `R$ ${Math.round(n / 1000)}k` : `R$ ${Math.round(n)}`
 
 interface Row { mes: string; entradasReal: number; saidasReal: number; saldoReal: number; entradasPrev: number; saidasPrev: number }
 interface CashFlow {
@@ -70,6 +76,22 @@ export default function FluxoCaixaPage() {
           {data.series.length === 0 ? (
             <EmptyState title="Sem movimentação" description="Ainda não há entradas ou saídas para projetar." />
           ) : (
+            <div className="space-y-4">
+            <SectionCard title="Entradas × Saídas" description="Movimentação realizada por mês">
+              <GroupedBarChart
+                data={data.series.map((r) => ({
+                  label: mesLabel(r.mes),
+                  entradas: r.entradasReal,
+                  saidas: r.saidasReal,
+                }))}
+                series={[
+                  { key: 'entradas', name: 'Entradas', color: '#26C6A3' },
+                  { key: 'saidas', name: 'Saídas', color: '#A3A3A3' },
+                ]}
+                valueFormatter={brl}
+                axisFormatter={brlAxis}
+              />
+            </SectionCard>
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <table className="w-full text-sm">
                 <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase text-muted-foreground">
@@ -95,6 +117,7 @@ export default function FluxoCaixaPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
             </div>
           )}
         </>

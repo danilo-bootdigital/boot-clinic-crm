@@ -7,6 +7,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LoadingState } from '@/components/ui/loading-state'
 import { useKpis, brl } from '@/components/dashboard/use-kpis'
+import { RankBarChart } from '@/components/charts'
 
 const ORIGIN_LABELS: Record<string, string> = {
   GOOGLE: 'Google', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', REFERRAL: 'Indicação',
@@ -27,12 +28,16 @@ export default function CommercialDashboard() {
   const origins = Object.entries(p.byOrigin ?? {}) as [string, number][]
   const totalOrigin = origins.reduce((s, [, n]) => s + n, 0)
 
+  const newCur = p.newThisMonth ?? 0
+  const newPrev = p.newPrevMonth ?? 0
+  const newTrend = newPrev > 0 ? Math.round(((newCur - newPrev) / newPrev) * 100) : newCur > 0 ? 100 : 0
+
   return (
     <div className="space-y-6">
       <PageHeader title="Comercial" description="Métricas e análise comercial" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Novos Pacientes" value={String(p.newThisMonth ?? 0)} hint="Este mês" tone="primary" icon={<UserPlus className="h-[18px] w-[18px]" />} />
+        <StatCard label="Novos Pacientes" value={String(newCur)} tone="primary" icon={<UserPlus className="h-[18px] w-[18px]" />} trend={{ value: newTrend, label: 'vs. mês anterior' }} />
         <StatCard label="Receita ganha" value={brl(d.wonValueThisMonth)} hint="Este mês" tone="success" icon={<DollarSign className="h-[18px] w-[18px]" />} />
         <StatCard label="Propostas" value={String(d.open ?? 0)} hint="Em aberto" tone="warning" icon={<FileText className="h-[18px] w-[18px]" />} />
         <StatCard label="Taxa de Conversão" value={`${conversion}%`} hint="Ganhas / decididas (mês)" tone="primary" icon={<TrendingUp className="h-[18px] w-[18px]" />} />
@@ -43,22 +48,13 @@ export default function CommercialDashboard() {
           {totalOrigin === 0 ? (
             <EmptyState title="Sem pacientes ainda" description="As fontes aparecerão conforme pacientes forem cadastrados." />
           ) : (
-            <div className="space-y-3">
-              {origins.sort((a, b) => b[1] - a[1]).map(([origin, n]) => {
+            <RankBarChart
+              data={origins.map(([origin, n]) => ({ label: ORIGIN_LABELS[origin] || origin, value: n }))}
+              valueFormatter={(n) => {
                 const pct = Math.round((n / totalOrigin) * 100)
-                return (
-                  <div key={origin}>
-                    <div className="mb-1.5 flex justify-between text-sm">
-                      <span className="text-foreground">{ORIGIN_LABELS[origin] || origin}</span>
-                      <span className="font-medium text-muted-foreground">{pct}% ({n})</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                return `${n} · ${pct}%`
+              }}
+            />
           )}
         </SectionCard>
 
