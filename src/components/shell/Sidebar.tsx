@@ -66,7 +66,7 @@ export function Sidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar text-sidebar-foreground transition-[width,transform] duration-200 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width,transform] duration-200 ease-in-out",
           collapsed ? "w-[72px]" : "w-64",
           // mobile drawer
           "max-lg:w-64",
@@ -80,7 +80,7 @@ export function Sidebar({
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">
+              <p className="truncate text-sm font-semibold text-foreground">
                 Boot Clinic
               </p>
               <p className="truncate text-[11px] text-sidebar-muted">CRM Médico</p>
@@ -115,14 +115,14 @@ export function Sidebar({
                           "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                           collapsed && "justify-center px-0",
                           active
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-sidebar-foreground hover:bg-white/5 hover:text-white",
+                            ? "bg-accent font-semibold text-accent-foreground"
+                            : "text-sidebar-foreground hover:bg-muted hover:text-foreground",
                         )}
                       >
                         <Icon
                           className={cn(
                             "h-[18px] w-[18px] shrink-0",
-                            !active && "text-sidebar-muted group-hover:text-white",
+                            !active && "text-sidebar-muted group-hover:text-foreground",
                           )}
                         />
                         {!collapsed && <span className="truncate">{item.label}</span>}
@@ -140,7 +140,7 @@ export function Sidebar({
         <div className="hidden border-t border-sidebar-border p-3 lg:block">
           <button
             onClick={onToggle}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-muted transition-colors hover:bg-muted hover:text-foreground"
           >
             <ChevronLeft
               className={cn(

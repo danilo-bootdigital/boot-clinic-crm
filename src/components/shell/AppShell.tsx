@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <Topbar onOpenMobileNav={() => setMobileOpen(true)} />
         <main className="scrollbar-thin flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-[1400px] animate-fade-in">
+          <div className="mx-auto w-full max-w-content animate-fade-in">
             {children}
           </div>
         </main>
