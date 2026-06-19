@@ -6,6 +6,7 @@ import { Plus, ArrowLeft, CalendarDays } from 'lucide-react'
 import { AgendaView } from '@/components/agenda/AgendaView'
 import { AppointmentForm } from '@/components/agenda/AppointmentForm'
 import { Rooms } from '@/components/agenda/Rooms'
+import { Professionals } from '@/components/agenda/Professionals'
 import { Specialties } from '@/components/agenda/Specialties'
 import { ScheduleBlocks } from '@/components/agenda/ScheduleBlocks'
 import { PageHeader } from '@/components/ui/page-header'
@@ -13,11 +14,12 @@ import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
 
-type Tab = 'agenda' | 'salas' | 'especialidades' | 'bloqueios'
+type Tab = 'agenda' | 'profissionais' | 'salas' | 'especialidades' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'agenda', label: 'Agenda' },
+  { key: 'profissionais', label: 'Profissionais' },
   { key: 'salas', label: 'Salas' },
   { key: 'especialidades', label: 'Especialidades' },
   { key: 'bloqueios', label: 'Bloqueios' },
@@ -40,7 +42,7 @@ export default function AgendaPage() {
   const [error, setError] = useState<string | null>(null)
 
   const loadProfessionals = useCallback(async () => {
-    const res = await fetch('/api/professionals', { cache: 'no-store' })
+    const res = await fetch('/api/professionals?activeOnly=1', { cache: 'no-store' })
     if (res.status === 401) { router.push('/login?redirect=/agenda'); return }
     if (res.ok) setProfessionals(await res.json())
   }, [router])
@@ -150,6 +152,7 @@ export default function AgendaPage() {
         </SectionCard>
       )}
 
+      {tab === 'profissionais' && <Professionals />}
       {tab === 'salas' && <Rooms />}
       {tab === 'especialidades' && <Specialties />}
       {tab === 'bloqueios' && <ScheduleBlocks />}

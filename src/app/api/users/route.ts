@@ -6,6 +6,7 @@ import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
 import { requirePermission, sanitizePermissions } from '@/lib/api/permissions';
 import { canAssignRole } from '@/lib/api/role-hierarchy';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { syncProfessionalForUser } from '@/lib/api/professional-sync';
 
 const CreateSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -83,9 +84,12 @@ export async function POST(request: NextRequest) {
           companyId: dbUser!.companyId,
           permissions: sanitizePermissions(d.permissions),
         },
-        select: { id: true, name: true, email: true, role: true, permissions: true },
+        select: { id: true, name: true, email: true, role: true, permissions: true, companyId: true },
       });
-      return NextResponse.json(user, { status: 201 });
+      // Médico (DOCTOR) também vira profissional selecionável na agenda.
+      await syncProfessionalForUser(user);
+      const { companyId: _omit, ...payload } = user;
+      return NextResponse.json(payload, { status: 201 });
     } catch (dbErr) {
       await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
       if (dbErr instanceof Prisma.PrismaClientKnownRequestError && dbErr.code === 'P2002') {

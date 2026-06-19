@@ -10,6 +10,7 @@ const Schema = z.object({
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
+  specialtyIds: z.array(z.string()).optional(),
 });
 
 async function update(request: NextRequest, { params }: { params: { id: string } }) {
@@ -36,6 +37,24 @@ async function update(request: NextRequest, { params }: { params: { id: string }
         ...(d.isActive !== undefined && { isActive: d.isActive }),
       },
     });
+
+    // Sincroniza especialidades vinculadas (substitui a lista atual pela enviada).
+    if (d.specialtyIds !== undefined) {
+      const valid = d.specialtyIds.length
+        ? await prisma.specialty.findMany({
+            where: { id: { in: d.specialtyIds }, companyId: dbUser!.companyId, deletedAt: null },
+            select: { id: true },
+          })
+        : [];
+      await prisma.professionalSpecialty.deleteMany({ where: { professionalId: params.id } });
+      if (valid.length) {
+        await prisma.professionalSpecialty.createMany({
+          data: valid.map((s) => ({ professionalId: params.id, specialtyId: s.id, companyId: dbUser!.companyId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     return NextResponse.json(item);
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });

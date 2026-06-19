@@ -64,7 +64,7 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
 
   const fetchProfessionals = async () => {
     try {
-      const response = await fetch('/api/professionals')
+      const response = await fetch('/api/professionals?activeOnly=1')
       const data = await response.json()
       setProfessionals(data)
     } catch (error) {

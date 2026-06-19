@@ -48,7 +48,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
     ;(async () => {
       const [p, pr, s] = await Promise.all([
         fetch('/api/patients?limit=100').then((r) => (r.ok ? r.json() : { patients: [] })),
-        fetch('/api/professionals').then((r) => (r.ok ? r.json() : [])),
+        fetch('/api/professionals?activeOnly=1').then((r) => (r.ok ? r.json() : [])),
         fetch('/api/specialties').then((r) => (r.ok ? r.json() : [])),
       ])
       setPatients((p.patients ?? []).map((x: any) => ({ id: x.id, name: x.name })))
