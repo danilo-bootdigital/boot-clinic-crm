@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { MessageCircle, Plus, ArrowLeft } from 'lucide-react'
 import WhatsAppCentral from '@/components/whatsapp/WhatsAppCentral'
 import { PageHeader } from '@/components/ui/page-header'
+import { Input } from '@/components/ui/input'
 import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
 
@@ -58,11 +59,11 @@ export default function WhatsAppPage() {
           <form onSubmit={createConversation} className="space-y-4 max-w-lg">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Nome do contato *</label>
-              <input className="w-full px-3 py-2 border border-border rounded-md text-sm" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} required />
+              <Input className="w-full" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} required />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Telefone (com DDD) *</label>
-              <input className="w-full px-3 py-2 border border-border rounded-md text-sm" placeholder="(11) 99999-9999" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} required />
+              <Input className="w-full" placeholder="(11) 99999-9999" value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} required />
             </div>
             <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Criar conversa</button>
           </form>

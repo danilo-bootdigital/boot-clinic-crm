@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreatePatientSchema, Gender, PatientOrigin } from '@/lib/validations/patient';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { FilterSelect } from '@/components/ui/filter-bar';
 
 interface PatientFormData {
   name: string;
@@ -86,11 +89,11 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
               Nome Completo *
             </label>
-            <input
+            <Input
               type="text"
               id="name"
               {...register('name')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
             {errors.name && (
               <p className="mt-1 text-sm text-destructive">{errors.name.message}</p>
@@ -101,14 +104,14 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="cpf" className="block text-sm font-medium text-foreground mb-1">
               CPF *
             </label>
-            <input
+            <Input
               type="text"
               id="cpf"
               {...register('cpf')}
               placeholder="000.000.000-00"
               readOnly={!!patient}
               aria-readonly={!!patient}
-              className={`w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring ${patient ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
+              className={`w-full ${patient ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}`}
             />
             {patient && (
               <p className="mt-1 text-xs text-muted-foreground">O CPF é protegido e não pode ser alterado após o cadastro.</p>
@@ -122,11 +125,11 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="birthDate" className="block text-sm font-medium text-foreground mb-1">
               Data de Nascimento *
             </label>
-            <input
+            <Input
               type="date"
               id="birthDate"
               {...register('birthDate')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
             {errors.birthDate && (
               <p className="mt-1 text-sm text-destructive">{errors.birthDate.message}</p>
@@ -137,28 +140,28 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="gender" className="block text-sm font-medium text-foreground mb-1">
               Gênero *
             </label>
-            <select
+            <FilterSelect
               id="gender"
               {...register('gender')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             >
               <option value={Gender.MALE}>Masculino</option>
               <option value={Gender.FEMALE}>Feminino</option>
               <option value={Gender.OTHER}>Outro</option>
               <option value={Gender.PREFER_NOT_TO_SAY}>Prefiro não informar</option>
-            </select>
+            </FilterSelect>
           </div>
 
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-1">
               Telefone *
             </label>
-            <input
+            <Input
               type="tel"
               id="phone"
               {...register('phone')}
               placeholder="(00) 00000-0000"
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
             {errors.phone && (
               <p className="mt-1 text-sm text-destructive">{errors.phone.message}</p>
@@ -169,12 +172,12 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="whatsapp" className="block text-sm font-medium text-foreground mb-1">
               WhatsApp
             </label>
-            <input
+            <Input
               type="tel"
               id="whatsapp"
               {...register('whatsapp')}
               placeholder="(00) 00000-0000"
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
           </div>
 
@@ -182,11 +185,11 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
               E-mail
             </label>
-            <input
+            <Input
               type="email"
               id="email"
               {...register('email')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
             {errors.email && (
               <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
@@ -197,10 +200,10 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="origin" className="block text-sm font-medium text-foreground mb-1">
               Origem *
             </label>
-            <select
+            <FilterSelect
               id="origin"
               {...register('origin')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             >
               <option value={PatientOrigin.GOOGLE}>Google</option>
               <option value={PatientOrigin.FACEBOOK}>Facebook</option>
@@ -210,43 +213,37 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
               <option value={PatientOrigin.PHONE}>Telefone</option>
               <option value={PatientOrigin.WHATSAPP}>WhatsApp</option>
               <option value={PatientOrigin.OTHER}>Outro</option>
-            </select>
+            </FilterSelect>
           </div>
 
           <div>
             <label htmlFor="address" className="block text-sm font-medium text-foreground mb-1">Endereço</label>
-            <input type="text" id="address" {...register('address')}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+            <Input type="text" id="address" {...register('address')} className="w-full" />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label htmlFor="city" className="block text-sm font-medium text-foreground mb-1">Cidade</label>
-              <input type="text" id="city" {...register('city')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Input type="text" id="city" {...register('city')} className="w-full" />
             </div>
             <div>
               <label htmlFor="state" className="block text-sm font-medium text-foreground mb-1">Estado</label>
-              <input type="text" id="state" maxLength={2} placeholder="UF" {...register('state')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Input type="text" id="state" maxLength={2} placeholder="UF" {...register('state')} className="w-full" />
             </div>
             <div>
               <label htmlFor="zipCode" className="block text-sm font-medium text-foreground mb-1">CEP</label>
-              <input type="text" id="zipCode" placeholder="00000-000" {...register('zipCode')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Input type="text" id="zipCode" placeholder="00000-000" {...register('zipCode')} className="w-full" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="insurance" className="block text-sm font-medium text-foreground mb-1">Convênio</label>
-              <input type="text" id="insurance" {...register('insurance')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Input type="text" id="insurance" {...register('insurance')} className="w-full" />
             </div>
             <div>
               <label htmlFor="insuranceNumber" className="block text-sm font-medium text-foreground mb-1">Nº da carteirinha</label>
-              <input type="text" id="insuranceNumber" {...register('insuranceNumber')}
-                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Input type="text" id="insuranceNumber" {...register('insuranceNumber')} className="w-full" />
             </div>
           </div>
 
@@ -254,11 +251,11 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             <label htmlFor="notes" className="block text-sm font-medium text-foreground mb-1">
               Observações
             </label>
-            <textarea
+            <Textarea
               id="notes"
               {...register('notes')}
               rows={3}
-              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full"
             />
           </div>
 

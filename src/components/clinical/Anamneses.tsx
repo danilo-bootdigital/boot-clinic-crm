@@ -5,10 +5,12 @@ import { Plus, ArrowLeft, Check, Archive } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ActionButton } from '@/components/ui/action-button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { ANAMNESIS_STATUS_LABELS } from '@/lib/validations/clinical'
 
 const STATUS_TONE: Record<string, any> = { DRAFT: 'warning', FILLED: 'info', REVIEWED: 'success', ARCHIVED: 'neutral' }
-const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function Anamneses({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
   const [rows, setRows] = useState<any[] | null>(null)
@@ -66,30 +68,30 @@ export default function Anamneses({ patientId, canEdit = true }: { patientId: st
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
-            <input className={field} value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <Input className="w-full" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Modelo (opcional)</label>
-            <select className={field} value={templateId} onChange={(e) => { setTemplateId(e.target.value); setAnswers({}) }}>
+            <FilterSelect className="w-full" value={templateId} onChange={(e) => { setTemplateId(e.target.value); setAnswers({}) }}>
               <option value="">— Sem modelo (texto livre) —</option>
               {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.specialty ? ` · ${t.specialty}` : ''}</option>)}
-            </select>
+            </FilterSelect>
           </div>
           {selectedTemplate?.questions?.map((q: any) => (
             <div key={q.id}>
               <label className="block text-sm font-medium text-foreground mb-1">{q.label}{q.required && ' *'}</label>
               {q.type === 'BOOLEAN' ? (
-                <select className={field} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
+                <FilterSelect className="w-full" value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
                   <option value="">—</option><option value="Sim">Sim</option><option value="Não">Não</option>
-                </select>
+                </FilterSelect>
               ) : (q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') && Array.isArray(q.options) ? (
-                <select className={field} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
+                <FilterSelect className="w-full" value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}>
                   <option value="">—</option>{q.options.map((o: string) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                </FilterSelect>
               ) : q.type === 'TEXTAREA' ? (
-                <textarea className={field} rows={3} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
+                <Textarea className="w-full" rows={3} value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
               ) : (
-                <input type={q.type === 'NUMBER' ? 'number' : q.type === 'DATE' ? 'date' : 'text'} className={field}
+                <Input type={q.type === 'NUMBER' ? 'number' : q.type === 'DATE' ? 'date' : 'text'} className="w-full"
                   value={answers[q.id] || ''} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
               )}
             </div>

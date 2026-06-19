@@ -3,9 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Upload, Trash2, FileText, ExternalLink } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { IMAGE_CATEGORIES, IMAGE_CATEGORY_LABELS, DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from '@/lib/validations/clinical'
-
-const field = 'px-2 py-1.5 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function ClinicalImages({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
   const [images, setImages] = useState<any[] | null>(null)
@@ -58,9 +57,9 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
         description="Fotos clínicas, antes/depois e exames"
         actions={canEdit && (
           <div className="flex items-center gap-2">
-            <select className={field} value={imgCat} onChange={(e) => setImgCat(e.target.value)}>
+            <FilterSelect value={imgCat} onChange={(e) => setImgCat(e.target.value)}>
               {IMAGE_CATEGORIES.map((c) => <option key={c} value={c}>{IMAGE_CATEGORY_LABELS[c]}</option>)}
-            </select>
+            </FilterSelect>
             <button onClick={() => imgInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
               <Upload className="h-4 w-4" /> {busy ? 'Enviando...' : 'Enviar imagem'}
             </button>
@@ -94,9 +93,9 @@ export default function ClinicalImages({ patientId, canEdit = true }: { patientI
         description="Exames, laudos, termos e contratos"
         actions={canEdit && (
           <div className="flex items-center gap-2">
-            <select className={field} value={docCat} onChange={(e) => setDocCat(e.target.value)}>
+            <FilterSelect value={docCat} onChange={(e) => setDocCat(e.target.value)}>
               {DOCUMENT_CATEGORIES.map((c) => <option key={c} value={c}>{DOCUMENT_CATEGORY_LABELS[c]}</option>)}
-            </select>
+            </FilterSelect>
             <button onClick={() => docInput.current?.click()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
               <Upload className="h-4 w-4" /> {busy ? 'Enviando...' : 'Enviar documento'}
             </button>

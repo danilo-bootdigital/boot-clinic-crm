@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Ban, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { payableCan } from '@/lib/financial-caps'
 import { brl, formatDate, RECEIVABLE_STATUS_LABELS, STATUS_TONE, PAYMENT_METHOD_LABELS } from '@/lib/financial-format'
@@ -147,9 +148,9 @@ function PayablePaymentForm({ payableId, maxAmount, onDone, onCancel }: { payabl
       </label>
       <label className="space-y-1">
         <span className="text-xs font-medium text-muted-foreground">Forma</span>
-        <select className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
+        <FilterSelect className="w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
           {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>)}
-        </select>
+        </FilterSelect>
       </label>
       <label className="space-y-1">
         <span className="text-xs font-medium text-muted-foreground">Data</span>

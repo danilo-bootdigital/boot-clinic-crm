@@ -5,10 +5,12 @@ import { Plus, ArrowLeft, Send, CheckCircle2, XCircle } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ActionButton } from '@/components/ui/action-button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { CONTRACT_STATUS_LABELS, renderContractContent } from '@/lib/validations/clinical'
 
 const STATUS_TONE: Record<string, any> = { DRAFT: 'warning', SENT: 'info', SIGNED: 'success', CANCELED: 'destructive' }
-const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 
 export default function Contracts({ patient, canEdit = true }: { patient: any; canEdit?: boolean }) {
   const patientId = patient.id
@@ -75,27 +77,27 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Modelo</label>
-              <select className={field} value={form.templateId} onChange={(e) => applyTemplate(e.target.value)}>
+              <FilterSelect className="w-full" value={form.templateId} onChange={(e) => applyTemplate(e.target.value)}>
                 <option value="">— Sem modelo —</option>
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              </FilterSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Valor (R$)</label>
-              <input type="number" step="0.01" className={field} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
+              <Input type="number" step="0.01" className="w-full" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Procedimento</label>
-            <input className={field} value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} placeholder="ex.: Avaliação inicial" />
+            <Input className="w-full" value={form.procedure} onChange={(e) => setForm({ ...form, procedure: e.target.value })} placeholder="ex.: Avaliação inicial" />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
-            <input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            <Input className="w-full" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Conteúdo * <span className="text-xs text-muted-foreground">(variáveis {'{{nome_paciente}}'}, {'{{cpf}}'}, {'{{valor}}'}, {'{{data}}'} já resolvidas)</span></label>
-            <textarea className={field} rows={8} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} required />
+            <Textarea className="w-full" rows={8} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} required />
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t">
             <button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Gerar contrato</button>

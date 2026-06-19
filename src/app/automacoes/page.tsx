@@ -8,6 +8,9 @@ import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { FilterSelect } from '@/components/ui/filter-bar'
 
 const EVENTS: [string, string][] = [
   ['PATIENT_CREATED', 'Quando um paciente é criado'],
@@ -20,7 +23,6 @@ const ACTIONS: [string, string][] = [
   ['SEND_NOTIFICATION', 'Criar notificação'],
 ]
 const ACTION_LABEL: Record<string, string> = Object.fromEntries(ACTIONS)
-const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 const label = 'block text-sm font-medium text-foreground mb-1'
 
 export default function AutomacoesPage() {
@@ -72,13 +74,13 @@ export default function AutomacoesPage() {
       {adding ? (
         <SectionCard title="Nova automação">
           <form onSubmit={create} className="space-y-4 max-w-2xl">
-            <div><label className={label}>Nome *</label><input className={field} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-            <div><label className={label}>Quando (gatilho)</label><select className={field} value={form.event} onChange={(e) => setForm({ ...form, event: e.target.value })}>{EVENTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-            <div><label className={label}>Então (ação)</label><select className={field} value={form.actionType} onChange={(e) => setForm({ ...form, actionType: e.target.value })}>{ACTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-            <div><label className={label}>Título</label><input className={field} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Ligar para o paciente" /></div>
+            <div><label className={label}>Nome *</label><Input className="w-full" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+            <div><label className={label}>Quando (gatilho)</label><FilterSelect className="w-full" value={form.event} onChange={(e) => setForm({ ...form, event: e.target.value })}>{EVENTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</FilterSelect></div>
+            <div><label className={label}>Então (ação)</label><FilterSelect className="w-full" value={form.actionType} onChange={(e) => setForm({ ...form, actionType: e.target.value })}>{ACTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</FilterSelect></div>
+            <div><label className={label}>Título</label><Input className="w-full" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Ligar para o paciente" /></div>
             {form.actionType === 'CREATE_FOLLOW_UP'
-              ? <div><label className={label}>Vencimento (dias a partir de hoje)</label><input type="number" min={0} className={field} value={form.dueInDays} onChange={(e) => setForm({ ...form, dueInDays: e.target.value })} /></div>
-              : <div><label className={label}>Mensagem</label><textarea className={field} rows={2} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /></div>}
+              ? <div><label className={label}>Vencimento (dias a partir de hoje)</label><Input type="number" min={0} className="w-full" value={form.dueInDays} onChange={(e) => setForm({ ...form, dueInDays: e.target.value })} /></div>
+              : <div><label className={label}>Mensagem</label><Textarea className="w-full" rows={2} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /></div>}
             <div className="pt-2 border-t"><button type="submit" className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90">Criar automação</button></div>
           </form>
         </SectionCard>

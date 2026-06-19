@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, Receipt as ReceiptIcon, Ban, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { financialCan } from '@/lib/financial-caps'
 import { printReceipt } from '@/components/financial/receipt'
@@ -197,9 +198,9 @@ function PaymentForm({ installmentId, maxAmount, onDone, onCancel }: {
       </label>
       <label className="space-y-1">
         <span className="text-xs font-medium text-muted-foreground">Forma</span>
-        <select className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
+        <FilterSelect className="w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
           {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>)}
-        </select>
+        </FilterSelect>
       </label>
       <label className="space-y-1">
         <span className="text-xs font-medium text-muted-foreground">Data</span>

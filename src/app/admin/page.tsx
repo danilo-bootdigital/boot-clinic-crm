@@ -9,6 +9,8 @@ import { StatCard } from '@/components/ui/stat-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import ModulesPanel from '@/components/admin/ModulesPanel'
 import UsersPanel from '@/components/admin/UsersPanel'
+import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 
 type Company = {
   id: string
@@ -45,7 +47,6 @@ const STATUS_STYLES: Record<Company['status'], string> = {
   CANCELED: 'bg-muted text-muted-foreground',
 }
 
-const field = 'w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 const label = 'block text-sm font-medium text-foreground mb-1'
 
 const emptyForm = {
@@ -257,27 +258,27 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={label}>Nome da clínica *</label>
-                <input className={field} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div>
                 <label className={label}>CNPJ {form.plan !== 'trial' && '*'}</label>
-                <input className={field} required={form.plan !== 'trial'} value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
+                <Input required={form.plan !== 'trial'} value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
               </div>
               <div>
                 <label className={label}>Telefone</label>
-                <input className={field} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
               <div>
                 <label className={label}>E-mail da clínica</label>
-                <input type="email" className={field} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div>
                 <label className={label}>Plano</label>
-                <select className={field} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
+                <FilterSelect className="w-full" value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
                   <option value="trial">Trial (grátis)</option>
                   <option value="basic">Basic — R$197/mês</option>
                   <option value="pro">Pro — R$397/mês</option>
-                </select>
+                </FilterSelect>
                 {(form.plan === 'basic' || form.plan === 'pro') && (
                   <p className="mt-1 text-xs text-muted-foreground">
                     Plano pago: o CNPJ é obrigatório. Geramos a assinatura no cartão (recorrente) e um link de fatura para o cliente cadastrar o cartão. A clínica fica em <strong>Teste</strong> até o 1º pagamento.
@@ -291,15 +292,15 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className={label}>Nome *</label>
-                  <input className={field} required value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} />
+                  <Input required value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} />
                 </div>
                 <div>
                   <label className={label}>E-mail *</label>
-                  <input type="email" className={field} required value={form.ownerEmail} onChange={(e) => setForm({ ...form, ownerEmail: e.target.value })} />
+                  <Input type="email" required value={form.ownerEmail} onChange={(e) => setForm({ ...form, ownerEmail: e.target.value })} />
                 </div>
                 <div>
                   <label className={label}>Senha provisória *</label>
-                  <input type="text" className={field} required minLength={6} value={form.ownerPassword} onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })} />
+                  <Input type="text" required minLength={6} value={form.ownerPassword} onChange={(e) => setForm({ ...form, ownerPassword: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -322,40 +323,40 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={label}>Nome da clínica *</label>
-                <input className={field} required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                <Input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
               </div>
               <div>
                 <label className={label}>CNPJ</label>
-                <input className={field} value={editForm.cnpj} onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })} />
+                <Input value={editForm.cnpj} onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })} />
               </div>
               <div>
                 <label className={label}>Telefone</label>
-                <input className={field} value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
               </div>
               <div>
                 <label className={label}>E-mail principal</label>
-                <input type="email" className={field} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
               </div>
               <div className="sm:col-span-2">
                 <label className={label}>Endereço</label>
-                <input className={field} value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+                <Input value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
               </div>
               <div>
                 <label className={label}>Plano</label>
-                <select className={field} value={editForm.plan} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}>
+                <FilterSelect className="w-full" value={editForm.plan} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}>
                   <option value="trial">Trial (grátis)</option>
                   <option value="basic">Basic — R$197/mês</option>
                   <option value="pro">Pro — R$397/mês</option>
-                </select>
+                </FilterSelect>
               </div>
               <div>
                 <label className={label}>Status</label>
-                <select className={field} value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as Company['status'] })}>
+                <FilterSelect className="w-full" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as Company['status'] })}>
                   <option value="ACTIVE">Ativa</option>
                   <option value="TRIAL">Teste</option>
                   <option value="SUSPENDED">Suspensa</option>
                   <option value="CANCELED">Cancelada</option>
-                </select>
+                </FilterSelect>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">Para gerenciar os módulos habilitados, use o botão “Módulos”. Toda alteração aqui é registrada em auditoria.</p>

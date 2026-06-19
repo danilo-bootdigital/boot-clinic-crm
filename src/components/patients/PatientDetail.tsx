@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { formatPhone } from '@/lib/validations/patient';
+import { Tabs } from '@/components/ui/tabs';
 
 interface Patient {
   id: string;
@@ -139,60 +140,18 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
         </div>
 
         {/* Abas */}
-        <div className="border-b border-border">
-          <nav className="-mb-px flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('info')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'info'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              Informações
-            </button>
-            <button
-              onClick={() => setActiveTab('contacts')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'contacts'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              Contatos
-            </button>
-            <button
-              onClick={() => setActiveTab('addresses')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'addresses'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              Endereços
-            </button>
-            <button
-              onClick={() => activeTab === 'documents'}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'documents'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              Documentos
-            </button>
-            <button
-              onClick={() => setActiveTab('timeline')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'timeline'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-              }`}
-            >
-              Timeline
-            </button>
-          </nav>
-        </div>
+        <Tabs
+          className="px-6"
+          value={activeTab}
+          onValueChange={(v) => { if (v !== 'documents') setActiveTab(v); }}
+          items={[
+            { value: 'info', label: 'Informações' },
+            { value: 'contacts', label: 'Contatos' },
+            { value: 'addresses', label: 'Endereços' },
+            { value: 'documents', label: 'Documentos' },
+            { value: 'timeline', label: 'Timeline' },
+          ]}
+        />
 
         {/* Conteúdo das Abas */}
         <div className="p-6">

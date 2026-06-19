@@ -13,6 +13,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { FilterSelect } from '@/components/ui/filter-bar'
 
 type Tab = 'agenda' | 'profissionais' | 'salas' | 'especialidades' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
@@ -109,11 +111,11 @@ export default function AgendaPage() {
       {tab === 'agenda' && mode === 'grid' && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm" />
-            <select value={professionalId} onChange={(e) => setProfessionalId(e.target.value)} className="px-3 py-2 border border-border rounded-md text-sm">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
+            <FilterSelect value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
               <option value="">Todos os profissionais</option>
               {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </FilterSelect>
           </div>
           <SectionCard>
             <AgendaView
