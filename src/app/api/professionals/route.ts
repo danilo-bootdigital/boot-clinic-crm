@@ -9,15 +9,19 @@ const Schema = z.object({
   crm: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
+  specialtyIds: z.array(z.string()).optional(),
 });
 
 // GET /api/professionals - lista (cria um profissional padrão na 1ª vez)
-export async function GET() {
+// ?activeOnly=1 → retorna só ativos (usado pelos seletores da agenda).
+export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveDbUser();
     if (error) return error;
     const denied = requirePermission(dbUser!, 'agenda', 'view');
     if (denied) return denied;
+
+    const activeOnly = new URL(request.url).searchParams.get('activeOnly') === '1';
 
     const count = await prisma.professional.count({ where: { companyId: dbUser!.companyId, deletedAt: null } });
     if (count === 0) {
@@ -27,10 +31,17 @@ export async function GET() {
     }
 
     const items = await prisma.professional.findMany({
-      where: { companyId: dbUser!.companyId, deletedAt: null },
+      where: { companyId: dbUser!.companyId, deletedAt: null, ...(activeOnly && { isActive: true }) },
       orderBy: { name: 'asc' },
+      include: { specialties: { select: { specialtyId: true, specialty: { select: { name: true } } } } },
     });
-    return NextResponse.json(items);
+    // Achata as especialidades para o front: specialtyIds + specialtyNames.
+    const result = items.map(({ specialties, ...p }) => ({
+      ...p,
+      specialtyIds: specialties.map((s) => s.specialtyId),
+      specialtyNames: specialties.map((s) => s.specialty.name),
+    }));
+    return NextResponse.json(result);
   } catch (err) {
     console.error('Erro ao listar profissionais:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -55,6 +66,21 @@ export async function POST(request: NextRequest) {
         companyId: dbUser!.companyId,
       },
     });
+
+    if (data.specialtyIds?.length) {
+      // Só vincula especialidades que pertencem à própria empresa.
+      const valid = await prisma.specialty.findMany({
+        where: { id: { in: data.specialtyIds }, companyId: dbUser!.companyId, deletedAt: null },
+        select: { id: true },
+      });
+      if (valid.length) {
+        await prisma.professionalSpecialty.createMany({
+          data: valid.map((s) => ({ professionalId: item.id, specialtyId: s.id, companyId: dbUser!.companyId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     return NextResponse.json(item, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });

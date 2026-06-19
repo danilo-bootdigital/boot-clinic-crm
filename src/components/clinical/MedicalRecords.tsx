@@ -23,7 +23,7 @@ export default function MedicalRecords({ patientId, canEdit = true }: { patientI
 
   useEffect(() => {
     load()
-    fetch('/api/professionals').then((r) => r.ok ? r.json() : []).then((d) => setProfessionals(Array.isArray(d) ? d : (d.professionals ?? []))).catch(() => {})
+    fetch('/api/professionals?activeOnly=1').then((r) => r.ok ? r.json() : []).then((d) => setProfessionals(Array.isArray(d) ? d : (d.professionals ?? []))).catch(() => {})
   }, [load])
 
   async function create(e: React.FormEvent) {

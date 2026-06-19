@@ -69,6 +69,7 @@ model User {
   company         Company         @relation(fields: [companyId], references: [id])
   createdPatients Patient[] // Pacientes criados por este usuário
   timelineEvents  TimelineEvent[] // Eventos de timeline criados por este usuário
+  professional    Professional? // Profissional da agenda vinculado (médicos)
 
   @@map("users")
 }
@@ -590,6 +591,8 @@ model Specialty {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  professionals ProfessionalSpecialty[]
+
   @@unique([companyId, name])
   @@map("specialties")
 }
@@ -601,10 +604,16 @@ model Professional {
   phone     String?
   email     String?
   companyId String
+  // Vínculo opcional 1:1 com a conta de acesso (usuário com papel DOCTOR).
+  // Criar/editar um usuário médico sincroniza este registro automaticamente.
+  userId    String?   @unique
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+
+  user        User?                   @relation(fields: [userId], references: [id])
+  specialties ProfessionalSpecialty[]
 
   @@map("professionals")
 }
@@ -616,6 +625,9 @@ model ProfessionalSpecialty {
   companyId      String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  specialty    Specialty    @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
 
   @@unique([professionalId, specialtyId])
   @@map("professional_specialties")
