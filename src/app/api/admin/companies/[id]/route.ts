@@ -5,6 +5,7 @@ import { CompanyStatus } from '@prisma/client';
 import { resolveDbUser, requireSuperAdmin } from '@/lib/api/session';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { cancelSubscription, isAsaasConfigured } from '@/lib/asaas/client';
+import { writeAudit } from '@/lib/api/audit';
 
 // /api/admin/companies/[id] - detalhe e atualização de uma clínica (SUPER_ADMIN).
 
@@ -12,6 +13,7 @@ const UpdateSchema = z.object({
   name: z.string().min(1).optional(),
   cnpj: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
   email: z.string().email('E-mail inválido').optional().or(z.literal('')).nullable(),
   // plan restrito ao catálogo (igual ao POST) — evita plano inexistente que
   // burla o gating de cobrança (getPlan retorna undefined → tratado como grátis).
@@ -45,6 +47,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
       name: company.name,
       cnpj: company.cnpj,
       phone: company.phone,
+      address: company.address,
       email: company.email,
       status: company.status,
       plan: company.plan,
@@ -84,12 +87,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         ...(d.name !== undefined && { name: d.name }),
         ...(d.cnpj !== undefined && { cnpj: d.cnpj || null }),
         ...(d.phone !== undefined && { phone: d.phone || null }),
+        ...(d.address !== undefined && { address: d.address || null }),
         ...(d.email !== undefined && { email: d.email || null }),
         ...(d.plan !== undefined && { plan: d.plan || null }),
         ...(d.status !== undefined && { status: d.status as CompanyStatus }),
       },
       select: { id: true, name: true, status: true, plan: true },
     });
+
+    // Auditoria (entityType COMPANY): registra apenas os campos enviados (antes → depois).
+    const oldValues: Record<string, unknown> = {};
+    const newValues: Record<string, unknown> = {};
+    for (const k of ['name', 'cnpj', 'phone', 'address', 'email', 'plan', 'status'] as const) {
+      if (d[k] !== undefined) { oldValues[k] = (exists as any)[k]; newValues[k] = d[k] || null; }
+    }
+    await writeAudit({ dbUser: dbUser!, action: 'UPDATE', entityType: 'COMPANY', entityId: params.id, oldValues, newValues, request });
 
     // Ao CANCELAR, encerra a assinatura recorrente no Asaas (senão o cartão
     // continua sendo cobrado mesmo com a clínica cancelada). SUSPENDED apenas

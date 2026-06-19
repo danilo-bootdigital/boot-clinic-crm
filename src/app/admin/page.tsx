@@ -21,6 +21,17 @@ type Company = {
   usersCount: number
   patientsCount: number
 }
+
+type EditForm = {
+  id: string
+  name: string
+  cnpj: string
+  phone: string
+  email: string
+  address: string
+  plan: string
+  status: Company['status']
+}
 type Summary = { total: number; active: number; trial: number; suspended: number }
 
 const STATUS_LABELS: Record<Company['status'], string> = {
@@ -54,6 +65,8 @@ export default function AdminPage() {
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
   const [modulesFor, setModulesFor] = useState<Company | null>(null)
+  const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/companies', { cache: 'no-store' })
@@ -120,6 +133,38 @@ export default function AdminPage() {
     } else {
       setMsg({ type: 'ok', text: `"${c.name}" está no plano ${PLAN_LABELS[c.plan || 'trial'] || c.plan} (sem fatura pendente).` })
     }
+  }
+
+  // Abre o formulário de edição: busca o detalhe (inclui endereço, não vem na lista).
+  async function openEdit(c: Company) {
+    setMsg(null); setInvoiceUrl(null)
+    const res = await fetch(`/api/admin/companies/${c.id}`, { cache: 'no-store' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setMsg({ type: 'err', text: data.error || 'Falha ao carregar a clínica.' }); return }
+    setEditForm({
+      id: c.id,
+      name: data.name || '',
+      cnpj: data.cnpj || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      address: data.address || '',
+      plan: data.plan || 'trial',
+      status: data.status,
+    })
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editForm) return
+    setSavingEdit(true); setMsg(null)
+    const { id, ...payload } = editForm
+    const res = await fetch(`/api/admin/companies/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+    setSavingEdit(false)
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) { setMsg({ type: 'ok', text: 'Clínica atualizada.' }); setEditForm(null); load() }
+    else setMsg({ type: 'err', text: data.error || 'Falha ao atualizar a clínica.' })
   }
 
   async function setStatus(c: Company, status: Company['status']) {
@@ -255,6 +300,61 @@ export default function AdminPage() {
         </SectionCard>
       )}
 
+      {editForm && (
+        <SectionCard title={`Editar clínica — ${editForm.name || ''}`} description="Dados cadastrais, plano e status. Encerrar/suspender continuam como ações separadas.">
+          <form onSubmit={saveEdit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={label}>Nome da clínica *</label>
+                <input className={field} required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+              </div>
+              <div>
+                <label className={label}>CNPJ</label>
+                <input className={field} value={editForm.cnpj} onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })} />
+              </div>
+              <div>
+                <label className={label}>Telefone</label>
+                <input className={field} value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+              </div>
+              <div>
+                <label className={label}>E-mail principal</label>
+                <input type="email" className={field} value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={label}>Endereço</label>
+                <input className={field} value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+              </div>
+              <div>
+                <label className={label}>Plano</label>
+                <select className={field} value={editForm.plan} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}>
+                  <option value="trial">Trial (grátis)</option>
+                  <option value="basic">Basic — R$197/mês</option>
+                  <option value="pro">Pro — R$397/mês</option>
+                </select>
+              </div>
+              <div>
+                <label className={label}>Status</label>
+                <select className={field} value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as Company['status'] })}>
+                  <option value="ACTIVE">Ativa</option>
+                  <option value="TRIAL">Teste</option>
+                  <option value="SUSPENDED">Suspensa</option>
+                  <option value="CANCELED">Cancelada</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Para gerenciar os módulos habilitados, use o botão “Módulos”. Toda alteração aqui é registrada em auditoria.</p>
+            <div className="flex gap-2">
+              <button type="submit" disabled={savingEdit} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+                {savingEdit ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+              <button type="button" onClick={() => setEditForm(null)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </SectionCard>
+      )}
+
       <SectionCard title="Clínicas cadastradas">
         {companies === null ? (
           <LoadingState rows={5} />
@@ -294,6 +394,9 @@ export default function AdminPage() {
                     <td className="px-3 py-3 text-muted-foreground">{new Date(c.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td className="px-3 py-3">
                       <div className="flex justify-end gap-2">
+                        <button onClick={() => openEdit(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-muted">
+                          Editar
+                        </button>
                         <button onClick={() => openBilling(c)} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10">
                           Cobrança
                         </button>
