@@ -28,6 +28,9 @@ model Company {
   // Integração Asaas (cobrança recorrente no cartão). Preenchidos para planos pagos.
   asaasCustomerId     String?
   asaasSubscriptionId String?
+  // SEC2 — token do webhook WhatsApp POR CLÍNICA (multiempresa). A URL do webhook
+  // carrega ?token=<este valor>, que autentica E identifica a clínica destinatária.
+  whatsappWebhookToken String?      @unique
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   deletedAt           DateTime?

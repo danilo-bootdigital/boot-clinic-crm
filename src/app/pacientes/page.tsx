@@ -52,12 +52,23 @@ export default function PacientesPage() {
   const [selected, setSelected] = useState<Patient | null>(null)
   const [saving, setSaving] = useState(false)
   const [viewArchived, setViewArchived] = useState(false)
+  // FE2: paginação + busca/filtros SERVER-SIDE (antes a UI carregava 100 e filtrava
+  // em memória — registros além de 100 sumiam e a busca só via os carregados).
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
+  const [filters, setFilters] = useState({ search: '', status: '', origin: '' })
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 })
 
   const loadPatients = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/patients?limit=100${viewArchived ? '&archived=true' : ''}`, { cache: 'no-store' })
+      const qs = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
+      if (viewArchived) qs.set('archived', 'true')
+      if (filters.search.trim()) qs.set('search', filters.search.trim())
+      if (filters.status) qs.set('status', filters.status)
+      if (filters.origin) qs.set('origin', filters.origin)
+      const res = await fetch(`/api/patients?${qs.toString()}`, { cache: 'no-store' })
       if (res.status === 401) {
         router.push('/login?redirect=/pacientes')
         return
@@ -65,16 +76,26 @@ export default function PacientesPage() {
       if (!res.ok) throw new Error('Falha ao carregar pacientes')
       const data = await res.json()
       setPatients(data.patients ?? [])
+      if (data.pagination) setPagination({ page: data.pagination.page, pages: data.pagination.pages, total: data.pagination.total })
     } catch (e: any) {
       setError(e.message ?? 'Erro ao carregar pacientes')
     } finally {
       setLoading(false)
     }
-  }, [router, viewArchived])
+  }, [router, viewArchived, page, filters])
 
+  // Um único efeito com debounce (250ms) — cobre busca, filtros, página e arquivados
+  // sem fetch duplicado. O reset para a página 1 é feito nos handlers (síncrono).
   useEffect(() => {
-    loadPatients()
+    const t = setTimeout(() => { loadPatients() }, 250)
+    return () => clearTimeout(t)
   }, [loadPatients])
+
+  // Mudou filtro/busca → volta para a página 1.
+  const onFiltersChange = useCallback((next: { search: string; status: string; origin: string }) => {
+    setFilters(next); setPage(1)
+  }, [])
+  const toggleArchived = useCallback(() => { setViewArchived((v) => !v); setPage(1) }, [])
 
   async function handleCreate(formData: any) {
     setSaving(true)
@@ -189,7 +210,7 @@ export default function PacientesPage() {
         <>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setViewArchived((v) => !v)}
+              onClick={toggleArchived}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium ${viewArchived ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
             >
               {viewArchived ? '← Voltar aos ativos' : 'Ver arquivados'}
@@ -204,6 +225,10 @@ export default function PacientesPage() {
               onView={(p) => router.push(`/pacientes/${p.id}`)}
               onEdit={(p) => { setSelected(p as Patient); setMode('edit') }}
               onRestore={viewArchived ? handleRestore : undefined}
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+              pagination={pagination}
+              onPageChange={setPage}
             />
           )}
         </>
