@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
+import { Tabs } from '@/components/ui/tabs'
 import { formatPhone } from '@/lib/validations/patient'
 
 const ORIGIN_LABELS: Record<string, string> = {
@@ -119,20 +120,12 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
       {/* Abas */}
-      <div className="flex flex-wrap gap-1 border-b border-border">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t.key ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        className="flex-wrap"
+        value={tab}
+        onValueChange={setTab}
+        items={visibleTabs.map((t) => ({ value: t.key, label: t.label }))}
+      />
 
       {tab === 'dados' && (
         editing ? (

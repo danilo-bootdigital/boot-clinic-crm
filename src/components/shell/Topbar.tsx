@@ -74,7 +74,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
           <input
             type="search"
             placeholder="Buscar pacientes, agendamentos…"
-            className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />
         </div>
       </div>
@@ -100,7 +100,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
           onClick={() => setMenuOpen((v) => !v)}
           className="flex items-center gap-2 rounded-lg p-1 pr-2 transition-colors hover:bg-muted"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
             {initials}
           </span>
           <span className="hidden max-w-[140px] truncate text-sm font-medium text-foreground md:block">

@@ -26,12 +26,12 @@ export function PageHeader({
     >
       <div className="flex items-start gap-3">
         {icon && (
-          <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
             {icon}
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-h1 text-foreground">
             {title}
           </h1>
           {description && (

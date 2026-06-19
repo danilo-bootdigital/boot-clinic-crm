@@ -39,6 +39,7 @@
     --success-foreground: 0 0% 100%;
     --warning: 44 92% 48%;            /* #F4B400 */
     --warning-foreground: 0 0% 100%;
+    --warning-strong: 38 90% 33%;     /* âmbar escuro p/ texto sobre fundo claro (badges) */
     --destructive: 1 78% 55%;         /* #E53935 */
     --destructive-foreground: 0 0% 100%;
     --info: 167 68% 46%;

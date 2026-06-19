@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
+import { Tabs } from '@/components/ui/tabs'
 import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy'
 
 type Tab = 'clinica' | 'usuarios' | 'notificacoes'
@@ -31,14 +32,11 @@ export default function ConfiguracoesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Configurações" description="Preferências gerais do sistema e da clínica" icon={<Settings className="h-5 w-5" />} />
-      <div className="flex gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as Tab)}
+        items={TABS.map((t) => ({ value: t.key, label: t.label }))}
+      />
       {tab === 'clinica' && <ClinicaTab router={router} />}
       {tab === 'usuarios' && <UsuariosTab />}
       {tab === 'notificacoes' && <NotificacoesTab />}
