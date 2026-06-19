@@ -7,10 +7,25 @@ import { prisma } from '@/lib/db/prisma';
 export async function POST(request: NextRequest) {
   try {
     const token = request.nextUrl.searchParams.get('token');
-    const expected = process.env.WHATSAPP_WEBHOOK_TOKEN || process.env.WHATSAPP_API_KEY;
-    if (!expected || token !== expected) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
+    if (!token) return NextResponse.json({ error: 'Token ausente' }, { status: 401 });
+
+    // SEC2 — multiempresa: o token POR CLÍNICA autentica E identifica a clínica
+    // destinatária. Cada instância da Evolution usa a URL com o seu próprio token.
+    let company = await prisma.company.findFirst({
+      where: { whatsappWebhookToken: token, deletedAt: null },
+      select: { id: true },
+    });
+
+    // Transição: enquanto a clínica ativa não tiver token próprio configurado, aceita
+    // o token global legado (WHATSAPP_WEBHOOK_TOKEN) roteando para a 1ª clínica. Some
+    // assim que cada clínica tiver seu token — aí o fallback nunca é acionado.
+    if (!company) {
+      const legacy = process.env.WHATSAPP_WEBHOOK_TOKEN || process.env.WHATSAPP_API_KEY;
+      if (legacy && token === legacy) {
+        company = await prisma.company.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+      }
     }
+    if (!company) return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
 
     const body = await request.json().catch(() => ({}));
     // Normaliza: aceita o formato simplificado ou tenta extrair do payload da Evolution.
@@ -18,10 +33,6 @@ export async function POST(request: NextRequest) {
     const text: string | undefined = body.message || body?.data?.message?.conversation;
     const name: string = body.name || body?.data?.pushName || phone || 'Contato';
     if (!phone || !text) return NextResponse.json({ error: 'Payload sem phone/message' }, { status: 400 });
-
-    // Single-tenant por ora: associa à primeira empresa ativa.
-    const company = await prisma.company.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: 'asc' } });
-    if (!company) return NextResponse.json({ error: 'Nenhuma empresa' }, { status: 404 });
 
     const digits = phone.replace(/\D/g, '');
     let conv = await prisma.whatsAppConversation.findFirst({
