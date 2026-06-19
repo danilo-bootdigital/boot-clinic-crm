@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { UserRole, Prisma } from '@prisma/client';
 import { resolveDbUser, requireRole, ADMIN_ROLES } from '@/lib/api/session';
 import { requirePermission, sanitizePermissions } from '@/lib/api/permissions';
+import { canAssignRole } from '@/lib/api/role-hierarchy';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const CreateSchema = z.object({
@@ -51,6 +52,12 @@ export async function POST(request: NextRequest) {
     }
 
     const d = CreateSchema.parse(await request.json());
+
+    // SEC1 — hierarquia: ninguém atribui papel igual/superior ao seu (só SUPER_ADMIN
+    // cria SUPER_ADMIN). Bloqueia, p.ex., MANAGER/OWNER criando SUPER_ADMIN.
+    if (!canAssignRole(dbUser!.role, d.role)) {
+      return NextResponse.json({ error: 'Você não pode atribuir um papel igual ou superior ao seu' }, { status: 403 });
+    }
 
     // Cria a conta no Supabase Auth (e-mail confirmado).
     const { data: created, error: authErr } = await admin.auth.admin.createUser({

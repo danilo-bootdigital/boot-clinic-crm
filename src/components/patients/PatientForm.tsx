@@ -106,8 +106,13 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
               id="cpf"
               {...register('cpf')}
               placeholder="000.000.000-00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              readOnly={!!patient}
+              aria-readonly={!!patient}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${patient ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
             />
+            {patient && (
+              <p className="mt-1 text-xs text-gray-500">O CPF é protegido e não pode ser alterado após o cadastro.</p>
+            )}
             {errors.cpf && (
               <p className="mt-1 text-sm text-red-600">{errors.cpf.message}</p>
             )}

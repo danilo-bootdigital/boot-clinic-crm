@@ -86,6 +86,18 @@ export const CreateSupplierSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+// Atualização parcial de fornecedor (cadastro mestre — não afeta valores de despesas já lançadas).
+export const UpdateSupplierSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Nome obrigatório').max(160).optional(),
+    document: z.string().trim().max(32).optional().nullable(),
+    email: z.string().trim().email('E-mail inválido').max(160).optional().or(z.literal('')).nullable(),
+    phone: z.string().trim().max(32).optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((d) => Object.values(d).some((v) => v !== undefined), { message: 'Nada para atualizar' });
+
 export const CreatePayableSchema = z
   .object({
     supplierId: z.string().min(1).optional(),

@@ -8,14 +8,18 @@ import { subscriptionBlock } from '@/lib/api/session';
 import { requireModuleEnabled } from '@/lib/api/modules';
 import { writeAudit } from '@/lib/api/audit';
 
-// Schema de atualização. CPF é imutável (não incluído).
+// Schema de atualização. CPF é IMUTÁVEL (não incluído — protegido conforme regra
+// do sistema: nem aparece aqui, então qualquer cpf no payload é ignorado pelo zod).
+// Não inclui id/companyId/createdById/relacionamentos — só campos demográficos/contato.
 const UpdatePatientInputSchema = z.object({
   name: z.string().min(2).optional(),
-  birthDate: z.string().optional(),
+  // Data de nascimento: precisa ser uma data válida (string inválida → 400, não 500).
+  birthDate: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Data de nascimento inválida').optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']).optional(),
   phone: z.string().optional(),
   whatsapp: z.string().optional().nullable(),
-  email: z.string().optional().nullable(),
+  // E-mail validado igual ao create (aceita vazio/nulo p/ limpar).
+  email: z.string().email('E-mail inválido').optional().or(z.literal('')).nullable(),
   origin: z.enum(['GOOGLE', 'FACEBOOK', 'INSTAGRAM', 'REFERRAL', 'WALK_IN', 'PHONE', 'WHATSAPP', 'OTHER']).optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
   address: z.string().optional().nullable(),
@@ -26,6 +30,24 @@ const UpdatePatientInputSchema = z.object({
   insuranceNumber: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
+// Campos auditáveis (escalares editáveis). Usado p/ montar o diff old→new.
+const AUDITABLE_FIELDS = [
+  'name', 'birthDate', 'gender', 'phone', 'whatsapp', 'email', 'origin',
+  'status', 'address', 'city', 'state', 'zipCode', 'insurance', 'insuranceNumber', 'notes',
+] as const;
+
+// Normaliza p/ comparação (Date → ISO) e detecta o que realmente mudou.
+function diffPatient(before: Record<string, any>, after: Record<string, any>, keys: readonly string[]) {
+  const oldValues: Record<string, unknown> = {};
+  const newValues: Record<string, unknown> = {};
+  for (const k of keys) {
+    const b = before[k] instanceof Date ? before[k].toISOString() : before[k] ?? null;
+    const a = after[k] instanceof Date ? after[k].toISOString() : after[k] ?? null;
+    if (JSON.stringify(b) !== JSON.stringify(a)) { oldValues[k] = b; newValues[k] = a; }
+  }
+  return { oldValues, newValues, changed: Object.keys(newValues).length > 0 };
+}
 
 // Resolve o usuário do banco a partir da sessão Supabase e devolve o escopo de empresa.
 async function resolveDbUser() {
@@ -113,21 +135,27 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
       },
     });
 
-    await prisma.timelineEvent.create({
-      data: {
-        patientId: patient.id,
-        type: 'STATUS_CHANGE',
-        title: 'Paciente atualizado',
-        content: `Dados de ${patient.name} foram atualizados por ${dbUser!.name}`,
-        userId: dbUser!.id,
-      },
-    });
+    // Diff completo do que mudou (todos os campos editáveis, não só name/status).
+    const { oldValues, newValues, changed } = diffPatient(existing, patient, AUDITABLE_FIELDS);
 
-    await writeAudit({
-      dbUser: dbUser!, action: 'UPDATE', entityType: 'PATIENT', entityId: patient.id,
-      oldValues: { name: existing.name, status: existing.status },
-      newValues: { name: patient.name, status: patient.status }, request,
-    });
+    // Timeline + auditoria só quando houve alteração real (evita ruído de "salvar sem mudar").
+    if (changed) {
+      const fieldsLabel = Object.keys(newValues).join(', ');
+      await prisma.timelineEvent.create({
+        data: {
+          patientId: patient.id,
+          type: 'STATUS_CHANGE',
+          title: 'Paciente atualizado',
+          content: `Dados de ${patient.name} atualizados por ${dbUser!.name} (${fieldsLabel})`,
+          userId: dbUser!.id,
+        },
+      });
+
+      await writeAudit({
+        dbUser: dbUser!, action: 'UPDATE', entityType: 'PATIENT', entityId: patient.id,
+        oldValues, newValues, request,
+      });
+    }
 
     return NextResponse.json(patient);
   } catch (err) {
