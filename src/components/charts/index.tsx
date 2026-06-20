@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -99,6 +101,53 @@ export function RankBarChart({
           ))}
         </Bar>
       </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+/** Área de tendência — evolução de UMA métrica no tempo (linha + área teal). */
+export function AreaTrendChart({
+  data,
+  dataKey,
+  height = 220,
+  valueFormatter = defaultFmt,
+  axisFormatter,
+}: {
+  data: Record<string, string | number>[]
+  dataKey: string
+  height?: number
+  valueFormatter?: Formatter
+  axisFormatter?: Formatter
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
+        <defs>
+          <linearGradient id="areaTeal" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#26C6A3" stopOpacity={0.18} />
+            <stop offset="100%" stopColor="#26C6A3" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke={GRID} />
+        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: AXIS }} />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={64}
+          tick={{ fontSize: 11, fill: AXIS }}
+          tickFormatter={axisFormatter ? (v) => axisFormatter(Number(v)) : undefined}
+        />
+        <Tooltip cursor={{ stroke: GRID }} content={<ChartTooltip formatter={valueFormatter} />} />
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          stroke="#26C6A3"
+          strokeWidth={2.5}
+          fill="url(#areaTeal)"
+          dot={false}
+          activeDot={{ r: 4, fill: '#26C6A3' }}
+        />
+      </AreaChart>
     </ResponsiveContainer>
   )
 }

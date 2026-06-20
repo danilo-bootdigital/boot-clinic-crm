@@ -1,8 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { TabsNav } from '@/components/ui/tabs'
 import { financialCan, payableCan } from '@/lib/financial-caps'
 
 // Abas do módulo financeiro. A aba "Pagar" só aparece para quem tem acesso a
@@ -23,23 +22,11 @@ export function FinanceTabs({ role }: { role: string }) {
   const SUBROUTES = ['/financeiro/pagar', '/financeiro/categorias', '/financeiro/centros-custo', '/financeiro/fornecedores', '/financeiro/fluxo-caixa', '/financeiro/dashboard']
   const isReceber = !SUBROUTES.some((p) => pathname.startsWith(p))
 
-  return (
-    <div className="mb-6 flex gap-1 border-b border-border">
-      {tabs.map((t) => {
-        const active = t.href === '/financeiro' ? isReceber : pathname.startsWith(t.href)
-        return (
-          <Link
-            key={t.href}
-            href={t.href}
-            className={cn(
-              '-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
-              active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {t.label}
-          </Link>
-        )
-      })}
-    </div>
-  )
+  const items = tabs.map((t) => ({
+    href: t.href,
+    label: t.label,
+    active: t.href === '/financeiro' ? isReceber : pathname.startsWith(t.href),
+  }))
+
+  return <TabsNav items={items} className="mb-6" />
 }
