@@ -16,7 +16,7 @@ export async function resolveDbUser() {
   if (!user) return { error: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) };
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    include: { company: { select: { status: true, plan: true } } },
+    include: { company: { select: { status: true, plan: true, name: true, logo: true } } },
   });
   if (!dbUser) return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) };
 
