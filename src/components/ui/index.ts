@@ -23,5 +23,5 @@ export { FilterBar, FilterSelect } from "./filter-bar";
 export { EmptyState } from "./empty-state";
 export { LoadingState, StatGridSkeleton, Skeleton } from "./loading-state";
 export { DataTable, type Column } from "./data-table";
-export { Tabs, type TabItem } from "./tabs";
+export { Tabs, TabsNav, tabTriggerClass, type TabItem, type TabNavItem } from "./tabs";
 export { Textarea } from "./textarea";
