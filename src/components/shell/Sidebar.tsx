@@ -90,22 +90,22 @@ export function Sidebar({
         )}
       >
         {/* Identidade da clínica logada */}
-        <div className="flex h-16 items-center gap-2.5 px-4">
+        <div className={cn("flex h-[72px] items-center gap-3", collapsed ? "justify-center px-2" : "px-4")}>
           {company?.logo && !logoBroken ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={company.logo}
               alt={company.name || "Logo da clínica"}
               onError={() => setLogoBroken(true)}
-              className="h-9 w-9 shrink-0 rounded-lg object-contain bg-card"
+              className="h-12 w-12 shrink-0 rounded-lg border border-border bg-card object-contain p-1"
             />
           ) : company ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-[13px] font-semibold text-primary-foreground">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-semibold text-primary-foreground">
               {initials(company.name)}
             </div>
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Activity className="h-5 w-5" strokeWidth={2.5} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Activity className="h-6 w-6" strokeWidth={2.5} />
             </div>
           )}
           {!collapsed && (
