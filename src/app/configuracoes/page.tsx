@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings } from 'lucide-react'
+import { Settings, Upload, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -45,10 +45,21 @@ export default function ConfiguracoesPage() {
   )
 }
 
+function clinicInitials(name?: string | null): string {
+  if (!name) return 'MC'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'MC'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 function ClinicaTab({ router }: { router: any }) {
   const [form, setForm] = useState<any | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoErr, setLogoErr] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -60,8 +71,8 @@ function ClinicaTab({ router }: { router: any }) {
 
   if (!form) return <LoadingState rows={3} />
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault()
+  async function save(e?: React.FormEvent) {
+    e?.preventDefault()
     setSaving(true); setMsg(null)
     const res = await fetch('/api/company', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     setSaving(false)
@@ -69,20 +80,82 @@ function ClinicaTab({ router }: { router: any }) {
   }
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))
 
+  async function onPickLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) e.target.value = '' // permite re-selecionar o mesmo arquivo
+    if (!file) return
+    const ALLOWED = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!ALLOWED.includes(file.type)) { setLogoErr('Formato inválido. Use PNG, JPG ou WEBP.'); return }
+    if (file.size > 2 * 1024 * 1024) { setLogoErr('Arquivo muito grande. Máximo 2MB.'); return }
+    setLogoBusy(true); setLogoErr(null)
+    const fd = new FormData(); fd.append('file', file)
+    const res = await fetch('/api/company/logo', { method: 'POST', body: fd })
+    setLogoBusy(false)
+    if (res.ok) { const c = await res.json(); set('logo', c.logo) }
+    else setLogoErr((await res.json().catch(() => ({}))).error || 'Falha ao enviar logo')
+  }
+
+  async function removeLogo() {
+    if (!confirm('Remover o logotipo da clínica?')) return
+    setLogoBusy(true); setLogoErr(null)
+    const res = await fetch('/api/company/logo', { method: 'DELETE' })
+    setLogoBusy(false)
+    if (res.ok) set('logo', null)
+    else setLogoErr((await res.json().catch(() => ({}))).error || 'Falha ao remover logo')
+  }
+
   return (
-    <SectionCard title="Dados da Clínica">
-      <form onSubmit={save} className="space-y-4 max-w-2xl">
-        <div><label className={label}>Nome *</label><Input value={form.name || ''} onChange={(e) => set('name', e.target.value)} required /></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className={label}>CNPJ</label><Input value={form.cnpj || ''} onChange={(e) => set('cnpj', e.target.value)} /></div>
-          <div><label className={label}>Telefone</label><Input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} /></div>
+    <div className="space-y-6">
+      <SectionCard title="Identidade da Clínica">
+        <div className="max-w-2xl space-y-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted">
+              {form.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.logo} alt="Logo da clínica" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-xl font-semibold text-muted-foreground">{clinicInitials(form.name)}</span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Logotipo</p>
+              <p className="text-xs text-muted-foreground">PNG, JPG ou WEBP — até 2MB. A imagem aparece na barra lateral.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickLogo} />
+                <button type="button" disabled={logoBusy} onClick={() => fileRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50">
+                  <Upload className="h-4 w-4" />{logoBusy ? 'Enviando…' : form.logo ? 'Trocar logo' : 'Enviar logo'}
+                </button>
+                {form.logo && (
+                  <button type="button" disabled={logoBusy} onClick={removeLogo}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                    <Trash2 className="h-4 w-4" />Remover
+                  </button>
+                )}
+              </div>
+              {logoErr && <p className="mt-2 text-sm text-destructive">{logoErr}</p>}
+            </div>
+          </div>
+          <div><label className={label}>Nome da clínica *</label><Input value={form.name || ''} onChange={(e) => set('name', e.target.value)} required /></div>
+          {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
+          <div className="pt-2 border-t">
+            <button type="button" onClick={() => save()} disabled={saving} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button>
+          </div>
         </div>
-        <div><label className={label}>E-mail</label><Input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} /></div>
-        <div><label className={label}>Endereço</label><Input value={form.address || ''} onChange={(e) => set('address', e.target.value)} /></div>
-        {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
-        <div className="pt-2 border-t"><button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button></div>
-      </form>
-    </SectionCard>
+      </SectionCard>
+
+      <SectionCard title="Dados da Clínica">
+        <form onSubmit={save} className="space-y-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className={label}>CNPJ</label><Input value={form.cnpj || ''} onChange={(e) => set('cnpj', e.target.value)} /></div>
+            <div><label className={label}>Telefone</label><Input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} /></div>
+          </div>
+          <div><label className={label}>E-mail</label><Input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} /></div>
+          <div><label className={label}>Endereço</label><Input value={form.address || ''} onChange={(e) => set('address', e.target.value)} /></div>
+          <div className="pt-2 border-t"><button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button></div>
+        </form>
+      </SectionCard>
+    </div>
   )
 }
 

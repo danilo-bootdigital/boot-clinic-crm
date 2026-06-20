@@ -7,6 +7,17 @@ import { Activity, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_SECTIONS, isActive } from "./nav-config";
 
+type Company = { name: string | null; logo: string | null };
+
+// Iniciais da clínica para o fallback do avatar (máx. 2 letras).
+function initials(name: string | null | undefined): string {
+  if (!name) return "MC";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "MC";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -26,6 +37,9 @@ export function Sidebar({
   const [role, setRole] = useState<string | null>(null);
   // Módulos habilitados na clínica (plano contratado + ativação). null = carregando.
   const [modules, setModules] = useState<string[] | null>(null);
+  // Identidade visual da clínica logada (logo + nome).
+  const [company, setCompany] = useState<Company | null>(null);
+  const [logoBroken, setLogoBroken] = useState(false);
 
   useEffect(() => {
     fetch("/api/me")
@@ -34,11 +48,13 @@ export function Sidebar({
         setPerms(me?.permissions ?? null);
         setRole(me?.role ?? null);
         setModules(Array.isArray(me?.modules) ? me.modules : null);
+        setCompany(me?.company ?? null);
       })
       .catch(() => {
         setPerms(null);
         setRole(null);
         setModules(null);
+        setCompany(null);
       });
   }, []);
 
@@ -73,17 +89,31 @@ export function Sidebar({
           mobileOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
         )}
       >
-        {/* Brand */}
+        {/* Identidade da clínica logada */}
         <div className="flex h-16 items-center gap-2.5 px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Activity className="h-5 w-5" strokeWidth={2.5} />
-          </div>
+          {company?.logo && !logoBroken ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={company.logo}
+              alt={company.name || "Logo da clínica"}
+              onError={() => setLogoBroken(true)}
+              className="h-9 w-9 shrink-0 rounded-lg object-contain bg-card"
+            />
+          ) : company ? (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-[13px] font-semibold text-primary-foreground">
+              {initials(company.name)}
+            </div>
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Activity className="h-5 w-5" strokeWidth={2.5} />
+            </div>
+          )}
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">
-                Boot Clinic
+                {company?.name || "Minha Clínica"}
               </p>
-              <p className="truncate text-[11px] text-sidebar-muted">CRM Médico</p>
+              <p className="truncate text-[11px] text-sidebar-muted">Boot Clinic CRM</p>
             </div>
           )}
         </div>

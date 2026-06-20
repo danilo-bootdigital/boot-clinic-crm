@@ -34,6 +34,9 @@ export async function GET() {
       role: dbUser!.role,
       permissions,
       modules: Array.from(enabled),
+      // Identidade visual da clínica logada (para a sidebar). Sempre da empresa
+      // do usuário autenticado — nunca de outra clínica.
+      company: { name: dbUser!.company?.name ?? null, logo: dbUser!.company?.logo ?? null },
     });
   } catch (err) {
     console.error('Erro ao buscar usuário atual:', err);
