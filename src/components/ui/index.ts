@@ -25,3 +25,5 @@ export { LoadingState, StatGridSkeleton, Skeleton } from "./loading-state";
 export { DataTable, type Column } from "./data-table";
 export { Tabs, TabsNav, tabTriggerClass, type TabItem, type TabNavItem } from "./tabs";
 export { Textarea } from "./textarea";
+export { Tooltip } from "./tooltip";
+export { Drawer } from "./drawer";

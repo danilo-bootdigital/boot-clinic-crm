@@ -569,11 +569,15 @@ model Appointment {
   // Telemedicina (aditivo, nulável): modalidade da consulta + atalho p/ a sala.
   // PRESENCIAL é o default — backward-compatible com consultas existentes.
   modality           AppointmentModality @default(PRESENCIAL)
-  roomUrl            String? // URL da sala (espelho de TelemedicineRoom.roomUrl)
+  roomUrl            String? // URL da sala de telemedicina (espelho de TelemedicineRoom.roomUrl)
+  // Sala física do atendimento presencial (FK escalar, nulável — mesmo padrão de
+  // patientId/professionalId, sem constraint de banco; backward-compatible).
+  roomId             String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   deletedAt          DateTime?
 
+  @@index([roomId])
   @@map("appointments")
 }
 

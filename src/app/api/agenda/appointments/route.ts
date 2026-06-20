@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
-import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
+import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom } from '@/lib/api/ownership';
 import { runAutomations } from '@/lib/automations/engine';
 import { isModuleEnabled } from '@/lib/api/modules';
 import { createSessionForAppointment, buildPatientLink, teleEvent } from '@/lib/api/telemedicine';
@@ -36,8 +36,18 @@ export async function GET(request: NextRequest) {
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
     if (sp.get('professionalId')) where.professionalId = sp.get('professionalId');
 
+    // Janela temporal. `date` (1 dia) mantida p/ compatibilidade; `from`/`to`
+    // (YYYY-MM-DD, intervalo [from, to)) habilitam as visões semana/mês com 1 request.
     const dateStr = sp.get('date');
-    if (dateStr) {
+    const fromStr = sp.get('from');
+    const toStr = sp.get('to');
+    if (fromStr && toStr) {
+      const start = new Date(`${fromStr}T00:00:00`);
+      const end = new Date(`${toStr}T00:00:00`);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        where.startAt = { gte: start, lt: end };
+      }
+    } else if (dateStr) {
       const start = new Date(`${dateStr}T00:00:00`);
       const end = new Date(start);
       end.setDate(end.getDate() + 1);
@@ -50,20 +60,24 @@ export async function GET(request: NextRequest) {
     const patientIds = Array.from(new Set(appts.map((a) => a.patientId)));
     const profIds = Array.from(new Set(appts.map((a) => a.professionalId)));
     const specIds = Array.from(new Set(appts.map((a) => a.specialtyId)));
-    const [patients, professionals, specialties] = await Promise.all([
+    const roomIds = Array.from(new Set(appts.map((a) => a.roomId).filter((id): id is string => !!id)));
+    const [patients, professionals, specialties, rooms] = await Promise.all([
       patientIds.length ? prisma.patient.findMany({ where: { id: { in: patientIds } }, select: { id: true, name: true, phone: true } }) : [],
       profIds.length ? prisma.professional.findMany({ where: { id: { in: profIds } }, select: { id: true, name: true } }) : [],
       specIds.length ? prisma.specialty.findMany({ where: { id: { in: specIds } }, select: { id: true, name: true } }) : [],
+      roomIds.length ? prisma.room.findMany({ where: { id: { in: roomIds } }, select: { id: true, name: true } }) : [],
     ]);
     const pm = new Map(patients.map((p) => [p.id, p]));
     const prm = new Map(professionals.map((p) => [p.id, p]));
     const sm = new Map(specialties.map((s) => [s.id, s]));
+    const rm = new Map(rooms.map((r) => [r.id, r]));
 
     const enriched = appts.map((a) => ({
       ...a,
       patient: pm.get(a.patientId) ?? null,
       professional: prm.get(a.professionalId) ?? null,
       specialty: sm.get(a.specialtyId) ?? null,
+      room: a.roomId ? rm.get(a.roomId) ?? null : null,
     }));
     return NextResponse.json(enriched);
   } catch (err) {
@@ -83,10 +97,12 @@ export async function POST(request: NextRequest) {
     const data = CreateSchema.parse(await request.json());
 
     // FKs precisam pertencer à empresa do usuário (multi-tenant).
+    const roomId = data.roomId || null;
     if (!(await ownsPatient(dbUser!.companyId, data.patientId)) ||
         !(await ownsProfessional(dbUser!.companyId, data.professionalId)) ||
-        !(await ownsSpecialty(dbUser!.companyId, data.specialtyId))) {
-      return NextResponse.json({ error: 'Paciente, profissional ou especialidade inválidos' }, { status: 400 });
+        !(await ownsSpecialty(dbUser!.companyId, data.specialtyId)) ||
+        !(await ownsRoom(dbUser!.companyId, roomId))) {
+      return NextResponse.json({ error: 'Paciente, profissional, especialidade ou sala inválidos' }, { status: 400 });
     }
 
     const startAt = new Date(data.startAt);
@@ -111,6 +127,7 @@ export async function POST(request: NextRequest) {
         type: data.type,
         status: 'PENDING',
         modality,
+        roomId,
         startAt,
         endAt,
         durationMinutes: data.durationMinutes,

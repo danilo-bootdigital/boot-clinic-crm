@@ -28,8 +28,20 @@ export async function GET(request: NextRequest) {
     if (denied) return denied;
 
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
-    const pid = request.nextUrl.searchParams.get('professionalId');
+    const sp = request.nextUrl.searchParams;
+    const pid = sp.get('professionalId');
     if (pid) where.professionalId = pid;
+
+    // Janela opcional [from, to) (YYYY-MM-DD) p/ pintar bloqueios nas visões da agenda.
+    const fromStr = sp.get('from');
+    const toStr = sp.get('to');
+    if (fromStr && toStr) {
+      const start = new Date(`${fromStr}T00:00:00`);
+      const end = new Date(`${toStr}T00:00:00`);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        where.date = { gte: start, lt: end };
+      }
+    }
 
     const items = await prisma.scheduleBlock.findMany({ where, orderBy: { date: 'desc' } });
     return NextResponse.json(items.map(serialize));

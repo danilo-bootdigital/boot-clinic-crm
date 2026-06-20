@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, ArrowLeft, CalendarDays } from 'lucide-react'
-import { AgendaView } from '@/components/agenda/AgendaView'
+import { ArrowLeft, CalendarDays } from 'lucide-react'
+import { AgendaWorkspace } from '@/components/agenda/AgendaWorkspace'
+import { ymd } from '@/components/agenda/agenda-utils'
 import { AppointmentForm } from '@/components/agenda/AppointmentForm'
 import { Rooms } from '@/components/agenda/Rooms'
 import { Professionals } from '@/components/agenda/Professionals'
@@ -13,8 +14,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
-import { Input } from '@/components/ui/input'
-import { FilterSelect } from '@/components/ui/filter-bar'
+import { StatusPill } from '@/components/agenda/StatusPill'
 
 type Tab = 'agenda' | 'profissionais' | 'salas' | 'especialidades' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
@@ -27,18 +27,12 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'bloqueios', label: 'Bloqueios' },
 ]
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pendente', CONFIRMED: 'Confirmado', CANCELED: 'Cancelado',
-  RESCHEDULED: 'Remarcado', ATTENDED: 'Compareceu', NO_SHOW: 'Faltou',
-}
-
 export default function AgendaPage() {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('agenda')
   const [mode, setMode] = useState<Mode>('grid')
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [professionals, setProfessionals] = useState<any[]>([])
-  const [professionalId, setProfessionalId] = useState('')
+  const [createPrefill, setCreatePrefill] = useState<{ professionalId?: string; date?: Date } | null>(null)
   const [selected, setSelected] = useState<any | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -91,9 +85,7 @@ export default function AgendaPage() {
         description="Agendamentos, profissionais, salas e bloqueios"
         icon={<CalendarDays className="h-5 w-5" />}
         actions={
-          tab === 'agenda' && mode === 'grid' ? (
-            <ActionButton icon={<Plus />} onClick={() => { setSelected(null); setMode('create') }}>Novo Agendamento</ActionButton>
-          ) : mode !== 'grid' ? (
+          mode !== 'grid' ? (
             <ActionButton variant="outline" icon={<ArrowLeft />} onClick={() => { setMode('grid'); setSelected(null); setError(null) }}>Voltar</ActionButton>
           ) : null
         }
@@ -109,28 +101,26 @@ export default function AgendaPage() {
       {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
       {tab === 'agenda' && mode === 'grid' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
-            <FilterSelect value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
-              <option value="">Todos os profissionais</option>
-              {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </FilterSelect>
-          </div>
-          <SectionCard>
-            <AgendaView
-              key={`${date}-${professionalId}-${refreshKey}`}
-              selectedDate={new Date(`${date}T12:00:00`)}
-              professionalId={professionalId || undefined}
-              onAppointmentClick={(a) => { setSelected(a); setMode('detail') }}
-            />
-          </SectionCard>
-        </div>
+        <AgendaWorkspace
+          professionals={professionals}
+          refreshKey={refreshKey}
+          onNew={(opts) => { setCreatePrefill(opts ?? null); setSelected(null); setMode('create') }}
+          onSelect={(a) => { setSelected(a); setMode('detail') }}
+        />
       )}
 
       {tab === 'agenda' && mode === 'create' && (
         <SectionCard title="Novo Agendamento">
-          <AppointmentForm defaultProfessionalId={professionalId || undefined} onSubmit={handleCreate} onCancel={() => setMode('grid')} />
+          <AppointmentForm
+            defaultProfessionalId={createPrefill?.professionalId}
+            appointment={
+              createPrefill?.date
+                ? { startAt: `${ymd(createPrefill.date)}T09:00:00`, professionalId: createPrefill.professionalId }
+                : undefined
+            }
+            onSubmit={handleCreate}
+            onCancel={() => setMode('grid')}
+          />
         </SectionCard>
       )}
 
@@ -139,9 +129,10 @@ export default function AgendaPage() {
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div><dt className="text-muted-foreground">Profissional</dt><dd>{selected.professional?.name || '—'}</dd></div>
             <div><dt className="text-muted-foreground">Especialidade</dt><dd>{selected.specialty?.name || '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Sala</dt><dd>{selected.room?.name || '—'}</dd></div>
             <div><dt className="text-muted-foreground">Início</dt><dd>{selected.startAt ? new Date(selected.startAt).toLocaleString('pt-BR') : '—'}</dd></div>
             <div><dt className="text-muted-foreground">Tipo</dt><dd>{selected.type || '—'}</dd></div>
-            <div><dt className="text-muted-foreground">Status</dt><dd>{STATUS_LABELS[selected.status] || selected.status}</dd></div>
+            <div><dt className="text-muted-foreground">Status</dt><dd className="mt-0.5"><StatusPill status={selected.status} /></dd></div>
           </dl>
           {selected.notes && <p className="mt-3 text-sm text-muted-foreground">{selected.notes}</p>}
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">

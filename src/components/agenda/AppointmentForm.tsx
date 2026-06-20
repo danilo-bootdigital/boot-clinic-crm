@@ -32,6 +32,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
   const [patients, setPatients] = useState<Option[]>([])
   const [professionals, setProfessionals] = useState<Option[]>([])
   const [specialties, setSpecialties] = useState<Option[]>([])
+  const [rooms, setRooms] = useState<Option[]>([])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -39,6 +40,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
     patientId: appointment?.patientId ?? '',
     professionalId: appointment?.professionalId ?? defaultProfessionalId ?? '',
     specialtyId: appointment?.specialtyId ?? '',
+    roomId: appointment?.roomId ?? '',
     modality: appointment?.modality ?? 'PRESENCIAL',
     type: appointment?.type ?? 'Consulta',
     date: toDateInput(appointment?.startAt) || new Date().toISOString().split('T')[0],
@@ -49,14 +51,16 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
 
   useEffect(() => {
     ;(async () => {
-      const [p, pr, s] = await Promise.all([
+      const [p, pr, s, rm] = await Promise.all([
         fetch('/api/patients?limit=100').then((r) => (r.ok ? r.json() : { patients: [] })),
         fetch('/api/professionals?activeOnly=1').then((r) => (r.ok ? r.json() : [])),
         fetch('/api/specialties').then((r) => (r.ok ? r.json() : [])),
+        fetch('/api/rooms').then((r) => (r.ok ? r.json() : [])),
       ])
       setPatients((p.patients ?? []).map((x: any) => ({ id: x.id, name: x.name })))
       setProfessionals(pr)
       setSpecialties(s)
+      setRooms(Array.isArray(rm) ? rm.map((x: any) => ({ id: x.id, name: x.name })) : [])
       setForm((f) => ({
         ...f,
         professionalId: f.professionalId || pr[0]?.id || '',
@@ -78,6 +82,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
         patientId: form.patientId,
         professionalId: form.professionalId,
         specialtyId: form.specialtyId,
+        roomId: form.roomId || undefined,
         modality: form.modality,
         type: form.type,
         startAt,
@@ -118,6 +123,14 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
             {specialties.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </FilterSelect>
         </div>
+      </div>
+
+      <div>
+        <label className={label}>Sala</label>
+        <FilterSelect className={field} value={form.roomId} onChange={(e) => set('roomId', e.target.value)}>
+          <option value="">Sem sala definida</option>
+          {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </FilterSelect>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

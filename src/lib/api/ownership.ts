@@ -18,6 +18,11 @@ export async function ownsSpecialty(companyId: string, id?: string | null) {
   return !!(await prisma.specialty.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } }));
 }
 
+export async function ownsRoom(companyId: string, id?: string | null) {
+  if (!id) return true;
+  return !!(await prisma.room.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } }));
+}
+
 export async function ownsUser(companyId: string, id?: string | null) {
   if (!id) return true;
   return !!(await prisma.user.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } }));

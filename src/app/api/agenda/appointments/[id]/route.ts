@@ -4,12 +4,13 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
-import { ownsPatient, ownsProfessional, ownsSpecialty } from '@/lib/api/ownership';
+import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom } from '@/lib/api/ownership';
 
 const UpdateSchema = z.object({
   patientId: z.string().optional(),
   professionalId: z.string().optional(),
   specialtyId: z.string().optional(),
+  roomId: z.string().optional().nullable(),
   type: z.string().optional(),
   startAt: z.string().optional(),
   durationMinutes: z.coerce.number().min(5).max(480).optional(),
@@ -29,12 +30,13 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     });
     if (!a) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 });
 
-    const [patient, professional, specialty] = await Promise.all([
+    const [patient, professional, specialty, room] = await Promise.all([
       prisma.patient.findUnique({ where: { id: a.patientId }, select: { id: true, name: true, phone: true } }),
       prisma.professional.findUnique({ where: { id: a.professionalId }, select: { id: true, name: true } }),
       prisma.specialty.findUnique({ where: { id: a.specialtyId }, select: { id: true, name: true } }),
+      a.roomId ? prisma.room.findUnique({ where: { id: a.roomId }, select: { id: true, name: true } }) : null,
     ]);
-    return NextResponse.json({ ...a, patient, professional, specialty });
+    return NextResponse.json({ ...a, patient, professional, specialty, room });
   } catch (err) {
     console.error('Erro ao buscar agendamento:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -60,8 +62,9 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     // FKs alterados precisam pertencer à empresa.
     if (!(await ownsPatient(dbUser!.companyId, d.patientId)) ||
         !(await ownsProfessional(dbUser!.companyId, d.professionalId)) ||
-        !(await ownsSpecialty(dbUser!.companyId, d.specialtyId))) {
-      return NextResponse.json({ error: 'Paciente, profissional ou especialidade inválidos' }, { status: 400 });
+        !(await ownsSpecialty(dbUser!.companyId, d.specialtyId)) ||
+        !(await ownsRoom(dbUser!.companyId, d.roomId))) {
+      return NextResponse.json({ error: 'Paciente, profissional, especialidade ou sala inválidos' }, { status: 400 });
     }
 
     let startAt = existing.startAt;
@@ -88,6 +91,7 @@ async function update(request: NextRequest, { params }: { params: { id: string }
         ...(d.patientId !== undefined && { patientId: d.patientId }),
         ...(d.professionalId !== undefined && { professionalId: d.professionalId }),
         ...(d.specialtyId !== undefined && { specialtyId: d.specialtyId }),
+        ...(d.roomId !== undefined && { roomId: d.roomId || null }),
         ...(d.type !== undefined && { type: d.type }),
         ...(d.notes !== undefined && { notes: d.notes || null }),
         ...((d.startAt || d.durationMinutes) && { startAt, endAt, durationMinutes: duration }),
