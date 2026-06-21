@@ -538,6 +538,7 @@ model WhatsAppConversation {
   patientId     String?
   contactName   String
   contactPhone  String
+  contactAvatar String? // URL da foto do contato (quando disponível via CONTACTS_SET)
   status        String    @default("OPEN") // OPEN | CLOSED
   lastMessage   String?
   lastMessageAt DateTime?
@@ -550,6 +551,8 @@ model WhatsAppConversation {
 
   @@index([instanceId])
   @@index([companyId, lastMessageAt])
+  // Omnichannel: 1 thread por número dentro da instância (CRM + celular = mesma conversa).
+  @@index([companyId, instanceId, contactPhone])
   @@map("whatsapp_conversations")
 }
 
@@ -558,14 +561,18 @@ model WhatsAppMessage {
   companyId      String
   conversationId String
   instanceId     String? // instância (número) que enviou/recebeu a mensagem
+  externalId     String? // id da mensagem no WhatsApp (key.id) — chave de deduplicação
+  source         String? // CRM | MOBILE | CONTACT (origem: enviada pelo CRM, pelo celular, ou recebida)
   content        String
   direction      String // INCOMING | OUTGOING
-  status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED
+  status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
   createdAt      DateTime @default(now())
 
   instance WhatsAppInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
+  // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
+  @@unique([instanceId, externalId])
   @@map("whatsapp_messages")
 }
 

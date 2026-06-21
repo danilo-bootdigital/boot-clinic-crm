@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
     const usedInstanceId = sent.instanceId ?? conv.instanceId ?? null;
 
     const msg = await prisma.whatsAppMessage.create({
-      data: { companyId: dbUser!.companyId, conversationId: conv.id, instanceId: usedInstanceId, content: d.content, direction: 'OUTGOING', status },
+      // externalId = id retornado pela Evolution → o eco fromMe no MESSAGES_UPSERT casa
+      // por essa chave e NÃO é gravado de novo. source=CRM distingue do envio pelo celular.
+      data: { companyId: dbUser!.companyId, conversationId: conv.id, instanceId: usedInstanceId, externalId: sent.messageId ?? null, source: 'CRM', content: d.content, direction: 'OUTGOING', status },
     });
     await prisma.whatsAppConversation.update({
       where: { id: conv.id },

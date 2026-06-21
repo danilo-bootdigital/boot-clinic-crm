@@ -122,7 +122,7 @@ export async function createInstance(instance: InstanceRef, opts?: { webhookUrl?
       // devolve o QR base64 na resposta HTTP do connect — ele chega pelo evento
       // QRCODE_UPDATED. Inscrevemos: QR (parear) + inbound de mensagens + conexão.
       ...(opts?.webhookUrl
-        ? { webhook: { url: opts.webhookUrl, byEvents: false, base64: true, events: ['QRCODE_UPDATED', 'MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } }
+        ? { webhook: { url: opts.webhookUrl, byEvents: false, base64: true, events: ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_SET', 'CHATS_SET', 'CONTACTS_SET'] } }
         : {}),
     }),
   });
@@ -175,12 +175,30 @@ export async function reconnectInstance(instance: InstanceRef): Promise<EvoResul
   return evo(`/instance/connect/${encodeURIComponent(instance.instanceName)}`, { method: 'GET' });
 }
 
-// Envia uma mensagem de texto PELA instância da clínica.
-export async function sendMessage(instance: InstanceRef, phone: string, text: string): Promise<EvoResult> {
-  return evo(`/message/sendText/${encodeURIComponent(instance.instanceName)}`, {
+// Lista os chats (conversas) existentes na instância — para importar o histórico.
+// Resposta: array plano de chats { id, remoteJid, pushName, profilePicUrl, lastMessage, unreadCount }.
+export async function findChats(instance: InstanceRef): Promise<EvoResult> {
+  return evo(`/chat/findChats/${encodeURIComponent(instance.instanceName)}`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+// Lista mensagens (página recente, ou de um remoteJid). Resposta: { messages: { records: [...] } }.
+export async function findMessages(instance: InstanceRef, opts?: { remoteJid?: string }): Promise<EvoResult> {
+  const where = opts?.remoteJid ? { key: { remoteJid: opts.remoteJid } } : {};
+  return evo(`/chat/findMessages/${encodeURIComponent(instance.instanceName)}`, { method: 'POST', body: JSON.stringify({ where }) });
+}
+
+// Envia uma mensagem de texto PELA instância da clínica. Devolve também o
+// `messageId` (key.id do WhatsApp) para deduplicar o eco que volta no MESSAGES_UPSERT.
+export async function sendMessage(
+  instance: InstanceRef,
+  phone: string,
+  text: string,
+): Promise<EvoResult & { messageId?: string }> {
+  const res = await evo<any>(`/message/sendText/${encodeURIComponent(instance.instanceName)}`, {
     method: 'POST',
     body: JSON.stringify({ number: phone.replace(/\D/g, ''), text }),
   });
+  return { ...res, messageId: res.data?.key?.id ?? undefined };
 }
 
 // --- Conveniência para as rotas que só têm o companyId -------------------------
@@ -206,7 +224,7 @@ export async function sendWhatsappForConversation(
   conv: { companyId: string; instanceId: string | null },
   phone: string,
   text: string,
-): Promise<EvoResult & { instanceId?: string }> {
+): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
   const instance = conv.instanceId
     ? await prisma.whatsAppInstance.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })

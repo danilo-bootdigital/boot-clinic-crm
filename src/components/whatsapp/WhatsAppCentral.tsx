@@ -68,9 +68,20 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
     }
   }, [selectedConversation]);
 
-  const loadConversations = async () => {
+  // Tempo real (polling estável p/ Vercel): atualiza a lista de conversas e a conversa
+  // aberta sem refresh manual. Silencioso (não pisca o loading). Inbound novo aparece aqui.
+  useEffect(() => {
+    const id = setInterval(() => {
+      loadConversations(true);
+      if (selectedConversation) loadMessages(selectedConversation.id);
+    }, 6000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation]);
+
+  const loadConversations = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch('/api/whatsapp/conversations');
       if (response.ok) {
         const data = await response.json();

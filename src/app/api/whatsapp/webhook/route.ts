@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { ingestMessage, upsertContact, extractText, jidToPhone } from '@/lib/whatsapp/ingest';
 
 // POST /api/whatsapp/webhook?token=... - recebe mensagens da Evolution API.
 // Público (Evolution não tem sessão), protegido pelo token POR INSTÂNCIA — que
@@ -81,36 +82,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // Mensagens nossas (fromMe) voltam no MESSAGES_UPSERT — ignoramos para não
-    // duplicar a saída como entrada nem inflar o unreadCount.
-    if (body?.data?.key?.fromMe === true) return NextResponse.json({ success: true, ignored: 'fromMe' });
+    const d = body?.data;
 
-    // Normaliza: aceita o formato simplificado ou tenta extrair do payload da Evolution.
-    const phone: string | undefined = body.phone || body?.data?.key?.remoteJid?.split('@')?.[0];
-    const text: string | undefined = body.message || body?.data?.message?.conversation;
-    const name: string = body.name || body?.data?.pushName || phone || 'Contato';
-    if (!phone || !text) return NextResponse.json({ error: 'Payload sem phone/message' }, { status: 400 });
-
-    const digits = phone.replace(/\D/g, '');
-    let conv = await prisma.whatsAppConversation.findFirst({
-      where: { companyId, contactPhone: { contains: digits.slice(-8) }, deletedAt: null },
-    });
-    if (!conv) {
-      conv = await prisma.whatsAppConversation.create({ data: { companyId, instanceId, contactName: name, contactPhone: phone } });
-    } else if (!conv.instanceId && instanceId) {
-      // Vincula a conversa à instância de chegada, se ainda não vinculada.
-      conv = await prisma.whatsAppConversation.update({ where: { id: conv.id }, data: { instanceId } });
+    // CONTACTS_SET / CONTACTS_UPDATE: nome e foto dos contatos (não cria conversa).
+    if (event.includes('contacts')) {
+      const list: any[] = Array.isArray(d) ? d : d?.contacts || (d ? [d] : []);
+      for (const c of list) {
+        const phone = jidToPhone(c?.id || c?.remoteJid);
+        if (!phone) continue;
+        await upsertContact({ companyId, phone, name: c?.pushName || c?.name || c?.notify, avatar: c?.profilePicUrl || c?.profilePictureUrl });
+      }
+      return NextResponse.json({ success: true, processed: list.length });
     }
 
-    await prisma.whatsAppMessage.create({
-      data: { companyId, conversationId: conv.id, instanceId: conv.instanceId ?? instanceId, content: text, direction: 'INCOMING', status: 'RECEIVED' },
-    });
-    await prisma.whatsAppConversation.update({
-      where: { id: conv.id },
-      data: { lastMessage: text, lastMessageAt: new Date(), unreadCount: { increment: 1 } },
-    });
+    // CHATS_SET / CHATS_UPSERT: cria/atualiza as conversas (threads) existentes.
+    if (event.includes('chats')) {
+      const list: any[] = Array.isArray(d) ? d : d?.chats || (d ? [d] : []);
+      let n = 0;
+      for (const c of list) {
+        const phone = jidToPhone(c?.id || c?.remoteJid);
+        if (!phone || (c?.id && String(c.id).includes('@g.us'))) continue; // ignora grupos por ora
+        await upsertContact({ companyId, phone, name: c?.name || c?.pushName });
+        n++;
+      }
+      return NextResponse.json({ success: true, processed: n });
+    }
 
-    return NextResponse.json({ success: true });
+    // MESSAGES_SET (histórico) e MESSAGES_UPSERT (tempo real). Mesma ingestão; o flag
+    // isHistory evita inflar não-lidas e respeita a ordem temporal no histórico.
+    const isHistory = event.includes('messages.set') || event.includes('messages_set');
+    const isUpsert = event.includes('messages.upsert') || event.includes('messages_upsert');
+
+    if (isHistory || isUpsert || (!event && (body.phone || body.message))) {
+      // Normaliza para uma lista de mensagens cruas do WhatsApp.
+      let raw: any[];
+      if (!event && (body.phone || body.message)) {
+        raw = [{ key: { remoteJid: body.phone, fromMe: false }, message: { conversation: body.message }, pushName: body.name }];
+      } else {
+        raw = Array.isArray(d) ? d : d?.messages || (d ? [d] : []);
+      }
+      let created = 0, dup = 0;
+      for (const msg of raw) {
+        const phone = jidToPhone(msg?.key?.remoteJid);
+        if (!phone || String(msg?.key?.remoteJid || '').includes('@g.us')) continue; // grupos: fora por ora
+        const text = extractText(msg?.message);
+        const ts = msg?.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000) : undefined;
+        const r = await ingestMessage({
+          companyId,
+          instanceId,
+          phone,
+          name: msg?.pushName,
+          text,
+          externalId: msg?.key?.id ?? null,
+          fromMe: msg?.key?.fromMe === true,
+          createdAt: ts,
+          isHistory,
+        });
+        if (r === 'created') created++; else if (r === 'duplicate') dup++;
+      }
+      return NextResponse.json({ success: true, created, duplicate: dup, total: raw.length });
+    }
+
+    // Evento não tratado (ex.: presence, message ack) — aceita sem erro.
+    return NextResponse.json({ success: true, ignored: event || 'unknown' });
   } catch (err) {
     console.error('Erro no webhook WhatsApp:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
