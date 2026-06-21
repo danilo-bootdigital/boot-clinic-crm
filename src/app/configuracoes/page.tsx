@@ -10,12 +10,14 @@ import { Tabs } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { FilterSelect } from '@/components/ui/filter-bar'
 import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy'
+import WhatsAppSettings from '@/components/configuracoes/WhatsAppSettings'
 
-type Tab = 'clinica' | 'usuarios' | 'notificacoes'
+type Tab = 'clinica' | 'usuarios' | 'notificacoes' | 'whatsapp'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'clinica', label: 'Clínica' },
   { key: 'usuarios', label: 'Usuários e Permissões' },
   { key: 'notificacoes', label: 'Notificações' },
+  { key: 'whatsapp', label: 'WhatsApp' },
 ]
 
 const ROLES = ['SUPER_ADMIN', 'OWNER', 'MANAGER', 'DOCTOR', 'RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE']
@@ -41,6 +43,7 @@ export default function ConfiguracoesPage() {
       {tab === 'clinica' && <ClinicaTab router={router} />}
       {tab === 'usuarios' && <UsuariosTab />}
       {tab === 'notificacoes' && <NotificacoesTab />}
+      {tab === 'whatsapp' && <WhatsAppSettings />}
     </div>
   )
 }
