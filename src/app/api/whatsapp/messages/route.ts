@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendWhatsappText } from '@/lib/whatsapp/evolution';
+import { sendWhatsappForConversation } from '@/lib/whatsapp/evolution';
 
 const CreateSchema = z.object({
   conversationId: z.string().min(1),
@@ -53,15 +53,17 @@ export async function POST(request: NextRequest) {
     const conv = await prisma.whatsAppConversation.findFirst({ where: { id: d.conversationId, companyId: dbUser!.companyId, deletedAt: null } });
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
 
-    const sent = await sendWhatsappText(conv.contactPhone, d.content);
+    const sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.instanceId }, conv.contactPhone, d.content);
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
+    const usedInstanceId = sent.instanceId ?? conv.instanceId ?? null;
 
     const msg = await prisma.whatsAppMessage.create({
-      data: { companyId: dbUser!.companyId, conversationId: conv.id, content: d.content, direction: 'OUTGOING', status },
+      data: { companyId: dbUser!.companyId, conversationId: conv.id, instanceId: usedInstanceId, content: d.content, direction: 'OUTGOING', status },
     });
     await prisma.whatsAppConversation.update({
       where: { id: conv.id },
-      data: { lastMessage: d.content, lastMessageAt: new Date() },
+      // Vincula a conversa à instância usada na 1ª saída (não sobrescreve se já houver).
+      data: { lastMessage: d.content, lastMessageAt: new Date(), instanceId: conv.instanceId ?? usedInstanceId ?? undefined },
     });
     return NextResponse.json(serialize(msg), { status: 201 });
   } catch (err) {

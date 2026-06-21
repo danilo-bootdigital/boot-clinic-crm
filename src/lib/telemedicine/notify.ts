@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { sendWhatsappText } from '@/lib/whatsapp/evolution';
+import { sendWhatsappForCompany } from '@/lib/whatsapp/evolution';
 
 // Notificações da teleconsulta por WhatsApp + registro na timeline do paciente.
 // Best-effort: se a Evolution API não estiver configurada, a mensagem é apenas
@@ -71,7 +71,7 @@ export async function notifyTeleconsultation(
   const message = buildMessage(event, ctx);
   let result = { configured: false, ok: false } as { configured: boolean; ok: boolean };
   if (ctx.phone) {
-    result = await sendWhatsappText(ctx.phone, message);
+    result = await sendWhatsappForCompany(ctx.companyId, ctx.phone, message);
   }
 
   // Registra na timeline do paciente (sempre — mesmo se o WhatsApp não enviou).
