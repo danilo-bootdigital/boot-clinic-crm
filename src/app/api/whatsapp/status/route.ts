@@ -26,6 +26,9 @@ export async function GET() {
       label: instance?.label ?? null,
       lastConnectedAt: instance?.lastConnectedAt ?? null,
       disconnectedAt: instance?.disconnectedAt ?? null,
+      // QR atual (preenchido pelo webhook QRCODE_UPDATED). Permite à tela exibir o QR
+      // sem uma chamada extra. Não exposto quando já conectado.
+      qrCode: instance && instance.status !== 'CONNECTED' ? instance.qrCode ?? null : null,
     });
   } catch (err) {
     console.error('Erro no status do WhatsApp:', err);
