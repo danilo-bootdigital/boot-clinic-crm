@@ -36,9 +36,10 @@ model Company {
   deletedAt           DateTime?
 
   // Relacionamentos
-  users    User[]
-  patients Patient[]
-  tags     Tag[]
+  users            User[]
+  patients         Patient[]
+  tags             Tag[]
+  whatsappInstances WhatsAppInstance[] // instâncias da Evolution API desta clínica (1:N)
 
   @@map("companies")
 }
@@ -489,9 +490,51 @@ model NotificationEvent {
 }
 
 // Módulo de WhatsApp (estrutura interna; envio real via Evolution API quando configurada)
+
+// Multiempresa: cada clínica pode ter UMA OU MAIS instâncias da Evolution API
+// (números/sessões próprios). Por padrão há 1 instância primária (isPrimary), mas
+// a clínica pode conectar outros números por departamento (Recepção, Comercial,
+// Financeiro, Pós-venda). Substitui o WHATSAPP_INSTANCE global. 1:N com Company.
+model WhatsAppInstance {
+  id                  String                 @id @default(cuid())
+  companyId           String // clínica dona desta instância (1:N — sem unique)
+  instanceName        String                 @unique // nome da instância na Evolution (ex.: clinic_<companyId>)
+  evolutionInstanceId String?                @unique // id retornado pela Evolution ao criar
+  label               String                 @default("Principal") // nome amigável (ex.: Recepção, Comercial)
+  isPrimary           Boolean                @default(true) // instância default da clínica (1 por clínica, garantida na aplicação)
+  department          String? // departamento opcional (livre por enquanto)
+  phoneNumber         String? // número conectado (preenchido após parear)
+  profileName         String? // nome do perfil do WhatsApp conectado
+  qrCode              String? // QR Code em base64 (transitório, durante o pareamento)
+  status              WhatsAppInstanceStatus @default(DISCONNECTED)
+  webhookToken        String?                @unique // token do webhook inbound desta instância
+  lastConnectedAt     DateTime?
+  disconnectedAt      DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations WhatsAppConversation[]
+  messages      WhatsAppMessage[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("whatsapp_instances")
+}
+
+// Estado da conexão da instância da clínica com o WhatsApp (via Evolution API).
+enum WhatsAppInstanceStatus {
+  DISCONNECTED // sem sessão / deslogada
+  CONNECTING // criando/abrindo a sessão
+  QRCODE // aguardando leitura do QR Code
+  CONNECTED // pareada e ativa
+  ERROR // falha na sessão (expirada/erro)
+}
+
 model WhatsAppConversation {
   id            String    @id @default(cuid())
   companyId     String
+  instanceId    String? // instância (número) por onde a conversa entra/sai; null = usar a primária
   patientId     String?
   contactName   String
   contactPhone  String
@@ -503,6 +546,10 @@ model WhatsAppConversation {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
+  instance WhatsAppInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+
+  @@index([instanceId])
+  @@index([companyId, lastMessageAt])
   @@map("whatsapp_conversations")
 }
 
@@ -510,11 +557,15 @@ model WhatsAppMessage {
   id             String   @id @default(cuid())
   companyId      String
   conversationId String
+  instanceId     String? // instância (número) que enviou/recebeu a mensagem
   content        String
   direction      String // INCOMING | OUTGOING
   status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED
   createdAt      DateTime @default(now())
 
+  instance WhatsAppInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
   @@map("whatsapp_messages")
 }
 
