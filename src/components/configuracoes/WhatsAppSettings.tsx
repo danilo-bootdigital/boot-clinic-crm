@@ -52,6 +52,7 @@ export default function WhatsAppSettings() {
   const [data, setData] = useState<StatusResp | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const initial = useRef(true)
 
   const load = useCallback(async () => {
@@ -80,6 +81,20 @@ export default function WhatsAppSettings() {
       if (res.status === 401) { router.push('/login?redirect=/configuracoes'); return }
       if (!res.ok) { setError((await res.json().catch(() => ({}))).error || 'Falha na operação') }
       await load()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Importa histórico (chats + página recente de mensagens) — re-executável.
+  async function syncHistory() {
+    setBusy('sync'); setError(null); setSyncMsg(null)
+    try {
+      const res = await fetch('/api/whatsapp/instance/sync', { method: 'POST', cache: 'no-store' })
+      const j = await res.json().catch(() => ({}))
+      if (res.status === 401) { router.push('/login?redirect=/configuracoes'); return }
+      if (!res.ok) { setError(j.error || 'Falha ao sincronizar'); return }
+      setSyncMsg(`Importadas ${j.chats?.created ?? 0} conversa(s)${j.chats?.truncated ? ' (parcial — re-execute para mais)' : ''}; ${j.messages?.created ?? 0} mensagem(ns).`)
     } finally {
       setBusy(null)
     }
@@ -174,9 +189,15 @@ export default function WhatsAppSettings() {
               </p>
             </div>
           </div>
-          <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/whatsapp/instance/logout', 'POST', 'Desconectar o WhatsApp da clínica? As conversas existentes são preservadas.')}>
-            <Power className="h-4 w-4" />{busy === 'logout' ? 'Desconectando…' : 'Desconectar'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className={btnOutline} disabled={busy !== null} onClick={syncHistory}>
+              <RefreshCw className="h-4 w-4" />{busy === 'sync' ? 'Sincronizando…' : 'Sincronizar conversas'}
+            </button>
+            <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/whatsapp/instance/logout', 'POST', 'Desconectar o WhatsApp da clínica? As conversas existentes são preservadas.')}>
+              <Power className="h-4 w-4" />{busy === 'logout' ? 'Desconectando…' : 'Desconectar'}
+            </button>
+          </div>
+          {syncMsg && <p className="text-xs text-muted-foreground">{syncMsg}</p>}
         </div>
       )}
 

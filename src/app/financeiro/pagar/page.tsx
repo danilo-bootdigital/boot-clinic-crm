@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Wallet, Plus, TrendingDown, AlertTriangle, CircleDollarSign, Clock } from 'lucide-react'
+import { Wallet, Plus, TrendingDown, AlertTriangle, CircleDollarSign, Clock, Download } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { FinanceTabs } from '@/components/financial/FinanceTabs'
 import { NewPayableForm } from '@/components/financial/NewPayableForm'
 import { payableCan } from '@/lib/financial-caps'
 import { brl, formatDate, RECEIVABLE_STATUS_LABELS, STATUS_TONE } from '@/lib/financial-format'
+import { downloadCsv, csvMoney, dateStamp } from '@/lib/csv'
 
 interface Summary { totalDespesas: number; pago: number; aPagar: number; vencido: number; totalContas: number }
 interface Payable {
@@ -49,6 +50,22 @@ export default function ContasPagarPage() {
 
   const canCreate = payableCan(role, 'create')
 
+  const exportCsv = () => {
+    downloadCsv(
+      `contas-a-pagar-${dateStamp()}`,
+      ['Fornecedor', 'Descrição', 'Categoria', 'Vencimento', 'Valor', 'Saldo', 'Status'],
+      rows.map((r) => [
+        r.supplierName || '—',
+        r.description,
+        r.categoryName || '—',
+        formatDate(r.dueDate),
+        csvMoney(r.finalAmount),
+        csvMoney(r.balance),
+        RECEIVABLE_STATUS_LABELS[r.displayStatus] || r.displayStatus,
+      ]),
+    )
+  }
+
   if (denied) return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <PageHeader title="Financeiro" description="Contas a Pagar" icon={<Wallet className="h-5 w-5" />} />
@@ -76,15 +93,22 @@ export default function ContasPagarPage() {
 
       {showNew && (<div className="mb-6"><NewPayableForm onCreated={() => { setShowNew(false); load() }} onCancel={() => setShowNew(false)} /></div>)}
 
-      <FilterBar filters={
-        <FilterSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="PENDENTE">Pendente</option>
-          <option value="PARCIAL">Parcial</option>
-          <option value="PAGO">Pago</option>
-          <option value="CANCELADO">Cancelado</option>
-        </FilterSelect>
-      } />
+      <FilterBar
+        filters={
+          <FilterSelect value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Todos os status</option>
+            <option value="PENDENTE">Pendente</option>
+            <option value="PARCIAL">Parcial</option>
+            <option value="PAGO">Pago</option>
+            <option value="CANCELADO">Cancelado</option>
+          </FilterSelect>
+        }
+        actions={
+          <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" />Exportar CSV
+          </Button>
+        }
+      />
 
       {loading ? (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Carregando…</div>
