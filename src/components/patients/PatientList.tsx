@@ -1,7 +1,6 @@
 'use client';
 
 import { PatientStatus, PatientOrigin } from '@/lib/validations/patient';
-import { formatPhone } from '@/lib/validations/patient';
 
 interface Patient {
   id: string;
@@ -136,7 +135,7 @@ export default function PatientList({ patients, onEdit, onView, onRestore, filte
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{patient.cpf}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{formatPhone(patient.phone)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{patient.phone || '—'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{getOriginLabel(patient.origin)}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(patient.status)}`}>

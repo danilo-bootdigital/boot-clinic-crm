@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { formatPhone } from '@/lib/validations/patient';
 import { Tabs } from '@/components/ui/tabs';
 
 interface Patient {
@@ -192,12 +191,12 @@ export default function PatientDetail({ patient, onEdit }: PatientDetailProps) {
                   <dl className="mt-4 space-y-3">
                     <div>
                       <dt className="text-sm font-medium text-muted-foreground">Telefone Principal</dt>
-                      <dd className="mt-1 text-sm text-foreground">{formatPhone(patient.phone)}</dd>
+                      <dd className="mt-1 text-sm text-foreground">{patient.phone || '—'}</dd>
                     </div>
                     {patient.whatsapp && (
                       <div>
                         <dt className="text-sm font-medium text-muted-foreground">WhatsApp</dt>
-                        <dd className="mt-1 text-sm text-foreground">{formatPhone(patient.whatsapp)}</dd>
+                        <dd className="mt-1 text-sm text-foreground">{patient.whatsapp}</dd>
                       </div>
                     )}
                     {patient.email && (

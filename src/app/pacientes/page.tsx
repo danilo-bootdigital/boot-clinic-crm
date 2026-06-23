@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Plus, ArrowLeft, Users, Pencil, UserMinus } from 'lucide-react'
 import PatientList from '@/components/patients/PatientList'
 import PatientForm from '@/components/patients/PatientForm'
-import { formatPhone } from '@/lib/validations/patient'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -254,8 +253,8 @@ export default function PacientesPage() {
         <SectionCard title={selected.name} className="max-w-3xl">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
             <Field label="CPF" value={selected.cpf} />
-            <Field label="Telefone" value={formatPhone(selected.phone)} />
-            <Field label="WhatsApp" value={selected.whatsapp ? formatPhone(selected.whatsapp) : '—'} />
+            <Field label="Telefone" value={selected.phone || '—'} />
+            <Field label="WhatsApp" value={selected.whatsapp || '—'} />
             <Field label="E-mail" value={selected.email || '—'} />
             <Field label="Nascimento" value={selected.birthDate ? new Date(selected.birthDate).toLocaleDateString('pt-BR') : '—'} />
             <Field label="Gênero" value={GENDER_LABELS[selected.gender] || selected.gender} />

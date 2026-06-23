@@ -2,7 +2,9 @@ import { z } from "zod";
 
 // Validação de CPF
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/;
-const phoneRegex = /^\(\d{2}\)\s\d{5}-\d{4}$/;
+// Telefone/WhatsApp: sem máscara nem formato fixo. Quando preenchido, aceita apenas
+// dígitos (vazio também é válido). Nada de DDD/quantidade mínima — salva o valor cru.
+const digitsOnlyRegex = /^\d*$/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Enums do schema
@@ -66,8 +68,8 @@ export const CreatePatientSchema = z.object({
   cpf: z.string().regex(cpfRegex, "CPF inválido. Use formato: 123.456.789-00"),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento inválida. Use formato: YYYY-MM-DD"),
   gender: z.nativeEnum(Gender),
-  phone: z.string().regex(phoneRegex, "Telefone inválido. Use formato: (11) 99999-9999"),
-  whatsapp: z.string().regex(phoneRegex, "WhatsApp inválido. Use formato: (11) 99999-9999").optional().or(z.literal("")),
+  phone: z.string().regex(digitsOnlyRegex, "Telefone deve conter apenas números").optional().or(z.literal("")),
+  whatsapp: z.string().regex(digitsOnlyRegex, "WhatsApp deve conter apenas números").optional().or(z.literal("")),
   email: z.string().email("E-mail inválido").optional().or(z.literal("")),
   origin: z.nativeEnum(PatientOrigin),
   status: z.nativeEnum(PatientStatus).optional().default(PatientStatus.ACTIVE),
@@ -97,15 +99,6 @@ export const CreatePatientSchema = z.object({
     name: z.string().min(1, "Nome da tag é obrigatório"),
     color: z.string().optional(),
   })).optional(),
-}).refine(data => {
-  // Validação adicional: se não tiver telefone principal, pelo menos um contato é obrigatório
-  if (!data.phone && (!data.contacts || !data.contacts.some(c => c.type === ContactType.PHONE || c.type === ContactType.MOBILE))) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Telefone principal ou contato de telefone é obrigatório",
-  path: ["phone"],
 });
 
 // Schema base para Update (sem validação extra)
@@ -114,8 +107,8 @@ const UpdatePatientSchemaBase = z.object({
   cpf: z.string().regex(cpfRegex, "CPF inválido. Use formato: 123.456.789-00"),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de nascimento inválida. Use formato: YYYY-MM-DD"),
   gender: z.nativeEnum(Gender),
-  phone: z.string().regex(phoneRegex, "Telefone inválido. Use formato: (11) 99999-9999"),
-  whatsapp: z.string().regex(phoneRegex, "WhatsApp inválido. Use formato: (11) 99999-9999").optional().or(z.literal("")),
+  phone: z.string().regex(digitsOnlyRegex, "Telefone deve conter apenas números").optional().or(z.literal("")),
+  whatsapp: z.string().regex(digitsOnlyRegex, "WhatsApp deve conter apenas números").optional().or(z.literal("")),
   email: z.string().email("E-mail inválido").optional().or(z.literal("")),
   origin: z.nativeEnum(PatientOrigin),
   status: z.nativeEnum(PatientStatus).optional().default(PatientStatus.ACTIVE),
@@ -221,10 +214,8 @@ export function formatCPF(cpf: string): string {
   return cpf;
 }
 
-export function formatPhone(phone: string): string {
-  const cleaned = phone.replace(/[^\d]/g, '');
-  if (cleaned.length === 11) {
-    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
-  }
-  return phone;
+// Telefone/WhatsApp são exibidos EXATAMENTE como armazenados (sem máscara).
+// Mantida como passthrough null-safe por compatibilidade com chamadas existentes.
+export function formatPhone(phone: string | null | undefined): string {
+  return phone ?? '';
 }

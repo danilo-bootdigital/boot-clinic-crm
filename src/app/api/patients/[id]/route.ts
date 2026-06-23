@@ -16,8 +16,9 @@ const UpdatePatientInputSchema = z.object({
   // Data de nascimento: precisa ser uma data válida (string inválida → 400, não 500).
   birthDate: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Data de nascimento inválida').optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']).optional(),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional().nullable(),
+  // Telefone/WhatsApp: sem máscara/formato; quando preenchidos aceitam apenas dígitos.
+  phone: z.string().regex(/^\d*$/, 'Telefone deve conter apenas números').optional(),
+  whatsapp: z.string().regex(/^\d*$/, 'WhatsApp deve conter apenas números').optional().nullable(),
   // E-mail validado igual ao create (aceita vazio/nulo p/ limpar).
   email: z.string().email('E-mail inválido').optional().or(z.literal('')).nullable(),
   origin: z.enum(['GOOGLE', 'FACEBOOK', 'INSTAGRAM', 'REFERRAL', 'WALK_IN', 'PHONE', 'WHATSAPP', 'OTHER']).optional(),

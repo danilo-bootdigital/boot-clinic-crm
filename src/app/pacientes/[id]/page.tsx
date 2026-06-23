@@ -17,7 +17,6 @@ import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
-import { formatPhone } from '@/lib/validations/patient'
 
 const ORIGIN_LABELS: Record<string, string> = {
   GOOGLE: 'Google', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', REFERRAL: 'Indicação',
@@ -138,8 +137,8 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
               <Field label="CPF" value={patient.cpf} />
               <Field label="Nascimento" value={patient.birthDate ? new Date(patient.birthDate).toLocaleDateString('pt-BR') : '—'} />
               <Field label="Gênero" value={GENDER_LABELS[patient.gender] || patient.gender} />
-              <Field label="Telefone" value={patient.phone ? formatPhone(patient.phone) : '—'} />
-              <Field label="WhatsApp" value={patient.whatsapp ? formatPhone(patient.whatsapp) : '—'} />
+              <Field label="Telefone" value={patient.phone || '—'} />
+              <Field label="WhatsApp" value={patient.whatsapp || '—'} />
               <Field label="E-mail" value={patient.email || '—'} />
               <Field label="Endereço" value={patient.address || '—'} />
               <Field label="Cidade" value={patient.city || '—'} />
