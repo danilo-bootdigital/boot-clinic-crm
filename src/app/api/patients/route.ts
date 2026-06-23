@@ -14,8 +14,9 @@ const CreatePatientInputSchema = z.object({
   cpf: z.string().min(1, 'CPF é obrigatório'),
   birthDate: z.string(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
-  phone: z.string().min(1, 'Telefone é obrigatório'),
-  whatsapp: z.string().optional(),
+  // Telefone não é mais obrigatório. Quando preenchido, aceita apenas dígitos (sem máscara/formato).
+  phone: z.string().regex(/^\d*$/, 'Telefone deve conter apenas números').optional(),
+  whatsapp: z.string().regex(/^\d*$/, 'WhatsApp deve conter apenas números').optional(),
   email: z.string().email('E-mail inválido').optional().or(z.literal('')),
   origin: z.enum(['GOOGLE', 'FACEBOOK', 'INSTAGRAM', 'REFERRAL', 'WALK_IN', 'PHONE', 'WHATSAPP', 'OTHER']),
   status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
@@ -172,7 +173,8 @@ export async function POST(request: NextRequest) {
         cpf: validatedData.cpf,
         birthDate: new Date(validatedData.birthDate),
         gender: validatedData.gender,
-        phone: validatedData.phone,
+        // Coluna phone é não-nula no schema; sem telefone gravamos string vazia (valor cru, sem máscara).
+        phone: validatedData.phone || '',
         whatsapp: validatedData.whatsapp || null,
         email: validatedData.email || null,
         origin: validatedData.origin,

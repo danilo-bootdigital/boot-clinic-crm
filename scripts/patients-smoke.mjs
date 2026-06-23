@@ -70,7 +70,7 @@ async function main() {
     const cpf = '123.456.' + String(Math.floor(100 + Math.random() * 899)) + '-00'
     const create = await c.req('POST', '/api/patients', {
       name: 'Paciente Smoke', cpf, birthDate: '1990-05-10', gender: 'MALE',
-      phone: '(11) 99999-0000', email: 'paciente.smoke@example.com', origin: 'OTHER',
+      phone: '11999990000', email: 'paciente.smoke@example.com', origin: 'OTHER',
       address: 'Rua Teste, 100', city: 'São Paulo', state: 'SP', zipCode: '01000-000',
       insurance: 'Amil', insuranceNumber: '99887766', notes: 'Observação inicial',
     })
@@ -86,8 +86,8 @@ async function main() {
       ? ok('GET [id] traz dados completos (endereço/convênio)') : fail('GET [id] sem novos campos: ' + JSON.stringify(get.json))
 
     console.log('\n== EDITAR ==')
-    const upd = await c.req('PUT', `/api/patients/${pid}`, { phone: '(11) 98888-7777', notes: 'Observação editada' })
-    upd.status === 200 && upd.json.phone === '(11) 98888-7777' ? ok('editado') : fail('editar: ' + JSON.stringify(upd.json))
+    const upd = await c.req('PUT', `/api/patients/${pid}`, { phone: '11988887777', notes: 'Observação editada' })
+    upd.status === 200 && upd.json.phone === '11988887777' ? ok('editado') : fail('editar: ' + JSON.stringify(upd.json))
 
     console.log('\n== TIMELINE ==')
     const tlGet = await c.req('GET', `/api/patients/${pid}/timeline`)

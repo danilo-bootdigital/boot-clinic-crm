@@ -13,7 +13,7 @@ interface PatientFormData {
   cpf: string;
   birthDate: string;
   gender: string;
-  phone: string;
+  phone?: string;
   whatsapp?: string;
   email?: string;
   origin: string;
@@ -154,13 +154,14 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
 
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-1">
-              Telefone *
+              Telefone
             </label>
             <Input
               type="tel"
+              inputMode="numeric"
               id="phone"
               {...register('phone')}
-              placeholder="(00) 00000-0000"
+              placeholder="Somente números (ex.: 11999999999)"
               className="w-full"
             />
             {errors.phone && (
@@ -174,9 +175,10 @@ export default function PatientForm({ patient, onSubmit, onCancel }: PatientForm
             </label>
             <Input
               type="tel"
+              inputMode="numeric"
               id="whatsapp"
               {...register('whatsapp')}
-              placeholder="(00) 00000-0000"
+              placeholder="Somente números (ex.: 11999999999)"
               className="w-full"
             />
           </div>
