@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Wallet, Plus, TrendingUp, AlertTriangle, CircleDollarSign, Clock } from 'lucide-react'
+import { Wallet, Plus, TrendingUp, AlertTriangle, CircleDollarSign, Clock, Download } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { NewReceivableForm } from '@/components/financial/NewReceivableForm'
 import { FinanceTabs } from '@/components/financial/FinanceTabs'
 import { financialCan } from '@/lib/financial-caps'
 import { brl, formatDate, RECEIVABLE_STATUS_LABELS, STATUS_TONE } from '@/lib/financial-format'
+import { downloadCsv, csvMoney, dateStamp } from '@/lib/csv'
 
 interface Summary {
   faturado: number; recebido: number; emAberto: number; vencido: number
@@ -52,6 +53,22 @@ export default function FinanceiroPage() {
 
   const canCreate = financialCan(role, 'create')
 
+  const exportCsv = () => {
+    downloadCsv(
+      `contas-a-receber-${dateStamp()}`,
+      ['Paciente', 'Descrição', 'Emissão', 'Valor', 'Saldo', 'Parcelas', 'Status'],
+      rows.map((r) => [
+        r.patientName || 'Paciente',
+        r.description,
+        formatDate(r.issueDate),
+        csvMoney(r.finalAmount),
+        csvMoney(r.balance),
+        r.installmentsCount,
+        RECEIVABLE_STATUS_LABELS[r.displayStatus] || r.displayStatus,
+      ]),
+    )
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <PageHeader
@@ -87,6 +104,11 @@ export default function FinanceiroPage() {
             <option value="PAGO">Pago</option>
             <option value="CANCELADO">Cancelado</option>
           </FilterSelect>
+        }
+        actions={
+          <Button variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+            <Download className="mr-1.5 h-4 w-4" />Exportar CSV
+          </Button>
         }
       />
 

@@ -11,6 +11,7 @@ export function FinanceTabs({ role }: { role: string }) {
   const tabs = [
     { href: '/financeiro/dashboard', label: 'Dashboard', show: payableCan(role, 'view') },
     { href: '/financeiro', label: 'Receber', show: true },
+    { href: '/financeiro/inadimplencia', label: 'Inadimplência', show: financialCan(role, 'view') },
     { href: '/financeiro/pagar', label: 'Pagar', show: payableCan(role, 'view') },
     { href: '/financeiro/fluxo-caixa', label: 'Fluxo de caixa', show: payableCan(role, 'view') },
     { href: '/financeiro/categorias', label: 'Categorias', show: financialCan(role, 'view') || payableCan(role, 'view') },
@@ -19,7 +20,7 @@ export function FinanceTabs({ role }: { role: string }) {
   ].filter((t) => t.show)
 
   // "Receber" é o fallback: ativo quando NÃO está numa sub-rota específica.
-  const SUBROUTES = ['/financeiro/pagar', '/financeiro/categorias', '/financeiro/centros-custo', '/financeiro/fornecedores', '/financeiro/fluxo-caixa', '/financeiro/dashboard']
+  const SUBROUTES = ['/financeiro/pagar', '/financeiro/categorias', '/financeiro/centros-custo', '/financeiro/fornecedores', '/financeiro/fluxo-caixa', '/financeiro/dashboard', '/financeiro/inadimplencia']
   const isReceber = !SUBROUTES.some((p) => pathname.startsWith(p))
 
   const items = tabs.map((t) => ({
