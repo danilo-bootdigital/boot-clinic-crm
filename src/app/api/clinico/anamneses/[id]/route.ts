@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         where: { id: params.id },
         data: {
           ...(d.title !== undefined && { title: d.title }),
+          ...(d.notes !== undefined && { notes: d.notes && d.notes.trim() ? d.notes : null }),
           ...(d.status !== undefined && { status: d.status }),
           ...(markReviewed && { reviewedById: dbUser!.id, reviewedAt: new Date() }),
         },

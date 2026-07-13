@@ -970,6 +970,10 @@ model PatientAnamnesis {
   appointmentId      String?
   teleconsultationId String?
   title              String
+  // Texto livre da anamnese: conteúdo principal no modo "sem modelo" e
+  // observações complementares no modo com modelo. TEXT (sem limite artificial),
+  // nullable p/ compatibilidade com registros anteriores à coluna.
+  notes              String?         @db.Text
   status             AnamnesisStatus @default(DRAFT)
   createdById        String
   reviewedById       String?

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const { dbUser, patient, error } = await resolveClinicalPatientAccess(params.id, 'anamnese', 'edit');
     if (error) return error;
     const d = CreatePatientAnamnesisSchema.parse(await request.json());
+    const notes = d.notes?.trim() ? d.notes : null;
 
     // Se referencia um modelo, valida posse pela empresa.
     if (d.templateId) {
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         where: { id: d.templateId, companyId: dbUser!.companyId, deletedAt: null },
       });
       if (!tpl) return NextResponse.json({ error: 'Modelo de anamnese inválido' }, { status: 400 });
+    } else if (!notes) {
+      // Modo texto livre: o conteúdo passa a ser obrigatório.
+      return NextResponse.json({ error: 'Informe o conteúdo da anamnese', field: 'notes' }, { status: 400 });
     }
 
     const anamnesis = await prisma.patientAnamnesis.create({
@@ -43,6 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         patientId: patient!.id,
         templateId: d.templateId || null,
         title: d.title,
+        notes,
         status: d.status || 'DRAFT',
         createdById: dbUser!.id,
         answers: d.answers?.length

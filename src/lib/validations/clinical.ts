@@ -53,6 +53,8 @@ export const CreateAnamnesisTemplateSchema = z.object({
 export const CreatePatientAnamnesisSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   templateId: z.string().optional(),
+  // Texto livre — sem limite artificial de caracteres.
+  notes: z.string().optional(),
   status: z.enum(ANAMNESIS_STATUSES).optional(),
   answers: z.array(z.object({
     questionId: z.string().optional(),
@@ -64,6 +66,8 @@ export const CreatePatientAnamnesisSchema = z.object({
 
 export const UpdatePatientAnamnesisSchema = z.object({
   title: z.string().min(1).optional(),
+  // Texto livre — sem limite artificial. `null` limpa o campo; ausência preserva.
+  notes: z.string().nullable().optional(),
   status: z.enum(ANAMNESIS_STATUSES).optional(),
   answers: z.array(z.object({
     questionId: z.string().optional(),
