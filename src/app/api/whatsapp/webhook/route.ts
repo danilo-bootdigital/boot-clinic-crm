@@ -15,7 +15,12 @@ import { hashPayload, newCorrelationId, safeEqualToken, logWebhookEvent, type We
 //    servidor, exige o header `x-webhook-secret` (comparação em tempo constante).
 //    Sem a env, o comportamento atual é mantido (transição sem quebrar webhooks).
 //  - Cap de tamanho do corpo p/ evitar abuso; idempotência preservada no ingest.
-const MAX_WEBHOOK_BYTES = 6 * 1024 * 1024; // generoso p/ QR/base64; ajustável
+//
+// NOTA de plataforma: na Vercel, o corpo de uma Serverless Function é limitado a
+// ~4.5 MB pela própria infra — então mídia inbound NÃO é recebida via base64 no
+// webhook; ela é BAIXADA sob demanda da Evolution (ver ingest de mídia). Este cap
+// é uma 2ª barreira; o teto efetivo em produção é o da Vercel.
+const MAX_WEBHOOK_BYTES = 6 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   const correlationId = newCorrelationId();
@@ -44,13 +49,27 @@ export async function POST(request: NextRequest) {
       await logWebhookEvent({ eventType, status: 'REJECTED', correlationId, errorMessage: 'payload grande' });
       return NextResponse.json({ error: 'Payload muito grande' }, { status: 413 });
     }
+    // Content-Type: a Evolution envia application/json. Se vier declarado e não for
+    // JSON, rejeita (415). Ausência é tolerada p/ não quebrar clientes minimalistas.
+    const contentType = request.headers.get('content-type');
+    if (contentType && !contentType.toLowerCase().includes('json')) {
+      await logWebhookEvent({ eventType, status: 'REJECTED', correlationId, errorMessage: 'content-type inválido' });
+      return NextResponse.json({ error: 'Content-Type deve ser application/json' }, { status: 415 });
+    }
     const raw = await request.text();
     if (raw.length > MAX_WEBHOOK_BYTES) {
       await logWebhookEvent({ eventType, status: 'REJECTED', correlationId, errorMessage: 'payload grande' });
       return NextResponse.json({ error: 'Payload muito grande' }, { status: 413 });
     }
     payloadHash = hashPayload(raw);
-    const body = ((): any => { try { return JSON.parse(raw); } catch { return {}; } })();
+    // JSON inválido é erro do cliente → 400 explícito (não vira {} silenciosamente).
+    let body: any;
+    try {
+      body = raw ? JSON.parse(raw) : {};
+    } catch {
+      await logWebhookEvent({ eventType, status: 'REJECTED', correlationId, payloadHash, errorMessage: 'json inválido' });
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
+    }
 
     // Multiempresa: o token identifica a INSTÂNCIA (número) destinatária — e, por
     // ela, a clínica. Cada instância da Evolution usa a URL com o seu próprio token.

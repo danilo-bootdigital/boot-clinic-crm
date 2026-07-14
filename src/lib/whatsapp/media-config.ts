@@ -68,8 +68,15 @@ export function hasPathTraversal(name: string): boolean {
   return /\.\.|[\/\\]|\0/.test(String(name));
 }
 
-// Sniff de magic-bytes para os tipos onde é barato/possível (defesa em profundidade;
-// sem dependência externa). Retorna o MIME real detectado ou null (indeterminado).
+// Tipos "container" que a assinatura sozinha NÃO desambigua:
+//  - ZIP (PK\x03\x04): docx/xlsx (e muitos outros) compartilham a mesma assinatura;
+//  - OLE (D0CF11E0): doc/xls legados compartilham a mesma assinatura.
+// Por isso o sniff retorna o container e a validação decide a compatibilidade.
+export const CONTAINER_ZIP = 'application/zip';
+export const CONTAINER_OLE = 'application/x-ole-storage';
+
+// Sniff de magic-bytes (defesa em profundidade; sem dependência externa). Retorna o
+// MIME/container real detectado, ou null quando indeterminado (ex.: text/plain, csv).
 export function sniffMime(bytes: Uint8Array): string | null {
   const b = bytes;
   const ascii = (i: number, s: string) => s.split('').every((c, k) => b[i + k] === c.charCodeAt(0));
@@ -79,7 +86,29 @@ export function sniffMime(bytes: Uint8Array): string | null {
   if (b.length >= 12 && ascii(0, 'RIFF') && ascii(8, 'WAVE')) return 'audio/wav';
   if (b.length >= 4 && ascii(0, '%PDF')) return 'application/pdf';
   if (b.length >= 4 && ascii(0, 'OggS')) return 'audio/ogg';
-  return null; // indeterminado → confia no MIME declarado + extensão (validado à parte)
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && (b[2] === 0x03 || b[2] === 0x05 || b[2] === 0x07)) return CONTAINER_ZIP;
+  if (b.length >= 8 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return CONTAINER_OLE;
+  return null; // indeterminado (ex.: text/plain, text/csv) — ver limitação em contentMatchesDeclared
+}
+
+// Decide se o conteúdo detectado é compatível com o MIME declarado.
+// Honesto sobre limites: text/plain e text/csv NÃO têm assinatura → não dá para
+// verificar por bytes (retorna true; a defesa fica no MIME+extensão+tamanho e no
+// ponto de extensão de antivírus). Isso EVITA falsa sensação de segurança.
+export function contentMatchesDeclared(detected: string | null, declared: string): boolean {
+  if (!detected) return true; // indeterminado (csv/txt) — não rejeita por bytes
+  if (detected === CONTAINER_ZIP) {
+    // Office moderno (docx/xlsx) é ZIP. Aceita só se o declarado é um desses.
+    return declared === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      || declared === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+  if (detected === CONTAINER_OLE) {
+    // Office legado (doc/xls) é OLE.
+    return declared === 'application/msword' || declared === 'application/vnd.ms-excel';
+  }
+  // Tipos concretos (jpeg/png/webp/pdf/ogg/wav): exige correspondência exata
+  // (pega spoof até dentro da mesma categoria, ex.: png declarado com bytes jpeg).
+  return detected === declared;
 }
 
 export function sha256(bytes: Uint8Array): string {
@@ -128,8 +157,9 @@ export function validateWhatsappMedia(input: MediaValidationInput): MediaValidat
   if (bytes) {
     if (bytes.length !== sizeBytes) return { ok: false, error: 'Tamanho declarado difere do conteúdo' };
     detectedMime = sniffMime(bytes);
-    // Se detectamos algo, ele precisa bater com a categoria declarada (evita spoof).
-    if (detectedMime && categoryForMime(detectedMime) !== category) {
+    // Anti-spoof: quando dá para verificar por bytes, o conteúdo tem que ser
+    // compatível com o MIME declarado (containers Office tratados à parte).
+    if (!contentMatchesDeclared(detectedMime, declaredMime)) {
       return { ok: false, error: 'Conteúdo do arquivo não corresponde ao tipo declarado' };
     }
     checksum = sha256(bytes);

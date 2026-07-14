@@ -34,6 +34,14 @@ describe('pathBelongsToCompany', () => {
     expect(pathBelongsToCompany('c1/../c2/x', 'c1')).toBe(false);
     expect(pathBelongsToCompany('/c1/x', 'c1')).toBe(false);
   });
+  it('bloqueia prefixo parcial: "abc" não acessa paths de "abcd"', () => {
+    expect(pathBelongsToCompany('abcd/conv/x.jpg', 'abc')).toBe(false);
+    expect(pathBelongsToCompany('abc/conv/x.jpg', 'abc')).toBe(true);
+  });
+  it('bloqueia segmento vazio e backslash', () => {
+    expect(pathBelongsToCompany('c1//x', 'c1')).toBe(false);
+    expect(pathBelongsToCompany('c1\\x', 'c1')).toBe(false);
+  });
 });
 
 describe('createWhatsappMediaSignedUrl — isolamento', () => {

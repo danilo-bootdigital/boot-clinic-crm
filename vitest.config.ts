@@ -8,6 +8,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Integração (Postgres real) roda à parte via `npm run test:integration`.
+    exclude: ['**/node_modules/**', '**/*.integration.test.ts'],
     globals: false,
   },
   resolve: {

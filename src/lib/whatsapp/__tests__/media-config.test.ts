@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateWhatsappMedia, categoryForMime, maxBytesForMime, sanitizeFileName,
   hasPathTraversal, sniffMime, sha256, MEDIA_LIMITS,
+  contentMatchesDeclared, CONTAINER_ZIP, CONTAINER_OLE,
 } from '@/lib/whatsapp/media-config';
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
@@ -92,5 +93,48 @@ describe('validateWhatsappMedia', () => {
     const r = validateWhatsappMedia({ declaredMime: 'image/jpeg', fileName: 'a.jpg', sizeBytes: 999, bytes });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/difere/i);
+  });
+});
+
+describe('media-config: arquivos Office e limites do sniff (sem falsa segurança)', () => {
+  const ZIP = (() => { const a = new Uint8Array(2048); a.set([0x50, 0x4b, 0x03, 0x04]); return a; })();
+  const OLE = (() => { const a = new Uint8Array(2048); a.set([0xd0, 0xcf, 0x11, 0xe0]); return a; })();
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  it('detecta container ZIP e OLE', () => {
+    expect(sniffMime(ZIP)).toBe(CONTAINER_ZIP);
+    expect(sniffMime(OLE)).toBe(CONTAINER_OLE);
+  });
+
+  it('contentMatchesDeclared: ZIP compatível só com docx/xlsx', () => {
+    expect(contentMatchesDeclared(CONTAINER_ZIP, DOCX)).toBe(true);
+    expect(contentMatchesDeclared(CONTAINER_ZIP, XLSX)).toBe(true);
+    expect(contentMatchesDeclared(CONTAINER_ZIP, 'application/pdf')).toBe(false);
+  });
+
+  it('contentMatchesDeclared: OLE compatível só com doc/xls', () => {
+    expect(contentMatchesDeclared(CONTAINER_OLE, 'application/msword')).toBe(true);
+    expect(contentMatchesDeclared(CONTAINER_OLE, 'application/vnd.ms-excel')).toBe(true);
+    expect(contentMatchesDeclared(CONTAINER_OLE, DOCX)).toBe(false);
+  });
+
+  it('aceita DOCX real (bytes ZIP + MIME docx)', () => {
+    const r = validateWhatsappMedia({ declaredMime: DOCX, fileName: 'doc.docx', sizeBytes: 2048, bytes: ZIP });
+    expect(r.ok).toBe(true);
+  });
+
+  it('rejeita spoof: PDF declarado com bytes ZIP', () => {
+    const r = validateWhatsappMedia({ declaredMime: 'application/pdf', fileName: 'x.pdf', sizeBytes: 2048, bytes: ZIP });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/não corresponde/i);
+  });
+
+  it('LIMITAÇÃO honesta: text/csv não tem assinatura → aceito por MIME+extensão', () => {
+    const bytes = new TextEncoder().encode('a,b,c\n1,2,3\n');
+    expect(sniffMime(bytes)).toBeNull();
+    const r = validateWhatsappMedia({ declaredMime: 'text/csv', fileName: 'planilha.csv', sizeBytes: bytes.length, bytes });
+    expect(r.ok).toBe(true);
+    expect(r.detectedMime).toBeNull();
   });
 });

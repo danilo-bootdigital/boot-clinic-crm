@@ -15,16 +15,28 @@ export function isWhatsappStorageConfigured() {
 }
 
 async function ensureBucket(admin: NonNullable<ReturnType<typeof createAdminClient>>) {
-  const { data } = await admin.storage.getBucket(BUCKET);
-  if (!data) await admin.storage.createBucket(BUCKET, { public: false }).catch(() => {});
+  const { data, error } = await admin.storage.getBucket(BUCKET);
+  if (data) return; // já existe
+  // Diferencia "bucket inexistente" de erro de permissão/rede: só cria no 1º caso.
+  const msg = (error?.message || '').toLowerCase();
+  const notFound = !error || msg.includes('not found') || msg.includes('does not exist') || (error as any)?.status === 404;
+  if (!notFound) throw new Error(`Storage indisponível: ${error?.message || 'erro ao consultar bucket'}`);
+  const { error: createErr } = await admin.storage.createBucket(BUCKET, { public: false });
+  // Corrida: outro request criou primeiro → "already exists" é ok.
+  if (createErr && !/already exists/i.test(createErr.message || '')) {
+    throw new Error(`Falha ao criar bucket privado: ${createErr.message}`);
+  }
 }
 
-// Um path pertence à empresa quando começa por "<companyId>/". Bloqueia acesso
-// cross-company a signed URL / delete, mesmo que o path venha adulterado.
+// Um path pertence à empresa quando o PRIMEIRO segmento é exatamente o companyId.
+// Valida por segmentos (não só startsWith): bloqueia traversal, path absoluto,
+// segmentos vazios e o caso "abc" vs "abcd".
 export function pathBelongsToCompany(path: string, companyId: string): boolean {
   if (!companyId || !path) return false;
-  if (path.includes('..') || path.startsWith('/')) return false;
-  return path === companyId || path.startsWith(`${companyId}/`);
+  if (path.startsWith('/') || path.includes('\0') || path.includes('\\')) return false;
+  const segments = path.split('/');
+  if (segments.some((s) => s === '' || s === '.' || s === '..')) return false;
+  return segments[0] === companyId;
 }
 
 export interface WhatsappUploadInput {

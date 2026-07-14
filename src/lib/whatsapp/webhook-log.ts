@@ -39,6 +39,15 @@ export interface WebhookEventLog {
   errorMessage?: string | null;
 }
 
+// Retenção: a tabela cresce a cada webhook. NÃO há limpeza automática ainda — este
+// helper é o ponto de extensão para um cron futuro (ex.: diário) apagar eventos
+// antigos. O índice (companyId, createdAt) e a varredura por createdAt cobrem isso.
+// Retorna quantos foram removidos. NÃO é chamado automaticamente nesta etapa.
+export async function purgeOldWebhookEvents(olderThan: Date): Promise<number> {
+  const res = await prisma.whatsAppWebhookEvent.deleteMany({ where: { createdAt: { lt: olderThan } } });
+  return res.count;
+}
+
 // Grava um evento de webhook (metadados). Silencioso em falha para não afetar a resposta.
 export async function logWebhookEvent(e: WebhookEventLog): Promise<void> {
   try {
