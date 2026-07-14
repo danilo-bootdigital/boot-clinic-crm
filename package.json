@@ -8,6 +8,7 @@
     "start": "next start",
     "start:prod": "prisma migrate deploy && next start",
     "lint": "next lint",
+    "lint:whatsapp": "next lint --dir src/lib/whatsapp --dir src/lib/storage --dir src/app/api/whatsapp --dir src/components/whatsapp --dir src/test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
