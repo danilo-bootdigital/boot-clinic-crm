@@ -12,7 +12,13 @@ const CreateSchema = z.object({
 });
 
 function serialize(m: any) {
-  return { id: m.id, conversationId: m.conversationId, content: m.content, direction: m.direction, isFromPatient: m.direction === 'INCOMING', status: m.status, createdAt: m.createdAt };
+  return {
+    id: m.id, conversationId: m.conversationId, content: m.content,
+    messageType: m.messageType ?? 'TEXT', caption: m.caption ?? null,
+    direction: m.direction, isFromPatient: m.direction === 'INCOMING',
+    status: m.status, sentAt: m.sentAt ?? null, deliveredAt: m.deliveredAt ?? null,
+    readAt: m.readAt ?? null, createdAt: m.createdAt,
+  };
 }
 
 // GET /api/whatsapp/messages?conversationId=
@@ -60,7 +66,14 @@ export async function POST(request: NextRequest) {
     const msg = await prisma.whatsAppMessage.create({
       // externalId = id retornado pela Evolution → o eco fromMe no MESSAGES_UPSERT casa
       // por essa chave e NÃO é gravado de novo. source=CRM distingue do envio pelo celular.
-      data: { companyId: dbUser!.companyId, conversationId: conv.id, instanceId: usedInstanceId, externalId: sent.messageId ?? null, source: 'CRM', content: d.content, direction: 'OUTGOING', status },
+      data: {
+        companyId: dbUser!.companyId, conversationId: conv.id, instanceId: usedInstanceId,
+        externalId: sent.messageId ?? null, source: 'CRM', content: d.content,
+        messageType: 'TEXT', direction: 'OUTGOING', status,
+        createdByUserId: dbUser!.id,
+        sentAt: status === 'SENT' ? new Date() : null,
+        failedAt: status === 'FAILED' ? new Date() : null,
+      },
     });
     await prisma.whatsAppConversation.update({
       where: { id: conv.id },

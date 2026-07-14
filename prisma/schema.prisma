@@ -568,12 +568,82 @@ model WhatsAppMessage {
   status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
   createdAt      DateTime @default(now())
 
-  instance WhatsAppInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  // --- Mídia/omnichannel (aditivo; mantidos como String p/ não quebrar linhas antigas) ---
+  messageType       String? // TEXT | IMAGE | AUDIO | VIDEO | DOCUMENT | STICKER | ... (null = legado TEXT)
+  caption           String?   @db.Text // legenda de mídia (separada de `content`)
+  replyToMessageId  String? // id LOCAL da mensagem citada (sem FK — mesmo padrão escalar do módulo)
+  replyToExternalId String? // key.id do WhatsApp citado (quando só temos a referência externa)
+  sentAt            DateTime? // carimbos de ciclo de vida (preenchidos quando a Evolution reportar)
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+  errorCode         String? // código de erro do provedor (sanitizado)
+  errorMessage      String? // mensagem de erro sanitizada (nunca payload cru)
+  createdByUserId   String? // autor no CRM (null = recebida / celular / histórico)
+  // Backfill seguro: linhas antigas recebem now() ao aplicar a coluna.
+  updatedAt         DateTime  @default(now()) @updatedAt
+
+  instance    WhatsAppInstance?    @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  attachments WhatsAppAttachment[]
 
   @@index([conversationId, createdAt])
+  @@index([companyId, createdAt])
   // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
   @@unique([instanceId, externalId])
   @@map("whatsapp_messages")
+}
+
+// Anexo de mídia de uma mensagem (imagem/áudio/documento). Uma mensagem pode ter
+// N anexos. Guarda SOMENTE o caminho interno no storage privado (nunca URL assinada).
+// companyId escalar (mesmo padrão de WhatsAppMessage/Conversation) p/ filtro por empresa;
+// FK em messageId com cascade impede anexo órfão.
+model WhatsAppAttachment {
+  id               String    @id @default(cuid())
+  companyId        String
+  messageId        String
+  storagePath      String // caminho interno no bucket privado (ex.: companyId/convId/msgId/uuid-nome)
+  originalFileName String? // nome original (apenas exibição — NUNCA usado no path)
+  mimeType         String
+  sizeBytes        Int?
+  checksum         String? // sha-256 do conteúdo (integridade / dedup futura)
+  durationSeconds  Int? // áudio/vídeo
+  width            Int? // imagem/vídeo
+  height           Int?
+  providerMediaId  String? // id da mídia na Evolution (para baixar depois)
+  providerUrl      String? // URL temporária do provedor (transitória; não é fonte de verdade)
+  scanStatus       String    @default("PENDING") // PENDING | CLEAN | INFECTED | SKIPPED (ponto de extensão p/ antivírus)
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime? // soft delete (padrão do projeto)
+
+  message WhatsAppMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([messageId])
+  @@map("whatsapp_attachments")
+}
+
+// Observabilidade do webhook — metadados p/ diagnóstico SEM payload cru (LGPD).
+// Guarda apenas hash do payload + campos essenciais. Retenção a ser definida (limpeza
+// periódica futura por createdAt). companyId nulável: eventos com token inválido
+// são registrados ANTES de resolver a clínica.
+model WhatsAppWebhookEvent {
+  id            String   @id @default(cuid())
+  companyId     String? // null quando o token não resolve uma clínica
+  instanceId    String?
+  eventType     String // qrcode | connection | contacts | chats | messages.upsert | ...
+  messageType   String? // quando aplicável (TEXT/IMAGE/...)
+  externalId    String? // key.id, quando houver
+  status        String // RECEIVED | PROCESSED | SKIPPED | DUPLICATE | REJECTED | FAILED
+  payloadHash   String? // sha-256 do corpo (correlação sem guardar conteúdo)
+  correlationId String? // id de correlação por requisição
+  errorMessage  String? // erro sanitizado (nunca payload/segredo)
+  attempts      Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([instanceId, externalId])
+  @@index([eventType])
+  @@map("whatsapp_webhook_events")
 }
 
 model WhatsAppQuickReply {

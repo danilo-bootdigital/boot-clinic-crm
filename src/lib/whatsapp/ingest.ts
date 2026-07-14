@@ -17,6 +17,44 @@ export function extractText(m: any): string | undefined {
   );
 }
 
+// Tipos de mensagem reconhecidos (usado para não descartar mídia silenciosamente).
+export type WaMessageType =
+  | 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'DOCUMENT'
+  | 'STICKER' | 'LOCATION' | 'CONTACT' | 'UNSUPPORTED';
+
+// Classifica um objeto `message` do WhatsApp. Retorna null quando não há conteúdo
+// utilizável (ex.: reação/presence/protocolo) — esse caso pode ser ignorado.
+export function classifyMessage(m: any): WaMessageType | null {
+  if (!m || typeof m !== 'object') return null;
+  if (m.conversation || m.extendedTextMessage) return 'TEXT';
+  if (m.imageMessage) return 'IMAGE';
+  if (m.audioMessage) return 'AUDIO';
+  if (m.videoMessage) return 'VIDEO';
+  if (m.documentMessage || m.documentWithCaptionMessage) return 'DOCUMENT';
+  if (m.stickerMessage) return 'STICKER';
+  if (m.locationMessage || m.liveLocationMessage) return 'LOCATION';
+  if (m.contactMessage || m.contactsArrayMessage) return 'CONTACT';
+  // Só protocolo/reação/efêmero → sem conteúdo utilizável.
+  if (m.reactionMessage || m.protocolMessage || m.senderKeyDistributionMessage) return null;
+  // Chegou algo com estrutura mas de tipo não mapeado.
+  return 'UNSUPPORTED';
+}
+
+// Placeholder INTERNO e controlado (PT-BR, sem payload) para mídia ainda não baixada.
+// A coluna messageType guarda o tipo real para a futura UI renderizar corretamente.
+export function mediaPlaceholder(type: WaMessageType): string {
+  switch (type) {
+    case 'IMAGE': return '📷 Imagem';
+    case 'AUDIO': return '🎤 Áudio';
+    case 'VIDEO': return '🎬 Vídeo';
+    case 'DOCUMENT': return '📎 Documento';
+    case 'STICKER': return '💬 Figurinha';
+    case 'LOCATION': return '📍 Localização';
+    case 'CONTACT': return '👤 Contato';
+    default: return 'Mensagem não suportada';
+  }
+}
+
 // remoteJid → número (ignora sufixo de device "...:12"). Grupos (@g.us) retornam o id cru.
 export function jidToPhone(jid?: string | null): string | undefined {
   if (!jid) return undefined;
@@ -56,7 +94,7 @@ async function resolveConversation(opts: {
   return conv;
 }
 
-export type IngestResult = 'created' | 'duplicate' | 'skipped';
+export type IngestResult = 'created' | 'duplicate' | 'skipped' | 'placeholder';
 
 // Grava UMA mensagem com deduplicação. `fromMe` define direção/origem:
 //  - fromMe=false → INCOMING / source=CONTACT (mensagem do paciente)
@@ -69,14 +107,38 @@ export async function ingestMessage(opts: {
   phone: string;
   name?: string | null;
   text?: string;
+  messageType?: WaMessageType | null; // tipo classificado (TEXT default quando há texto)
   externalId?: string | null;
   fromMe: boolean;
   status?: string;
   createdAt?: Date;
   isHistory?: boolean;
 }): Promise<IngestResult> {
+  if (!opts.phone) return 'skipped';
+
   const text = opts.text;
-  if (!opts.phone || !text) return 'skipped';
+  // messageType: undefined = não informado (callers antigos); null = classificado
+  // como SEM conteúdo utilizável (reação/presence/protocolo) → ignora.
+  const type: WaMessageType | null =
+    opts.messageType !== undefined ? opts.messageType : text ? 'TEXT' : null;
+
+  // Resolução de conteúdo:
+  //  - texto (ou legenda) presente → usa o texto;
+  //  - mídia SEM texto → placeholder controlado (NÃO descarta silenciosamente);
+  //  - sem texto e sem tipo utilizável → 'skipped'.
+  let content: string;
+  let effectiveType: WaMessageType;
+  let isPlaceholder = false;
+  if (text) {
+    content = text;
+    effectiveType = type && type !== 'TEXT' ? type : 'TEXT';
+  } else if (type && type !== 'TEXT') {
+    effectiveType = type;
+    content = mediaPlaceholder(type);
+    isPlaceholder = true;
+  } else {
+    return 'skipped';
+  }
 
   if (opts.externalId) {
     const exists = await prisma.whatsAppMessage.findFirst({
@@ -89,6 +151,8 @@ export async function ingestMessage(opts: {
   const conv = await resolveConversation({ companyId: opts.companyId, instanceId: opts.instanceId, phone: opts.phone, name: opts.name });
   const direction = opts.fromMe ? 'OUTGOING' : 'INCOMING';
   const source = opts.fromMe ? 'MOBILE' : 'CONTACT';
+  // Legenda: quando é mídia COM texto, o texto é a legenda (fica também em `caption`).
+  const caption = effectiveType !== 'TEXT' && !isPlaceholder && text ? text : null;
 
   try {
     await prisma.whatsAppMessage.create({
@@ -98,7 +162,9 @@ export async function ingestMessage(opts: {
         instanceId: conv.instanceId ?? opts.instanceId,
         externalId: opts.externalId ?? null,
         source,
-        content: text,
+        content,
+        messageType: effectiveType,
+        caption,
         direction,
         status: opts.status ?? (opts.fromMe ? 'SENT' : 'RECEIVED'),
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
@@ -113,13 +179,13 @@ export async function ingestMessage(opts: {
   const isNewer = !conv.lastMessageAt || when >= conv.lastMessageAt;
   const data: Record<string, any> = {};
   if (!opts.isHistory || isNewer) {
-    data.lastMessage = text;
+    data.lastMessage = content;
     data.lastMessageAt = when;
   }
   if (!opts.isHistory && direction === 'INCOMING') data.unreadCount = { increment: 1 };
   if (Object.keys(data).length) await prisma.whatsAppConversation.update({ where: { id: conv.id }, data });
 
-  return 'created';
+  return isPlaceholder ? 'placeholder' : 'created';
 }
 
 // Importa um CHAT como conversa (cria a thread se não existir). Usado pelo sync de
