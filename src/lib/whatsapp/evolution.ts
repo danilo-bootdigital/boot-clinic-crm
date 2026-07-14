@@ -233,3 +233,68 @@ export async function sendWhatsappForConversation(
   const res = await sendMessage(instance, phone, text);
   return { ...res, instanceId: instance.id };
 }
+
+// --- Mídia (imagem/documento) ---------------------------------------------------
+// Contrato Evolution v2 (WHATSAPP-BAILEYS): POST /message/sendMedia/{instance} com
+// { number, mediatype, mimetype, media(base64), fileName, caption? } → { key.id }.
+// VALIDADO AO VIVO em v2.3.7 (2026-07-14): JSON+base64 é aceito (201 + key.id);
+// multipart/form-data é REJEITADO ("Unexpected field"). Usamos base64 (não expõe
+// nosso storage privado; envio server→server). Obs.: o servidor RE-PROCESSA a
+// imagem — bytes inválidos → 500; por isso validamos magic-bytes antes de enviar.
+export type EvoMediaType = 'image' | 'document';
+
+export async function sendMediaMessage(
+  instance: InstanceRef,
+  phone: string,
+  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
+): Promise<EvoResult & { messageId?: string }> {
+  const res = await evo<any>(`/message/sendMedia/${encodeURIComponent(instance.instanceName)}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      number: phone.replace(/\D/g, ''),
+      mediatype: opts.mediatype,
+      mimetype: opts.mimetype,
+      media: opts.base64,
+      fileName: opts.fileName,
+      ...(opts.caption ? { caption: opts.caption } : {}),
+    }),
+  });
+  return { ...res, messageId: res.data?.key?.id ?? undefined };
+}
+
+// Envia mídia pela instância da CONVERSA (fallback primária). Espelha sendWhatsappForConversation.
+export async function sendMediaForConversation(
+  conv: { companyId: string; instanceId: string | null },
+  phone: string,
+  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
+): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
+  if (!isEvolutionConfigured()) return { configured: false, ok: false };
+  const instance = conv.instanceId
+    ? await prisma.whatsAppInstance.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
+    : await getPrimaryInstance(conv.companyId);
+  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
+  const res = await sendMediaMessage(instance, phone, opts);
+  return { ...res, instanceId: instance.id };
+}
+
+// Baixa a mídia de uma mensagem recebida (base64), SOB DEMANDA — não dependemos do
+// base64 do webhook (limite ~4.5MB da Vercel). Contrato v2: POST
+// /chat/getBase64FromMediaMessage/{instance} { message } → { base64, mimetype, fileName }.
+// VALIDADO AO VIVO em v2.3.7 (2026-07-14): retorna 201 com base64+mimetype+fileName.
+export async function getMediaBase64(
+  instance: InstanceRef,
+  rawMessage: any,
+): Promise<EvoResult & { base64?: string; mimetype?: string; fileName?: string }> {
+  const res = await evo<any>(`/chat/getBase64FromMediaMessage/${encodeURIComponent(instance.instanceName)}`, {
+    method: 'POST',
+    body: JSON.stringify({ message: rawMessage, convertToMp4: false }),
+  });
+  const d: any = res.data || {};
+  return { ...res, base64: d.base64 ?? d.media ?? undefined, mimetype: d.mimetype ?? undefined, fileName: d.fileName ?? undefined };
+}
+
+// Carrega a instância (com instanceName) por id dentro da empresa — usado p/ resolver
+// a instância antes de baixar mídia inbound.
+export function getInstanceById(id: string, companyId: string) {
+  return prisma.whatsAppInstance.findFirst({ where: { id, companyId } });
+}

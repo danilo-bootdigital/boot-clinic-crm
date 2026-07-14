@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { getPrimaryInstance, findChats, findMessages, isEvolutionConfigured } from '@/lib/whatsapp/evolution';
-import { upsertChatThread, ingestMessage, extractText, jidToPhone } from '@/lib/whatsapp/ingest';
+import { upsertChatThread, ingestMessage, extractText, jidToPhone, classifyMessage } from '@/lib/whatsapp/ingest';
 
 // Import síncrono é LIMITADO para caber no tempo do serverless. Re-rodar importa mais.
 const CHAT_LIMIT = 120;
@@ -68,12 +68,13 @@ export async function POST() {
         phone,
         name: rec?.pushName,
         text,
+        messageType: classifyMessage(rec?.message),
         externalId: rec?.key?.id ?? null,
         fromMe: rec?.key?.fromMe === true,
         createdAt: ts,
         isHistory: true,
       });
-      if (r === 'created') msgCreated++; else if (r === 'duplicate') msgDup++;
+      if (r === 'created' || r === 'placeholder') msgCreated++; else if (r === 'duplicate') msgDup++;
     }
 
     return NextResponse.json({
