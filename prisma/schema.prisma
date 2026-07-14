@@ -580,6 +580,10 @@ model WhatsAppMessage {
   errorCode         String? // código de erro do provedor (sanitizado)
   errorMessage      String? // mensagem de erro sanitizada (nunca payload cru)
   createdByUserId   String? // autor no CRM (null = recebida / celular / histórico)
+  // Estado do PROCESSAMENTO da mídia (distinto de scanStatus do anexo):
+  // null = mensagem sem mídia; PENDING = mídia ainda não baixada/armazenada;
+  // AVAILABLE = arquivo no bucket pronto; FAILED = falha ao baixar/enviar.
+  mediaStatus       String? // null | PENDING | AVAILABLE | FAILED
   // Backfill seguro: linhas antigas recebem now() ao aplicar a coluna.
   updatedAt         DateTime  @default(now()) @updatedAt
 
@@ -942,6 +946,7 @@ enum ActionType {
   RESTORE
   UPLOAD_ATTACHMENT
   DELETE_ATTACHMENT
+  DOWNLOAD_ATTACHMENT // download de mídia (ex.: anexo de WhatsApp) via signed URL
   ADD_TAG
   REMOVE_TAG
   // Operações financeiras (Fase 1)

@@ -72,13 +72,15 @@ describe('webhook — recebimento de texto', () => {
 });
 
 describe('webhook — mídia não some (Etapa E)', () => {
-  it('imagem sem legenda vira placeholder, não é descartada', async () => {
-    const res = await post(TOKEN, msgEvent({ id: 'img1', message: { imageMessage: { mimetype: 'image/jpeg' } } }));
+  // Tipo NÃO suportado nesta etapa (vídeo) → placeholder controlado, sem download.
+  // (Imagem/documento têm fluxo próprio de download — ver webhook-media.test.ts.)
+  it('mídia não suportada (vídeo) vira placeholder, não é descartada', async () => {
+    const res = await post(TOKEN, msgEvent({ id: 'vid1', message: { videoMessage: { mimetype: 'video/mp4' } } }));
     const body = await res.json();
     expect(body.placeholder).toBe(1);
     const m = (await db.whatsAppMessage.findMany({ where: { companyId: COMPANY } }))[0];
-    expect(m.messageType).toBe('IMAGE');
-    expect(m.content).toBe('📷 Imagem');
+    expect(m.messageType).toBe('VIDEO');
+    expect(m.content).toBe('🎬 Vídeo');
   });
 });
 

@@ -103,6 +103,17 @@ export async function createWhatsappMediaSignedUrl(
   return data?.signedUrl || null;
 }
 
+// Lê os bytes da mídia — SOMENTE se o path pertence à empresa do chamador.
+// Usado para reenvio (retry) sem re-upload. Retorna null se cross-company/indisponível.
+export async function downloadWhatsappMediaBytes(path: string, companyId: string): Promise<Uint8Array | null> {
+  if (!pathBelongsToCompany(path, companyId)) return null; // isolamento multiempresa
+  const admin = createAdminClient();
+  if (!admin) return null;
+  const { data, error } = await admin.storage.from(BUCKET).download(path);
+  if (error || !data) return null;
+  return new Uint8Array(await data.arrayBuffer());
+}
+
 // Remove a mídia — SOMENTE se o path pertence à empresa do chamador.
 export async function deleteWhatsappMedia(path: string, companyId: string): Promise<boolean> {
   if (!pathBelongsToCompany(path, companyId)) return false; // isolamento multiempresa

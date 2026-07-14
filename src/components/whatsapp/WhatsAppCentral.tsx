@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { clientValidateFile, formatBytes, CLIENT_ACCEPT_ATTR } from '@/lib/whatsapp/media-client';
+import { WhatsAppMediaBubble } from '@/components/whatsapp/WhatsAppMediaBubble';
 
 interface WhatsAppConversation {
   id: string;
@@ -18,13 +20,25 @@ interface WhatsAppConversation {
   patient?: { name: string };
 }
 
+interface WhatsAppAttachment {
+  id: string;
+  mimeType: string;
+  sizeBytes?: number | null;
+  originalFileName?: string | null;
+}
+
 interface WhatsAppMessage {
   id: string;
   conversationId: string;
   content: string;
+  caption?: string | null;
+  messageType?: string | null;
+  mediaStatus?: string | null;
+  status?: string;
   direction?: 'INCOMING' | 'OUTGOING';
   isFromPatient: boolean;
   createdAt: string;
+  attachment?: WhatsAppAttachment | null;
 }
 
 interface WhatsAppContact {
@@ -53,6 +67,13 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
   const [loading, setLoading] = useState(true);
   const [quickReplies, setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
   const [patientData, setPatientData] = useState<any>(null);
+  // Mídia (imagem/documento)
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carregar conversas
   useEffect(() => {
@@ -170,6 +191,59 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
     setNewMessage(content);
   };
 
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError(null);
+    setSendError(null);
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const v = clientValidateFile({ type: f.type, name: f.name, size: f.size });
+    if (!v.ok) {
+      setFileError(v.error || 'Arquivo inválido');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setFile(f);
+    setFilePreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+  };
+
+  const clearFile = () => {
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setFile(null);
+    setFilePreview(null);
+    setFileError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSendMedia = async () => {
+    if (!file || !selectedConversation || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('conversationId', selectedConversation.id);
+      if (newMessage.trim()) fd.append('caption', newMessage.trim());
+      const res = await fetch('/api/whatsapp/messages/media', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const er = await res.json().catch(() => ({}));
+        setSendError(er.error || 'Falha ao enviar o arquivo');
+        return;
+      }
+      clearFile();
+      setNewMessage('');
+      await loadMessages(selectedConversation.id);
+    } catch {
+      setSendError('Falha ao enviar o arquivo');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRetry = async (messageId: string) => {
+    const res = await fetch(`/api/whatsapp/messages/${messageId}/retry`, { method: 'POST' });
+    if (res.ok && selectedConversation) await loadMessages(selectedConversation.id);
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -270,25 +344,39 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
             {/* Área de Mensagens */}
             <div className="flex-1 overflow-y-auto p-4 bg-muted">
               <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.direction === 'INCOMING' ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        message.direction === 'INCOMING'
-                          ? 'bg-card text-foreground border border-border'
-                          : 'bg-primary text-white'
-                      }`}
-                    >
-                      <p className="text-sm">{message.content}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                {messages.map((message) => {
+                  const isIn = message.direction === 'INCOMING';
+                  const isMedia = message.messageType === 'IMAGE' || message.messageType === 'DOCUMENT';
+                  const showCaption = message.caption || (!isMedia && message.content);
+                  return (
+                    <div key={message.id} className={`flex ${isIn ? 'justify-start' : 'justify-end'}`}>
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          isIn ? 'bg-card text-foreground border border-border' : 'bg-primary text-white'
+                        }`}
+                      >
+                        {isMedia && (
+                          <WhatsAppMediaBubble
+                            messageType={message.messageType as 'IMAGE' | 'DOCUMENT'}
+                            mediaStatus={message.mediaStatus}
+                            attachment={message.attachment}
+                            dark={!isIn}
+                          />
+                        )}
+                        {showCaption && <p className="text-sm whitespace-pre-wrap break-words">{message.caption || message.content}</p>}
+                        <div className="mt-1 flex items-center justify-end gap-1.5">
+                          <span className="text-xs opacity-75">
+                            {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {!isIn && message.status === 'PENDING' && <span className="text-xs opacity-75">· enviando…</span>}
+                          {!isIn && message.status === 'FAILED' && (
+                            <button onClick={() => handleRetry(message.id)} className="text-xs underline opacity-90 hover:opacity-100">falhou · reenviar</button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -322,23 +410,53 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
 
             {/* Área de Envio de Mensagens */}
             <div className="p-4 bg-card border-t border-border">
+              {/* Preview do anexo selecionado */}
+              {file && (
+                <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
+                  {filePreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={filePreview} alt="Pré-visualização" className="h-16 w-16 rounded object-cover" />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded bg-muted text-2xl">📎</div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+                    <p className="text-xs text-muted-foreground">Adicione uma legenda abaixo (opcional).</p>
+                  </div>
+                  <button onClick={clearFile} className="rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted" title="Remover">✕</button>
+                </div>
+              )}
+              {fileError && <p className="mb-2 text-sm text-destructive">{fileError}</p>}
+              {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
+
               <div className="flex items-end space-x-3">
+                <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} className="hidden" onChange={onPickFile} />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                  title="Anexar imagem ou documento"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border text-lg hover:bg-muted disabled:opacity-50"
+                >
+                  📎
+                </button>
                 <div className="flex-1">
                   <Textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Digite sua mensagem..."
+                    onKeyPress={file ? undefined : handleKeyPress}
+                    placeholder={file ? 'Legenda (opcional)…' : 'Digite sua mensagem...'}
                     className="w-full resize-none"
                     rows={2}
                   />
                 </div>
                 <button
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim()}
+                  onClick={file ? handleSendMedia : handleSendMessage}
+                  disabled={sending || (!file && !newMessage.trim())}
                   className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
                 >
-                  Enviar
+                  {sending ? 'Enviando…' : file ? 'Enviar arquivo' : 'Enviar'}
                 </button>
               </div>
 

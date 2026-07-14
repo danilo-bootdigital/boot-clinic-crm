@@ -188,6 +188,69 @@ export async function ingestMessage(opts: {
   return isPlaceholder ? 'placeholder' : 'created';
 }
 
+// Ingestão de mídia recebida (imagem/documento). Cria a mensagem com mediaStatus
+// PENDING e RETORNA o registro — o webhook então baixa o arquivo, cria o anexo e
+// marca AVAILABLE/FAILED. Dedup por (instanceId, externalId) mantida. Se o download
+// falhar depois, a mensagem PERMANECE (não some) com mediaStatus FAILED.
+export async function ingestInboundMedia(opts: {
+  companyId: string;
+  instanceId: string | null;
+  phone: string;
+  name?: string | null;
+  messageType: WaMessageType;
+  caption?: string | null;
+  externalId?: string | null;
+  fromMe: boolean;
+  createdAt?: Date;
+}): Promise<{ status: IngestResult; messageId: string | null; conversationId: string | null }> {
+  if (!opts.phone) return { status: 'skipped', messageId: null, conversationId: null };
+
+  if (opts.externalId) {
+    const exists = await prisma.whatsAppMessage.findFirst({
+      where: { instanceId: opts.instanceId, externalId: opts.externalId },
+      select: { id: true },
+    });
+    if (exists) return { status: 'duplicate', messageId: null, conversationId: null };
+  }
+
+  const conv = await resolveConversation({ companyId: opts.companyId, instanceId: opts.instanceId, phone: opts.phone, name: opts.name });
+  const direction = opts.fromMe ? 'OUTGOING' : 'INCOMING';
+  const source = opts.fromMe ? 'MOBILE' : 'CONTACT';
+  const caption = opts.caption && opts.caption.trim() ? opts.caption : null;
+  const content = caption ?? mediaPlaceholder(opts.messageType);
+
+  let created;
+  try {
+    created = await prisma.whatsAppMessage.create({
+      data: {
+        companyId: opts.companyId,
+        conversationId: conv.id,
+        instanceId: conv.instanceId ?? opts.instanceId,
+        externalId: opts.externalId ?? null,
+        source,
+        content,
+        messageType: opts.messageType,
+        caption,
+        direction,
+        status: 'RECEIVED',
+        mediaStatus: 'PENDING',
+        ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+      },
+    });
+  } catch {
+    return { status: 'duplicate', messageId: null, conversationId: null };
+  }
+
+  const when = opts.createdAt ?? new Date();
+  const isNewer = !conv.lastMessageAt || when >= conv.lastMessageAt;
+  const data: Record<string, any> = {};
+  if (isNewer) { data.lastMessage = content; data.lastMessageAt = when; }
+  if (direction === 'INCOMING') data.unreadCount = { increment: 1 };
+  if (Object.keys(data).length) await prisma.whatsAppConversation.update({ where: { id: conv.id }, data });
+
+  return { status: 'created', messageId: created.id, conversationId: conv.id };
+}
+
 // Importa um CHAT como conversa (cria a thread se não existir). Usado pelo sync de
 // histórico e pelo CHATS_SET. Opcionalmente semeia o preview da última mensagem.
 export async function upsertChatThread(opts: {

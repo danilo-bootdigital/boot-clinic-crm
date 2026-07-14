@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { ingestMessage, upsertContact, extractText, jidToPhone, classifyMessage } from '@/lib/whatsapp/ingest';
+import { ingestMessage, ingestInboundMedia, upsertContact, extractText, jidToPhone, classifyMessage } from '@/lib/whatsapp/ingest';
+import { downloadAndStoreInboundMedia } from '@/lib/whatsapp/media-inbound';
 import { hashPayload, newCorrelationId, safeEqualToken, logWebhookEvent, type WebhookStatus } from '@/lib/whatsapp/webhook-log';
 
 // POST /api/whatsapp/webhook?token=... - recebe mensagens da Evolution API.
@@ -73,13 +74,15 @@ export async function POST(request: NextRequest) {
 
     // Multiempresa: o token identifica a INSTÂNCIA (número) destinatária — e, por
     // ela, a clínica. Cada instância da Evolution usa a URL com o seu próprio token.
+    let instanceName: string | null = null;
     const instance = await prisma.whatsAppInstance.findFirst({
       where: { webhookToken: token },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, instanceName: true },
     });
     if (instance) {
       companyId = instance.companyId;
       instanceId = instance.id;
+      instanceName = instance.instanceName;
     } else {
       // Transição (legado): token por CLÍNICA (companies.whatsappWebhookToken).
       const company = await prisma.company.findFirst({
@@ -91,9 +94,10 @@ export async function POST(request: NextRequest) {
         const primary = await prisma.whatsAppInstance.findFirst({
           where: { companyId: company.id },
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true },
+          select: { id: true, instanceName: true },
         });
         instanceId = primary?.id ?? null;
+        instanceName = primary?.instanceName ?? null;
       }
     }
     if (!companyId) {
@@ -183,7 +187,9 @@ export async function POST(request: NextRequest) {
       } else {
         raws = Array.isArray(d) ? d : d?.messages || (d ? [d] : []);
       }
-      let created = 0, dup = 0, placeholder = 0, skipped = 0;
+      // Mídia suportada nesta etapa: imagem e documento (baixadas sob demanda).
+      const SUPPORTED_MEDIA = new Set(['IMAGE', 'DOCUMENT']);
+      let created = 0, dup = 0, placeholder = 0, skipped = 0, media = 0, mediaFailed = 0;
       let firstType: string | null = null;
       let firstExternalId: string | null = null;
       for (const msg of raws) {
@@ -194,6 +200,27 @@ export async function POST(request: NextRequest) {
         if (!firstType) firstType = mtype;
         if (!firstExternalId) firstExternalId = msg?.key?.id ?? null;
         const ts = msg?.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000) : undefined;
+
+        // IMAGEM/DOCUMENTO: cria a mensagem (mediaStatus PENDING) e baixa o arquivo.
+        // Se o download falhar, a mensagem PERMANECE (placeholder, mediaStatus FAILED).
+        if (mtype && SUPPORTED_MEDIA.has(mtype) && instanceName) {
+          const ing = await ingestInboundMedia({
+            companyId, instanceId, phone, name: msg?.pushName,
+            messageType: mtype, caption: text ?? null,
+            externalId: msg?.key?.id ?? null, fromMe: msg?.key?.fromMe === true, createdAt: ts,
+          });
+          if (ing.status === 'duplicate') { dup++; continue; }
+          if (ing.status !== 'created' || !ing.messageId || !ing.conversationId) { skipped++; continue; }
+          created++;
+          const r = await downloadAndStoreInboundMedia({
+            instance: { instanceName }, rawMessage: msg,
+            message: { id: ing.messageId, companyId: companyId!, conversationId: ing.conversationId },
+          });
+          if (r === 'available') media++; else if (r === 'failed') mediaFailed++;
+          continue;
+        }
+
+        // Texto e demais tipos: comportamento atual (texto ou placeholder controlado).
         const r = await ingestMessage({
           companyId,
           instanceId,
@@ -213,7 +240,7 @@ export async function POST(request: NextRequest) {
       }
       const status: WebhookStatus =
         created + placeholder > 0 ? 'PROCESSED' : dup > 0 ? 'DUPLICATE' : 'SKIPPED';
-      return logAndRespond(status, { created, placeholder, duplicate: dup, skipped, total: raws.length }, firstType, firstExternalId);
+      return logAndRespond(status, { created, placeholder, media, mediaFailed, duplicate: dup, skipped, total: raws.length }, firstType, firstExternalId);
     }
 
     // Evento não tratado (ex.: presence, message ack) — aceita sem erro.

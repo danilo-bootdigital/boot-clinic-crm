@@ -12,12 +12,16 @@ const CreateSchema = z.object({
 });
 
 function serialize(m: any) {
+  const att = m.attachments?.find((a: any) => !a.deletedAt) ?? null;
   return {
     id: m.id, conversationId: m.conversationId, content: m.content,
     messageType: m.messageType ?? 'TEXT', caption: m.caption ?? null,
+    mediaStatus: m.mediaStatus ?? null,
     direction: m.direction, isFromPatient: m.direction === 'INCOMING',
     status: m.status, sentAt: m.sentAt ?? null, deliveredAt: m.deliveredAt ?? null,
     readAt: m.readAt ?? null, createdAt: m.createdAt,
+    // Nunca expõe storagePath — só metadados + o id p/ buscar a signed URL sob demanda.
+    attachment: att ? { id: att.id, mimeType: att.mimeType, sizeBytes: att.sizeBytes, originalFileName: att.originalFileName } : null,
   };
 }
 
@@ -39,7 +43,11 @@ export async function GET(request: NextRequest) {
     // Marca como lida.
     if (conv.unreadCount > 0) await prisma.whatsAppConversation.update({ where: { id: conv.id }, data: { unreadCount: 0 } });
 
-    const msgs = await prisma.whatsAppMessage.findMany({ where: { conversationId, companyId: dbUser!.companyId }, orderBy: { createdAt: 'asc' } });
+    const msgs = await prisma.whatsAppMessage.findMany({
+      where: { conversationId, companyId: dbUser!.companyId },
+      include: { attachments: { where: { deletedAt: null } } },
+      orderBy: { createdAt: 'asc' },
+    });
     return NextResponse.json(msgs.map(serialize));
   } catch (err) {
     console.error('Erro ao listar mensagens:', err);

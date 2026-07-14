@@ -94,6 +94,7 @@ export interface PrismaMock {
   whatsAppInstance: Table;
   whatsAppConversation: Table;
   whatsAppMessage: Table;
+  whatsAppAttachment: Table;
   whatsAppWebhookEvent: Table;
   company: Table;
   auditLog: Table;
@@ -105,13 +106,14 @@ export function makePrismaMock(): PrismaMock {
     whatsAppInstance: new Table('inst', { unique: ['instanceName'] }),
     whatsAppConversation: new Table('conv'),
     whatsAppMessage: new Table('msg', { unique: ['instanceId', 'externalId'] }),
+    whatsAppAttachment: new Table('att'),
     whatsAppWebhookEvent: new Table('whev'),
     company: new Table('company'),
     auditLog: new Table('audit'),
     __reset() {
       for (const t of [
         mock.whatsAppInstance, mock.whatsAppConversation, mock.whatsAppMessage,
-        mock.whatsAppWebhookEvent, mock.company, mock.auditLog,
+        mock.whatsAppAttachment, mock.whatsAppWebhookEvent, mock.company, mock.auditLog,
       ]) t.rows = [];
     },
   };

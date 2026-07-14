@@ -55,6 +55,20 @@ export function maxBytesForMime(mime: string): number | null {
   return cat ? MEDIA_LIMITS[cat] : null;
 }
 
+// Extensão canônica p/ um MIME permitido (1ª da lista). Usada para nomear mídia
+// recebida quando o provedor não envia fileName. null se MIME não permitido.
+export function extensionForMime(mime: string): string | null {
+  const cat = categoryForMime(mime);
+  if (!cat) return null;
+  return ALLOWED_MEDIA[cat][mime]?.[0] ?? null;
+}
+
+// Nome de arquivo padrão p/ mídia recebida sem nome (ex.: "midia.jpg").
+export function defaultFileNameForMime(mime: string): string | null {
+  const ext = extensionForMime(mime);
+  return ext ? `midia.${ext}` : null;
+}
+
 // Sanitiza o nome para EXIBIÇÃO. Nunca é usado para montar o path (o path usa UUID).
 // Remove diretórios, mantém [\w.-], colapsa e limita o tamanho.
 export function sanitizeFileName(name: string): string {
