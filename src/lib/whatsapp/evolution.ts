@@ -236,8 +236,11 @@ export async function sendWhatsappForConversation(
 
 // --- Mídia (imagem/documento) ---------------------------------------------------
 // Contrato Evolution v2 (WHATSAPP-BAILEYS): POST /message/sendMedia/{instance} com
-// { number, mediatype, mimetype, media(base64|url), fileName, caption? } → { key.id }.
-// Usamos base64 (não expõe nosso storage privado; envio server→server).
+// { number, mediatype, mimetype, media(base64), fileName, caption? } → { key.id }.
+// VALIDADO AO VIVO em v2.3.7 (2026-07-14): JSON+base64 é aceito (201 + key.id);
+// multipart/form-data é REJEITADO ("Unexpected field"). Usamos base64 (não expõe
+// nosso storage privado; envio server→server). Obs.: o servidor RE-PROCESSA a
+// imagem — bytes inválidos → 500; por isso validamos magic-bytes antes de enviar.
 export type EvoMediaType = 'image' | 'document';
 
 export async function sendMediaMessage(
@@ -277,6 +280,7 @@ export async function sendMediaForConversation(
 // Baixa a mídia de uma mensagem recebida (base64), SOB DEMANDA — não dependemos do
 // base64 do webhook (limite ~4.5MB da Vercel). Contrato v2: POST
 // /chat/getBase64FromMediaMessage/{instance} { message } → { base64, mimetype, fileName }.
+// VALIDADO AO VIVO em v2.3.7 (2026-07-14): retorna 201 com base64+mimetype+fileName.
 export async function getMediaBase64(
   instance: InstanceRef,
   rawMessage: any,
