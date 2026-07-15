@@ -71,6 +71,45 @@ describe('webhook — recebimento de texto', () => {
   });
 });
 
+describe('webhook — messages.update (status enviado/entregue/lido)', () => {
+  async function seedOutgoing(externalId: string, status = 'SENT') {
+    const conv = await db.whatsAppConversation.create({ data: { companyId: COMPANY, contactName: 'Zé', contactPhone: '5511999998888', instanceId } });
+    return db.whatsAppMessage.create({ data: { companyId: COMPANY, conversationId: conv.id, instanceId, externalId, direction: 'OUTGOING', content: 'oi', status } });
+  }
+
+  it('DELIVERY_ACK → DELIVERED com deliveredAt', async () => {
+    const m = await seedOutgoing('out1');
+    const res = await post(TOKEN, { event: 'messages.update', data: { keyId: 'out1', status: 'DELIVERY_ACK' } });
+    const body = await res.json();
+    expect(body.updated).toBe(1);
+    const upd = await db.whatsAppMessage.findFirst({ where: { id: m.id } });
+    expect(upd.status).toBe('DELIVERED');
+    expect(upd.deliveredAt).toBeTruthy();
+  });
+
+  it('READ → READ (define readAt e deliveredAt)', async () => {
+    const m = await seedOutgoing('out2', 'DELIVERED');
+    await post(TOKEN, { event: 'messages.update', data: [{ key: { id: 'out2' }, status: 'READ' }] });
+    const upd = await db.whatsAppMessage.findFirst({ where: { id: m.id } });
+    expect(upd.status).toBe('READ');
+    expect(upd.readAt).toBeTruthy();
+  });
+
+  it('não rebaixa: READ não volta para DELIVERED', async () => {
+    const m = await seedOutgoing('out3', 'READ');
+    const res = await post(TOKEN, { event: 'messages.update', data: { keyId: 'out3', status: 'DELIVERY_ACK' } });
+    const body = await res.json();
+    expect(body.updated).toBe(0);
+    expect((await db.whatsAppMessage.findFirst({ where: { id: m.id } })).status).toBe('READ');
+  });
+
+  it('externalId desconhecido é ignorado (sem erro)', async () => {
+    const res = await post(TOKEN, { event: 'messages.update', data: { keyId: 'inexistente', status: 'READ' } });
+    expect(res.status).toBe(200);
+    expect((await res.json()).updated).toBe(0);
+  });
+});
+
 describe('webhook — mídia não some (Etapa E)', () => {
   // Tipo NÃO suportado nesta etapa (vídeo) → placeholder controlado, sem download.
   // (Imagem/documento têm fluxo próprio de download — ver webhook-media.test.ts.)

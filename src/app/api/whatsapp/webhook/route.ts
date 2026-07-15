@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { ingestMessage, ingestInboundMedia, upsertContact, extractText, jidToPhone, classifyMessage } from '@/lib/whatsapp/ingest';
 import { downloadAndStoreInboundMedia } from '@/lib/whatsapp/media-inbound';
+import { ackToStatus, statusPatch } from '@/lib/whatsapp/message-status';
 import { hashPayload, newCorrelationId, safeEqualToken, logWebhookEvent, type WebhookStatus } from '@/lib/whatsapp/webhook-log';
 
 // POST /api/whatsapp/webhook?token=... - recebe mensagens da Evolution API.
@@ -172,6 +173,28 @@ export async function POST(request: NextRequest) {
         n++;
       }
       return logAndRespond('PROCESSED', { processed: n });
+    }
+
+    // MESSAGES_UPDATE: ACK de status (enviado/entregue/lido) das mensagens que ENVIAMOS.
+    // Atualiza status + carimbos, sem rebaixar. Dedup por (instanceId, externalId).
+    if (eventType.includes('messages.update') || eventType.includes('messages_update')) {
+      const list: any[] = Array.isArray(d) ? d : d?.messages || (d ? [d] : []);
+      let updated = 0;
+      for (const u of list) {
+        const extId = u?.keyId || u?.key?.id || u?.id;
+        const raw = u?.status ?? u?.update?.status ?? u?.ack;
+        if (!extId) continue;
+        const next = ackToStatus(raw);
+        if (!next) continue;
+        const msg = await prisma.whatsAppMessage.findFirst({
+          where: { instanceId, externalId: extId, direction: 'OUTGOING' },
+          select: { id: true, status: true, deliveredAt: true, readAt: true },
+        });
+        if (!msg) continue;
+        const patch = statusPatch(msg, next, new Date());
+        if (patch) { await prisma.whatsAppMessage.update({ where: { id: msg.id }, data: patch }); updated++; }
+      }
+      return logAndRespond(updated > 0 ? 'PROCESSED' : 'SKIPPED', { updated, total: list.length });
     }
 
     // MESSAGES_SET (histórico) e MESSAGES_UPSERT (tempo real). Mesma ingestão; o flag

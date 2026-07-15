@@ -109,6 +109,14 @@ export function extractQr(data: any): string | null {
 
 // --- Operações por instância (sempre da clínica) -------------------------------
 
+// Eventos assinados no webhook. MESSAGES_UPDATE traz o ACK de status (enviado/
+// entregue/lido). Sem `events`, a Evolution não entrega nada.
+export const WEBHOOK_EVENTS = [
+  'QRCODE_UPDATED', 'CONNECTION_UPDATE',
+  'MESSAGES_UPSERT', 'MESSAGES_SET', 'MESSAGES_UPDATE',
+  'CHATS_SET', 'CONTACTS_SET',
+];
+
 // Cria a instância na Evolution (QR habilitado). `webhookUrl` aponta o inbound
 // para o endpoint da clínica (com o token dela), quando informado.
 export async function createInstance(instance: InstanceRef, opts?: { webhookUrl?: string }): Promise<EvoResult> {
@@ -118,13 +126,19 @@ export async function createInstance(instance: InstanceRef, opts?: { webhookUrl?
       instanceName: instance.instanceName,
       qrcode: true,
       integration: 'WHATSAPP-BAILEYS',
-      // Evolution v2.1.1: sem `events`, o webhook não recebe nada. Este servidor NÃO
-      // devolve o QR base64 na resposta HTTP do connect — ele chega pelo evento
-      // QRCODE_UPDATED. Inscrevemos: QR (parear) + inbound de mensagens + conexão.
       ...(opts?.webhookUrl
-        ? { webhook: { url: opts.webhookUrl, byEvents: false, base64: true, events: ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_SET', 'CHATS_SET', 'CONTACTS_SET'] } }
+        ? { webhook: { url: opts.webhookUrl, byEvents: false, base64: true, events: WEBHOOK_EVENTS } }
         : {}),
     }),
+  });
+}
+
+// (Re)registra o webhook de uma instância JÁ existente com a lista atual de eventos —
+// usado para "refrescar" instâncias antigas e passarem a receber MESSAGES_UPDATE.
+export async function setInstanceWebhook(instance: InstanceRef, webhookUrl: string): Promise<EvoResult> {
+  return evo(`/webhook/set/${encodeURIComponent(instance.instanceName)}`, {
+    method: 'POST',
+    body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, byEvents: false, base64: true, events: WEBHOOK_EVENTS } }),
   });
 }
 
