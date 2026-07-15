@@ -8,18 +8,19 @@ vi.mock('@/lib/db/prisma', async () => {
 vi.mock('@/lib/api/session', () => ({ resolveModuleUser: vi.fn() }));
 vi.mock('@/lib/api/permissions', () => ({ requirePermission: vi.fn(() => null) }));
 vi.mock('@/lib/storage/whatsapp-storage', () => ({ uploadWhatsappMedia: vi.fn(), deleteWhatsappMedia: vi.fn() }));
-vi.mock('@/lib/whatsapp/evolution', () => ({ sendMediaForConversation: vi.fn() }));
+vi.mock('@/lib/whatsapp/evolution', () => ({ sendMediaForConversation: vi.fn(), sendAudioForConversation: vi.fn() }));
 
 import { prisma } from '@/lib/db/prisma';
 import { POST } from '@/app/api/whatsapp/messages/media/route';
 import { resolveModuleUser } from '@/lib/api/session';
 import { uploadWhatsappMedia, deleteWhatsappMedia } from '@/lib/storage/whatsapp-storage';
-import { sendMediaForConversation } from '@/lib/whatsapp/evolution';
+import { sendMediaForConversation, sendAudioForConversation } from '@/lib/whatsapp/evolution';
 import type { PrismaMock } from '@/test/prisma-mock';
 
 const db = prisma as unknown as PrismaMock;
 
 function jpeg(size = 1024): Uint8Array { const a = new Uint8Array(size); a.set([0xff, 0xd8, 0xff, 0xe0]); return a; }
+function wav(size = 128): Uint8Array { const a = new Uint8Array(size); a.set([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45]); return a; } // RIFF..WAVE
 
 function mediaReq(opts: { bytes: Uint8Array; name: string; type: string; conversationId: string; caption?: string; companyId?: string }) {
   const fd = new FormData();
@@ -37,6 +38,7 @@ beforeEach(async () => {
   vi.mocked(uploadWhatsappMedia).mockReset();
   vi.mocked(deleteWhatsappMedia).mockReset();
   vi.mocked(sendMediaForConversation).mockReset();
+  vi.mocked(sendAudioForConversation).mockReset();
   vi.mocked(uploadWhatsappMedia).mockResolvedValue({ path: 'A/convA/m/uuid-a.jpg', mimeType: 'image/jpeg', sizeBytes: 1024, checksum: 'abc', originalFileName: 'a.jpg' } as any);
   vi.mocked(deleteWhatsappMedia).mockResolvedValue(true);
   convA = await db.whatsAppConversation.create({ data: { companyId: 'A', contactName: 'Zé', contactPhone: '5511999998888', instanceId: 'instA', status: 'OPEN' } });
@@ -72,6 +74,18 @@ describe('POST /messages/media — sucesso', () => {
     const body = await res.json();
     expect(body.status).toBe('PENDING');
     expect(body.mediaStatus).toBe('AVAILABLE');
+  });
+
+  it('ÁUDIO (WAV) → messageType AUDIO, enviado como nota de voz (sendAudioForConversation)', async () => {
+    vi.mocked(uploadWhatsappMedia).mockResolvedValue({ path: 'A/convA/m/uuid.wav', mimeType: 'audio/wav', sizeBytes: 128, checksum: 'z', originalFileName: 'nota.wav' } as any);
+    vi.mocked(sendAudioForConversation).mockResolvedValue({ configured: true, ok: true, messageId: 'ea', instanceId: 'instA' } as any);
+    const res = await POST(mediaReq({ bytes: wav(), name: 'nota.wav', type: 'audio/wav', conversationId: convA.id }));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.messageType).toBe('AUDIO');
+    expect(body.status).toBe('SENT');
+    expect(vi.mocked(sendAudioForConversation)).toHaveBeenCalledOnce();
+    expect(vi.mocked(sendMediaForConversation)).not.toHaveBeenCalled();
   });
 
   it('Evolution falha → FAILED mas anexo é preservado (permite retry)', async () => {

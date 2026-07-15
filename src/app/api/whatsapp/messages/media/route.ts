@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendMediaForConversation } from '@/lib/whatsapp/evolution';
+import { sendMediaForConversation, sendAudioForConversation } from '@/lib/whatsapp/evolution';
 import { uploadWhatsappMedia, deleteWhatsappMedia } from '@/lib/storage/whatsapp-storage';
 import { categoryForMime, validateWhatsappMedia } from '@/lib/whatsapp/media-config';
 import { mediaPlaceholder } from '@/lib/whatsapp/ingest';
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const v = validateWhatsappMedia({ declaredMime, fileName: file.name, sizeBytes: bytes.length, bytes });
     if (!v.ok) return NextResponse.json({ error: v.error, field: 'file' }, { status: 400 });
 
-    const messageType = category === 'image' ? 'IMAGE' : 'DOCUMENT';
+    const messageType = category === 'image' ? 'IMAGE' : category === 'audio' ? 'AUDIO' : 'DOCUMENT';
     const content = caption ?? mediaPlaceholder(messageType as any);
 
     // 1) Mensagem PENDING (âncora do fluxo).
@@ -97,12 +97,12 @@ export async function POST(request: NextRequest) {
     await prisma.whatsAppMessage.update({ where: { id: msg.id }, data: { mediaStatus: 'AVAILABLE' } });
 
     // 4) Envio pela Evolution. Falha NÃO apaga nada → permite reenvio (retry).
+    // Áudio vai como NOTA DE VOZ (sendWhatsAppAudio); imagem/documento via sendMedia.
     const base64 = Buffer.from(bytes).toString('base64');
-    const sent = await sendMediaForConversation(
-      { companyId: dbUser!.companyId, instanceId: conv.instanceId },
-      conv.contactPhone,
-      { mediatype: category === 'image' ? 'image' : 'document', mimetype: up.mimeType, base64, fileName: up.originalFileName, caption: caption ?? undefined },
-    );
+    const convRef = { companyId: dbUser!.companyId, instanceId: conv.instanceId };
+    const sent = category === 'audio'
+      ? await sendAudioForConversation(convRef, conv.contactPhone, base64)
+      : await sendMediaForConversation(convRef, conv.contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: up.mimeType, base64, fileName: up.originalFileName, caption: caption ?? undefined });
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.instanceId ?? null;
 

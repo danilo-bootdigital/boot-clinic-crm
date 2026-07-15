@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db/prisma';
 import { getMediaBase64 } from '@/lib/whatsapp/evolution';
 import { uploadWhatsappMedia } from '@/lib/storage/whatsapp-storage';
-import { categoryForMime, extensionForMime, hasPathTraversal } from '@/lib/whatsapp/media-config';
+import { categoryForMime, extensionForMime, hasPathTraversal, normalizeMime } from '@/lib/whatsapp/media-config';
 
 // Baixa a mídia de uma mensagem recebida (sob demanda, via Evolution), valida,
 // armazena no bucket privado e cria o WhatsAppAttachment; então marca a mensagem
@@ -39,10 +39,11 @@ export async function downloadAndStoreInboundMedia(opts: {
   }
   if (!res.ok || !res.base64) return markFailed('download da mídia indisponível');
 
-  const mime = res.mimetype || '';
+  // Normaliza o MIME do provedor (ex.: "audio/ogg; codecs=opus" → "audio/ogg", "audio/wave" → "audio/wav").
+  const mime = normalizeMime(res.mimetype || '');
   const category = categoryForMime(mime);
   const ext = extensionForMime(mime);
-  if (!category || !ext) return markFailed(`tipo de mídia não suportado: ${mime || 'desconhecido'}`);
+  if (!category || !ext) return markFailed(`tipo de mídia não suportado: ${res.mimetype || 'desconhecido'}`);
 
   let fileName = res.fileName && !hasPathTraversal(res.fileName) ? res.fileName : `midia.${ext}`;
   if (!fileName.toLowerCase().endsWith(`.${ext}`)) fileName = `midia.${ext}`;

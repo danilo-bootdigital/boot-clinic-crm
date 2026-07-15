@@ -3,12 +3,13 @@
 // Espelha os limites/allowlist de media-config (mantidos em sincronia manualmente;
 // o servidor é a fonte da verdade).
 
-export type ClientMediaCategory = 'image' | 'document';
+export type ClientMediaCategory = 'image' | 'document' | 'audio';
 
 const MB = 1024 * 1024;
 export const CLIENT_MEDIA_LIMITS: Record<ClientMediaCategory, number> = {
   image: 10 * MB,
   document: 20 * MB,
+  audio: 16 * MB,
 };
 
 export const CLIENT_ALLOWED_MIME: Record<ClientMediaCategory, string[]> = {
@@ -19,14 +20,22 @@ export const CLIENT_ALLOWED_MIME: Record<ClientMediaCategory, string[]> = {
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ],
+  audio: ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm'],
 };
 
-// Aceito no <input accept=...>
+// Aceito no <input accept=...> (imagem + documento; áudio é pela gravação, não pelo seletor)
 export const CLIENT_ACCEPT_ATTR = [...CLIENT_ALLOWED_MIME.image, ...CLIENT_ALLOWED_MIME.document].join(',');
 
+// Remove parâmetros do MIME do browser (ex.: "audio/webm;codecs=opus").
+function baseMime(mime: string): string {
+  return String(mime || '').split(';')[0].trim().toLowerCase();
+}
+
 export function clientCategoryForMime(mime: string): ClientMediaCategory | null {
-  if (CLIENT_ALLOWED_MIME.image.includes(mime)) return 'image';
-  if (CLIENT_ALLOWED_MIME.document.includes(mime)) return 'document';
+  const m = baseMime(mime);
+  if (CLIENT_ALLOWED_MIME.image.includes(m)) return 'image';
+  if (CLIENT_ALLOWED_MIME.audio.includes(m)) return 'audio';
+  if (CLIENT_ALLOWED_MIME.document.includes(m)) return 'document';
   return null;
 }
 
