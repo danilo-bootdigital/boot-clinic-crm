@@ -436,6 +436,9 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                             {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                           {!isIn && message.status === 'PENDING' && <span className="text-xs opacity-75">· enviando…</span>}
+                          {!isIn && message.status === 'SENT' && <span className="text-xs opacity-75" title="Enviado">✓</span>}
+                          {!isIn && message.status === 'DELIVERED' && <span className="text-xs opacity-75" title="Entregue">✓✓</span>}
+                          {!isIn && message.status === 'READ' && <span className="text-xs font-semibold text-sky-300" title="Lido">✓✓</span>}
                           {!isIn && message.status === 'FAILED' && (
                             <button onClick={() => handleRetry(message.id)} className="text-xs underline opacity-90 hover:opacity-100">falhou · reenviar</button>
                           )}

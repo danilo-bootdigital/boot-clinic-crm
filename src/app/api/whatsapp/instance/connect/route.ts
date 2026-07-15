@@ -7,6 +7,7 @@ import {
   instanceWebhookUrl,
   instanceSummary,
   createInstance,
+  setInstanceWebhook,
   getQrCode,
   extractQr,
   isEvolutionConfigured,
@@ -50,7 +51,9 @@ export async function POST(request: NextRequest) {
         data: { evolutionInstanceId: evoId, qrCode: qr, status: qr ? 'QRCODE' : 'CONNECTING' },
       });
     } else {
-      // Já criada: pede um QR novo (reabre a conexão).
+      // Já criada: refresca os eventos do webhook (p/ instâncias antigas passarem a
+      // receber MESSAGES_UPDATE) e pede um QR novo (reabre a conexão).
+      await setInstanceWebhook({ instanceName: instance.instanceName }, webhookUrl).catch(() => {});
       const conn = await getQrCode({ instanceName: instance.instanceName });
       qr = extractQr(conn.data);
       instance = await prisma.whatsAppInstance.update({
