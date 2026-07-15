@@ -187,8 +187,8 @@ export async function POST(request: NextRequest) {
       } else {
         raws = Array.isArray(d) ? d : d?.messages || (d ? [d] : []);
       }
-      // Mídia suportada nesta etapa: imagem e documento (baixadas sob demanda).
-      const SUPPORTED_MEDIA = new Set(['IMAGE', 'DOCUMENT']);
+      // Mídia suportada (baixada sob demanda): imagem, documento e áudio.
+      const SUPPORTED_MEDIA = new Set(['IMAGE', 'DOCUMENT', 'AUDIO']);
       let created = 0, dup = 0, placeholder = 0, skipped = 0, media = 0, mediaFailed = 0;
       let firstType: string | null = null;
       let firstExternalId: string | null = null;

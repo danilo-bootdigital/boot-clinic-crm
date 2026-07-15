@@ -43,9 +43,24 @@ export const ALLOWED_MEDIA: Record<MediaCategory, Record<string, string[]>> = {
   },
 };
 
+// Normaliza um MIME do provedor: remove parâmetros (";codecs=opus"), baixa caixa e
+// resolve apelidos comuns do WhatsApp (audio/wave→audio/wav, audio/opus→audio/ogg).
+export function normalizeMime(mime: string): string {
+  const base = String(mime || '').split(';')[0].trim().toLowerCase();
+  const ALIASES: Record<string, string> = {
+    'audio/wave': 'audio/wav',
+    'audio/x-wav': 'audio/wav',
+    'audio/x-m4a': 'audio/mp4',
+    'audio/opus': 'audio/ogg',
+    'audio/ogg; codecs=opus': 'audio/ogg',
+  };
+  return ALIASES[base] || base;
+}
+
 export function categoryForMime(mime: string): MediaCategory | null {
+  const norm = normalizeMime(mime);
   for (const cat of Object.keys(ALLOWED_MEDIA) as MediaCategory[]) {
-    if (mime in ALLOWED_MEDIA[cat]) return cat;
+    if (norm in ALLOWED_MEDIA[cat]) return cat;
   }
   return null;
 }
@@ -58,9 +73,10 @@ export function maxBytesForMime(mime: string): number | null {
 // Extensão canônica p/ um MIME permitido (1ª da lista). Usada para nomear mídia
 // recebida quando o provedor não envia fileName. null se MIME não permitido.
 export function extensionForMime(mime: string): string | null {
-  const cat = categoryForMime(mime);
+  const norm = normalizeMime(mime);
+  const cat = categoryForMime(norm);
   if (!cat) return null;
-  return ALLOWED_MEDIA[cat][mime]?.[0] ?? null;
+  return ALLOWED_MEDIA[cat][norm]?.[0] ?? null;
 }
 
 // Nome de arquivo padrão p/ mídia recebida sem nome (ex.: "midia.jpg").
@@ -148,10 +164,12 @@ export interface MediaValidationResult {
 // Valida MIME declarado (allowlist) + extensão + tamanho + nome + (quando há bytes)
 // MIME real por magic-bytes. Retorna motivo de rejeição sem vazar conteúdo.
 export function validateWhatsappMedia(input: MediaValidationInput): MediaValidationResult {
-  const { declaredMime, fileName, sizeBytes, bytes } = input;
+  const { fileName, sizeBytes, bytes } = input;
+  // Normaliza o MIME (ex.: "audio/ogg; codecs=opus" → "audio/ogg", "audio/wave" → "audio/wav").
+  const declaredMime = normalizeMime(input.declaredMime);
 
   const category = categoryForMime(declaredMime);
-  if (!category) return { ok: false, error: `MIME não permitido: ${declaredMime}` };
+  if (!category) return { ok: false, error: `MIME não permitido: ${input.declaredMime}` };
 
   if (hasPathTraversal(fileName)) return { ok: false, error: 'Nome de arquivo inválido' };
   const sanitizedFileName = sanitizeFileName(fileName);
@@ -159,7 +177,7 @@ export function validateWhatsappMedia(input: MediaValidationInput): MediaValidat
   const ext = sanitizedFileName.includes('.') ? sanitizedFileName.split('.').pop()!.toLowerCase() : '';
   const allowedExts = ALLOWED_MEDIA[category][declaredMime];
   if (!ext || !allowedExts.includes(ext)) {
-    return { ok: false, error: `Extensão incompatível com o tipo (${declaredMime})` };
+    return { ok: false, error: `Extensão incompatível com o tipo (${input.declaredMime})` };
   }
 
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) return { ok: false, error: 'Tamanho inválido' };

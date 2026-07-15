@@ -3,6 +3,7 @@ import {
   validateWhatsappMedia, categoryForMime, maxBytesForMime, sanitizeFileName,
   hasPathTraversal, sniffMime, sha256, MEDIA_LIMITS,
   contentMatchesDeclared, CONTAINER_ZIP, CONTAINER_OLE,
+  normalizeMime, extensionForMime,
 } from '@/lib/whatsapp/media-config';
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
@@ -25,6 +26,27 @@ describe('media-config: categorização e limites', () => {
   it('limite por MIME', () => {
     expect(maxBytesForMime('image/png')).toBe(MEDIA_LIMITS.image);
     expect(maxBytesForMime('application/octet-stream')).toBeNull();
+  });
+});
+
+describe('media-config: áudio e normalização de MIME (WhatsApp)', () => {
+  const WAV = (() => { const a = new Uint8Array(64); a.set([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x41,0x56,0x45]); return a; })(); // RIFF....WAVE
+  it('normalizeMime resolve variações do WhatsApp', () => {
+    expect(normalizeMime('audio/ogg; codecs=opus')).toBe('audio/ogg');
+    expect(normalizeMime('audio/wave')).toBe('audio/wav');
+    expect(normalizeMime('audio/opus')).toBe('audio/ogg');
+    expect(normalizeMime('AUDIO/OGG')).toBe('audio/ogg');
+  });
+  it('categoria/extensão de áudio via variações', () => {
+    expect(categoryForMime('audio/ogg; codecs=opus')).toBe('audio');
+    expect(categoryForMime('audio/wave')).toBe('audio');
+    expect(maxBytesForMime('audio/ogg')).toBe(MEDIA_LIMITS.audio);
+    expect(extensionForMime('audio/wave')).toBe('wav');
+  });
+  it('validateWhatsappMedia aceita WAV (bytes RIFF/WAVE)', () => {
+    const r = validateWhatsappMedia({ declaredMime: 'audio/wave', fileName: 'nota.wav', sizeBytes: 64, bytes: WAV });
+    expect(r.ok).toBe(true);
+    expect(r.category).toBe('audio');
   });
 });
 

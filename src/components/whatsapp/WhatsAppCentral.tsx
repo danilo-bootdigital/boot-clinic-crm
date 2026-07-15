@@ -74,6 +74,12 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Gravação de áudio (nota de voz)
+  const [recording, setRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
   // Carregar conversas
   useEffect(() => {
@@ -244,6 +250,67 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
     if (res.ok && selectedConversation) await loadMessages(selectedConversation.id);
   };
 
+  // --- Gravação de áudio (nota de voz) ---
+  const startRecording = async () => {
+    setSendError(null); setFileError(null);
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setSendError('Gravação de áudio não suportada neste navegador.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      setSendError('Não foi possível acessar o microfone.');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (recording) { mediaRecorderRef.current?.stop(); setRecording(false); }
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null); setRecordedUrl(null);
+    chunksRef.current = [];
+  };
+
+  const sendRecording = async () => {
+    if (!recordedBlob || !selectedConversation || sending) return;
+    setSending(true); setSendError(null);
+    try {
+      const ext = (recordedBlob.type.split(';')[0].split('/')[1] || 'webm');
+      const fd = new FormData();
+      fd.append('file', new File([recordedBlob], `nota-de-voz.${ext}`, { type: recordedBlob.type.split(';')[0] || 'audio/webm' }));
+      fd.append('conversationId', selectedConversation.id);
+      const res = await fetch('/api/whatsapp/messages/media', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const er = await res.json().catch(() => ({}));
+        setSendError(er.error || 'Falha ao enviar o áudio');
+        return;
+      }
+      cancelRecording();
+      await loadMessages(selectedConversation.id);
+    } catch {
+      setSendError('Falha ao enviar o áudio');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -346,7 +413,7 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
               <div className="space-y-4">
                 {messages.map((message) => {
                   const isIn = message.direction === 'INCOMING';
-                  const isMedia = message.messageType === 'IMAGE' || message.messageType === 'DOCUMENT';
+                  const isMedia = message.messageType === 'IMAGE' || message.messageType === 'DOCUMENT' || message.messageType === 'AUDIO';
                   const showCaption = message.caption || (!isMedia && message.content);
                   return (
                     <div key={message.id} className={`flex ${isIn ? 'justify-start' : 'justify-end'}`}>
@@ -357,7 +424,7 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                       >
                         {isMedia && (
                           <WhatsAppMediaBubble
-                            messageType={message.messageType as 'IMAGE' | 'DOCUMENT'}
+                            messageType={message.messageType as 'IMAGE' | 'DOCUMENT' | 'AUDIO'}
                             mediaStatus={message.mediaStatus}
                             attachment={message.attachment}
                             dark={!isIn}
@@ -427,6 +494,23 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                   <button onClick={clearFile} className="rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted" title="Remover">✕</button>
                 </div>
               )}
+              {/* Gravação / preview do áudio */}
+              {recording && (
+                <div className="mb-3 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2">
+                  <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-destructive" />
+                  <span className="flex-1 text-sm text-foreground">Gravando áudio…</span>
+                  <button onClick={stopRecording} className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90">Parar</button>
+                  <button onClick={cancelRecording} className="rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted">Cancelar</button>
+                </div>
+              )}
+              {recordedUrl && !recording && (
+                <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio controls src={recordedUrl} className="h-9 flex-1" />
+                  <button onClick={sendRecording} disabled={sending} className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90 disabled:opacity-50">{sending ? 'Enviando…' : 'Enviar áudio'}</button>
+                  <button onClick={cancelRecording} className="rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted" title="Descartar">✕</button>
+                </div>
+              )}
               {fileError && <p className="mb-2 text-sm text-destructive">{fileError}</p>}
               {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
 
@@ -435,11 +519,20 @@ export default function WhatsAppCentral({ onMessageSend }: WhatsAppCentralProps)
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={sending}
+                  disabled={sending || recording || !!recordedUrl}
                   title="Anexar imagem ou documento"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border text-lg hover:bg-muted disabled:opacity-50"
                 >
                   📎
+                </button>
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={sending || !!file || !!recordedUrl}
+                  title={recording ? 'Parar gravação' : 'Gravar áudio'}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border text-lg disabled:opacity-50 ${recording ? 'border-destructive/40 bg-destructive/10' : 'border-border hover:bg-muted'}`}
+                >
+                  🎤
                 </button>
                 <div className="flex-1">
                   <Textarea

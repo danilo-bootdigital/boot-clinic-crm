@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendMediaForConversation } from '@/lib/whatsapp/evolution';
+import { sendMediaForConversation, sendAudioForConversation } from '@/lib/whatsapp/evolution';
 import { downloadWhatsappMediaBytes } from '@/lib/storage/whatsapp-storage';
 import { categoryForMime } from '@/lib/whatsapp/media-config';
 import { writeAudit, ActionType, EntityType } from '@/lib/api/audit';
@@ -45,11 +45,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (!bytes) return NextResponse.json({ error: 'Não foi possível ler a mídia armazenada' }, { status: 409 });
 
     const category = categoryForMime(att.mimeType);
-    const sent = await sendMediaForConversation(
-      { companyId: dbUser!.companyId, instanceId: msg.instanceId ?? conv.instanceId },
-      conv.contactPhone,
-      { mediatype: category === 'image' ? 'image' : 'document', mimetype: att.mimeType, base64: Buffer.from(bytes).toString('base64'), fileName: att.originalFileName || 'arquivo', caption: msg.caption ?? undefined },
-    );
+    const convRef = { companyId: dbUser!.companyId, instanceId: msg.instanceId ?? conv.instanceId };
+    const base64 = Buffer.from(bytes).toString('base64');
+    const sent = category === 'audio'
+      ? await sendAudioForConversation(convRef, conv.contactPhone, base64)
+      : await sendMediaForConversation(convRef, conv.contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: att.mimeType, base64, fileName: att.originalFileName || 'arquivo', caption: msg.caption ?? undefined });
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
 
     const updated = await prisma.whatsAppMessage.update({

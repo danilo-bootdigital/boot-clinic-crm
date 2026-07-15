@@ -241,7 +241,7 @@ export async function sendWhatsappForConversation(
 // multipart/form-data é REJEITADO ("Unexpected field"). Usamos base64 (não expõe
 // nosso storage privado; envio server→server). Obs.: o servidor RE-PROCESSA a
 // imagem — bytes inválidos → 500; por isso validamos magic-bytes antes de enviar.
-export type EvoMediaType = 'image' | 'document';
+export type EvoMediaType = 'image' | 'document' | 'audio';
 
 export async function sendMediaMessage(
   instance: InstanceRef,
@@ -274,6 +274,36 @@ export async function sendMediaForConversation(
     : await getPrimaryInstance(conv.companyId);
   if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
   const res = await sendMediaMessage(instance, phone, opts);
+  return { ...res, instanceId: instance.id };
+}
+
+// Áudio como NOTA DE VOZ (PTT). Contrato v2: POST /message/sendWhatsAppAudio/{instance}
+// { number, audio(base64) } → { key.id }. VALIDADO AO VIVO em v2.3.7 (2026-07-15):
+// 201 + key.id. O servidor converte p/ ogg/opus (renderiza como áudio de voz).
+export async function sendWhatsappAudio(
+  instance: InstanceRef,
+  phone: string,
+  base64: string,
+): Promise<EvoResult & { messageId?: string }> {
+  const res = await evo<any>(`/message/sendWhatsAppAudio/${encodeURIComponent(instance.instanceName)}`, {
+    method: 'POST',
+    body: JSON.stringify({ number: phone.replace(/\D/g, ''), audio: base64 }),
+  });
+  return { ...res, messageId: res.data?.key?.id ?? undefined };
+}
+
+// Envia áudio (nota de voz) pela instância da CONVERSA (fallback primária).
+export async function sendAudioForConversation(
+  conv: { companyId: string; instanceId: string | null },
+  phone: string,
+  base64: string,
+): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
+  if (!isEvolutionConfigured()) return { configured: false, ok: false };
+  const instance = conv.instanceId
+    ? await prisma.whatsAppInstance.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
+    : await getPrimaryInstance(conv.companyId);
+  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
+  const res = await sendWhatsappAudio(instance, phone, base64);
   return { ...res, instanceId: instance.id };
 }
 

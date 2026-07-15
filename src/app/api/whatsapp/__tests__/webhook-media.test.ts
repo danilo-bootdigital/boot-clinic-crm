@@ -78,6 +78,18 @@ describe('webhook — recebimento de mídia (imagem/documento)', () => {
     expect(await db.whatsAppMessage.count({ where: { companyId: COMPANY } })).toBe(1);
   });
 
+  it('ÁUDIO recebido (audio/ogg; codecs=opus) é baixado e armazenado', async () => {
+    vi.mocked(getMediaBase64).mockResolvedValue({ configured: true, ok: true, base64: 'AAAA', mimetype: 'audio/ogg; codecs=opus', fileName: undefined } as any);
+    vi.mocked(uploadWhatsappMedia).mockResolvedValue({ path: `${COMPANY}/c/m/uuid-midia.ogg`, mimeType: 'audio/ogg', sizeBytes: 3, originalFileName: 'midia.ogg' } as any);
+    const res = await post({ event: 'messages.upsert', data: { key: { remoteJid: '5511999998888@s.whatsapp.net', fromMe: false, id: 'aud1' }, message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 3 } } } });
+    const body = await res.json();
+    expect(body.media).toBe(1);
+    const msg = (await db.whatsAppMessage.findMany({ where: { companyId: COMPANY } }))[0];
+    expect(msg.messageType).toBe('AUDIO');
+    expect(msg.mediaStatus).toBe('AVAILABLE');
+    expect(await db.whatsAppAttachment.count({ where: { companyId: COMPANY } })).toBe(1);
+  });
+
   it('tipo não suportado (vídeo) não some — vira placeholder, sem download', async () => {
     const res = await post({ event: 'messages.upsert', data: { key: { remoteJid: '5511999998888@s.whatsapp.net', fromMe: false, id: 'vid1' }, message: { videoMessage: { mimetype: 'video/mp4' } } } });
     const body = await res.json();

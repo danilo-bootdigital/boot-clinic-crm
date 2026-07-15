@@ -25,10 +25,16 @@ describe('media-client: validação de UX', () => {
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/MB/);
   });
-  it('categoria por MIME', () => {
+  it('categoria por MIME (áudio agora suportado, com ;codecs)', () => {
     expect(clientCategoryForMime('image/webp')).toBe('image');
     expect(clientCategoryForMime('text/csv')).toBe('document');
-    expect(clientCategoryForMime('audio/ogg')).toBeNull();
+    expect(clientCategoryForMime('audio/ogg')).toBe('audio');
+    expect(clientCategoryForMime('audio/webm;codecs=opus')).toBe('audio');
+    expect(clientCategoryForMime('video/mp4')).toBeNull();
+  });
+  it('aceita áudio dentro do limite e rejeita acima', () => {
+    expect(clientValidateFile({ type: 'audio/webm', name: 'nota.webm', size: 1000 }).ok).toBe(true);
+    expect(clientValidateFile({ type: 'audio/ogg', name: 'g.ogg', size: CLIENT_MEDIA_LIMITS.audio + 1 }).ok).toBe(false);
   });
 });
 
