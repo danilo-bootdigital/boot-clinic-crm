@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { resolveDbUser, requireSuperAdmin } from '@/lib/api/session';
 import {
   instanceWebhookUrl,
   setInstanceWebhook,
@@ -17,22 +18,34 @@ import {
 // Diferente de /api/whatsapp/instance/connect, aqui NÃO se chama /instance/connect:
 // só troca a URL do webhook. Nenhuma clínica lê QR novo nem perde a sessão pareada.
 //
-// Segurança: `Authorization: Bearer <CRON_SECRET>`, fail-closed (sem CRON_SECRET
-// definido, ninguém entra). É operação de ops, sem sessão de usuário — por isso não
-// grava AuditLog (que exige userId/companyId); o rastro fica no retorno e no console.
+// Segurança — dois caminhos, ambos fail-closed:
+//   1. sessão de SUPER_ADMIN (é assim que o botão do painel /admin chama);
+//   2. `Authorization: Bearer <CRON_SECRET>`, para ops/script sem navegador.
+// O Bearer é verificado primeiro: numa chamada de ops não há cookie de sessão.
+// Não grava AuditLog porque o caminho 2 não tem userId/companyId; o rastro fica no
+// retorno da chamada e no console.
 
 export const dynamic = 'force-dynamic';
 
-function authorized(request: NextRequest): boolean {
+function hasOpsSecret(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
+// Devolve null quando autorizado, ou a NextResponse de recusa.
+async function authorize(request: NextRequest): Promise<NextResponse | null> {
+  if (hasOpsSecret(request)) return null;
+  const { dbUser, error } = await resolveDbUser();
+  if (error) return error;
+  const forbidden = requireSuperAdmin(dbUser!);
+  if (forbidden) return forbidden;
+  return null;
+}
+
 export async function POST(request: NextRequest) {
-  if (!authorized(request)) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  const denied = await authorize(request);
+  if (denied) return denied;
   if (!isEvolutionConfigured()) {
     return NextResponse.json({ error: 'Evolution não configurada' }, { status: 503 });
   }
