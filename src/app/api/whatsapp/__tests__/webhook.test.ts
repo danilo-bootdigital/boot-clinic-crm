@@ -83,16 +83,16 @@ describe('webhook — messages.update (status enviado/entregue/lido)', () => {
     const body = await res.json();
     expect(body.updated).toBe(1);
     const upd = await db.whatsAppMessage.findFirst({ where: { id: m.id } });
-    expect(upd.status).toBe('DELIVERED');
-    expect(upd.deliveredAt).toBeTruthy();
+    expect(upd!.status).toBe('DELIVERED');
+    expect(upd!.deliveredAt).toBeTruthy();
   });
 
   it('READ → READ (define readAt e deliveredAt)', async () => {
     const m = await seedOutgoing('out2', 'DELIVERED');
     await post(TOKEN, { event: 'messages.update', data: [{ key: { id: 'out2' }, status: 'READ' }] });
     const upd = await db.whatsAppMessage.findFirst({ where: { id: m.id } });
-    expect(upd.status).toBe('READ');
-    expect(upd.readAt).toBeTruthy();
+    expect(upd!.status).toBe('READ');
+    expect(upd!.readAt).toBeTruthy();
   });
 
   it('não rebaixa: READ não volta para DELIVERED', async () => {
@@ -100,7 +100,7 @@ describe('webhook — messages.update (status enviado/entregue/lido)', () => {
     const res = await post(TOKEN, { event: 'messages.update', data: { keyId: 'out3', status: 'DELIVERY_ACK' } });
     const body = await res.json();
     expect(body.updated).toBe(0);
-    expect((await db.whatsAppMessage.findFirst({ where: { id: m.id } })).status).toBe('READ');
+    expect((await db.whatsAppMessage.findFirst({ where: { id: m.id } }))!.status).toBe('READ');
   });
 
   it('externalId desconhecido é ignorado (sem erro)', async () => {
