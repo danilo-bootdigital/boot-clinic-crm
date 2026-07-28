@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Plus, Users, Activity } from 'lucide-react'
+import { Building2, Plus, Users, Activity, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatCard } from '@/components/ui/stat-card'
@@ -71,6 +71,7 @@ export default function AdminPage() {
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [resyncing, setResyncing] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/companies', { cache: 'no-store' })
@@ -181,6 +182,26 @@ export default function AdminPage() {
     setMsg({ type: 'ok', text: `Webhook WhatsApp de "${c.name}" gerado. Configure esta URL na instância da Evolution desta clínica:` })
   }
 
+  // Re-registra na Evolution o webhook de TODAS as instâncias, apontando para o
+  // endereço público atual do sistema. Necessário sempre que o domínio muda: a URL
+  // fica gravada absoluta do lado da Evolution e, sem isso, o CRM para de receber
+  // mensagens sem emitir erro. Não força QR novo — a conexão pareada não é tocada.
+  async function resyncWebhooks() {
+    if (!confirm('Re-registrar o webhook de todas as instâncias de WhatsApp na Evolution, apontando para o endereço público atual do sistema?\n\nA conexão pareada de cada clínica NÃO é afetada — ninguém precisa ler QR novo.')) return
+    setMsg(null); setInvoiceUrl(null); setWhatsappUrl(null); setResyncing(true)
+    const res = await fetch('/api/admin/whatsapp/resync-webhooks', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setResyncing(false)
+    if (!res.ok) { setMsg({ type: 'err', text: data.error || 'Falha ao re-registrar os webhooks.' }); return }
+    if (!data.total) { setMsg({ type: 'ok', text: 'Nenhuma instância criada na Evolution ainda — não havia webhook a sincronizar.' }); return }
+    const falhas = (data.results || []).filter((r: { ok: boolean }) => !r.ok).map((r: { instanceName: string }) => r.instanceName)
+    setMsg({
+      type: data.failed ? 'err' : 'ok',
+      text: `${data.ok}/${data.total} instância(s) apontando para ${data.baseUrl}.`
+        + (data.failed ? ` Falharam: ${falhas.join(', ')} — tente de novo ou verifique a Evolution.` : ''),
+    })
+  }
+
   async function setStatus(c: Company, status: Company['status']) {
     const res = await fetch(`/api/admin/companies/${c.id}`, {
       method: 'PATCH',
@@ -219,12 +240,23 @@ export default function AdminPage() {
         description="Gerencie as clínicas assinantes do SaaS"
         icon={<Building2 className="h-5 w-5" />}
         actions={
-          <button
-            onClick={() => { setShowForm((v) => !v); setMsg(null) }}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            <Plus className="h-4 w-4" /> Nova Clínica
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resyncWebhooks}
+              disabled={resyncing}
+              title="Re-registra o webhook de todas as instâncias de WhatsApp na Evolution com o endereço público atual do sistema. Use depois de mudar o domínio."
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${resyncing ? 'animate-spin' : ''}`} />
+              {resyncing ? 'Sincronizando…' : 'Sincronizar webhooks'}
+            </button>
+            <button
+              onClick={() => { setShowForm((v) => !v); setMsg(null) }}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" /> Nova Clínica
+            </button>
+          </div>
         }
       />
 
