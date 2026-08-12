@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, MessageSource } from '@prisma/client';
 import { ingestMessage, ingestInboundMedia, upsertContactProfile } from '@/lib/messaging/ingest';
-import { extractText, jidToPhone, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
+import { extractText, jidToExternalId, jidToPhone, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
 import { downloadAndStoreInboundMedia } from '@/lib/messaging/adapters/whatsapp/media-inbound';
 import { ackToStatus, statusPatch } from '@/lib/messaging/adapters/whatsapp/message-status';
@@ -174,12 +174,12 @@ export async function POST(request: NextRequest) {
     if (eventType.includes('contacts')) {
       const list: any[] = toList(d, 'contacts');
       for (const c of list) {
-        const phone = jidToPhone(c?.id || c?.remoteJid);
-        if (!phone) continue;
+        const externalId = jidToExternalId(c?.id || c?.remoteJid);
+        if (!externalId) continue;
         await upsertContactProfile({
           companyId,
           channel: Channel.WHATSAPP,
-          externalId: phone,
+          externalId,
           name: c?.pushName || c?.name || c?.notify,
           avatarUrl: c?.profilePicUrl || c?.profilePictureUrl,
         });
@@ -192,12 +192,12 @@ export async function POST(request: NextRequest) {
       const list: any[] = toList(d, 'chats');
       let n = 0;
       for (const c of list) {
-        const phone = jidToPhone(c?.id || c?.remoteJid);
-        if (!phone || (c?.id && String(c.id).includes('@g.us'))) continue; // ignora grupos por ora
+        const externalId = jidToExternalId(c?.id || c?.remoteJid);
+        if (!externalId || (c?.id && String(c.id).includes('@g.us'))) continue; // ignora grupos por ora
         await upsertContactProfile({
           companyId,
           channel: Channel.WHATSAPP,
-          externalId: phone,
+          externalId,
           name: c?.name || c?.pushName,
         });
         n++;
@@ -253,8 +253,10 @@ export async function POST(request: NextRequest) {
       let firstType: string | null = null;
       let firstExternalId: string | null = null;
       for (const msg of raws) {
+        // Identidade != telefone: `@lid` é id opaco do WhatsApp, não número.
+        const externalId = jidToExternalId(msg?.key?.remoteJid);
+        if (!externalId || String(msg?.key?.remoteJid || '').includes('@g.us')) { skipped++; continue; } // grupos: fora por ora
         const phone = jidToPhone(msg?.key?.remoteJid);
-        if (!phone || String(msg?.key?.remoteJid || '').includes('@g.us')) { skipped++; continue; } // grupos: fora por ora
         const text = extractText(msg?.message);
         const mtype = classifyMessage(msg?.message);
         if (!firstType) firstType = mtype;
@@ -271,7 +273,7 @@ export async function POST(request: NextRequest) {
               accountId: instanceId,
               source: msg?.key?.fromMe === true ? MessageSource.MOBILE : MessageSource.CONTACT,
             },
-            contact: { externalId: phone, name: msg?.pushName, phone },
+            contact: { externalId, name: msg?.pushName, phone },
             messageKind: mtype, caption: text ?? null,
             externalId: msg?.key?.id ?? null, createdAt: ts,
           });
@@ -296,7 +298,7 @@ export async function POST(request: NextRequest) {
             accountId: instanceId,
             source: msg?.key?.fromMe === true ? MessageSource.MOBILE : MessageSource.CONTACT,
           },
-          contact: { externalId: phone, name: msg?.pushName, phone },
+          contact: { externalId, name: msg?.pushName, phone },
           text,
           messageKind: mtype,
           externalId: msg?.key?.id ?? null,

@@ -211,6 +211,18 @@ export async function findChats(instance: InstanceRef): Promise<EvoResult> {
   return evo(`/chat/findChats/${encodeURIComponent(refName(instance))}`, { method: 'POST', body: JSON.stringify({}) });
 }
 
+/**
+ * Lista os contatos conhecidos pela instância. É a fonte em LOTE dos nomes: o
+ * WhatsApp entrega o `pushName` (nome que a própria pessoa pôs no perfil dela),
+ * que é o que dá para exibir. Nome da agenda do celular não é exposto por API.
+ */
+export async function findContacts(instance: InstanceRef): Promise<EvoResult> {
+  return evo(`/chat/findContacts/${encodeURIComponent(refName(instance))}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 // Lista mensagens (página recente, ou de um remoteJid). Resposta: { messages: { records: [...] } }.
 export async function findMessages(instance: InstanceRef, opts?: { remoteJid?: string }): Promise<EvoResult> {
   const where = opts?.remoteJid ? { key: { remoteJid: opts.remoteJid } } : {};

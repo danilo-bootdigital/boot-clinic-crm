@@ -6,6 +6,7 @@ import { clientValidateFile, formatBytes, CLIENT_ACCEPT_ATTR } from '@/lib/messa
 import { MessageMediaBubble } from '@/components/mensageria/MessageMediaBubble';
 import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/mensageria/ChannelBadge';
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
+import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
 interface WhatsAppConversation {
   id: string;
@@ -20,7 +21,7 @@ interface WhatsAppConversation {
   lastMessageAt?: string;
   unreadCount: number;
   status: string;
-  contact?: { name: string; phone: string };
+  contact?: { id?: string; name: string; phone: string | null };
   messages?: WhatsAppMessage[];
   patient?: { name: string };
 }
@@ -401,11 +402,32 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                     {selectedConversation.contact?.name?.charAt(0) || '?'}
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-foreground">
-                      {selectedConversation.contact?.name || selectedConversation.contact?.phone}
-                    </h3>
+                    {selectedConversation.contact?.id ? (
+                      <EditableContactName
+                        contactId={selectedConversation.contact.id}
+                        value={selectedConversation.contact.name || ''}
+                        fallback={selectedConversation.contact.phone}
+                        onSaved={(nome) => {
+                          // Reflete na lista e no cabeçalho sem recarregar tudo.
+                          setConversations((prev) =>
+                            prev.map((c) =>
+                              c.contactId === selectedConversation.contact?.id
+                                ? { ...c, contact: { ...c.contact!, name: nome }, patientName: nome }
+                                : c
+                            )
+                          );
+                          setSelectedConversation((prev) =>
+                            prev ? { ...prev, contact: { ...prev.contact!, name: nome }, patientName: nome } : prev
+                          );
+                        }}
+                      />
+                    ) : (
+                      <h3 className="text-lg font-medium text-foreground">
+                        {selectedConversation.contact?.name || selectedConversation.contact?.phone}
+                      </h3>
+                    )}
                     <p className="text-sm text-muted-foreground">
-                      {selectedConversation.contact?.phone}
+                      {selectedConversation.contact?.phone || 'sem telefone'}
                     </p>
                   </div>
                 </div>

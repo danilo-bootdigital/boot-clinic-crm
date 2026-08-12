@@ -33,8 +33,32 @@ export function classifyMessage(m: any): MessageKind | null {
   return 'UNSUPPORTED';
 }
 
-// remoteJid → número (ignora sufixo de device "...:12"). Grupos (@g.us) retornam o id cru.
-export function jidToPhone(jid?: string | null): string | undefined {
+// Parte local do jid, sem o sufixo de device ("...:12").
+function jidLocalPart(jid?: string | null): string | undefined {
   if (!jid) return undefined;
   return jid.split('@')[0]?.split(':')[0] || undefined;
+}
+
+/**
+ * IDENTIDADE do contato no canal. Serve para qualquer domínio de jid, inclusive
+ * `@lid` — o identificador de privacidade que o WhatsApp passou a usar e que
+ * NÃO é um telefone.
+ */
+export function jidToExternalId(jid?: string | null): string | undefined {
+  return jidLocalPart(jid);
+}
+
+/**
+ * TELEFONE, e só quando o jid realmente carrega um.
+ *
+ * `@lid` é identidade opaca, não número: gravá-la como telefone enche o cadastro
+ * de "telefones" de 15 dígitos e, pior, o casamento de contato por sufixo de
+ * telefone poderia unir duas pessoas diferentes.
+ */
+export function jidToPhone(jid?: string | null): string | undefined {
+  if (!jid) return undefined;
+  const domain = jid.split('@')[1] ?? '';
+  const isPhoneDomain = domain === 's.whatsapp.net' || domain === 'c.us' || domain === '';
+  if (!isPhoneDomain) return undefined;
+  return jidLocalPart(jid);
 }
