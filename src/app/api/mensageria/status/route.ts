@@ -21,6 +21,11 @@ export async function GET() {
     return NextResponse.json({
       configured,
       hasInstance: !!instance,
+      // Existe linha no NOSSO banco != existe instância na Evolution. A conta é
+      // criada localmente no primeiro status; a instância no provedor só nasce
+      // no connect. Sem distinguir os dois, a tela oferece "Reconectar" para
+      // algo que nunca existiu — e o botão não tem como funcionar.
+      provisioned: !!instance && !!waConfig(instance).evolutionInstanceId,
       status: instance?.status ?? 'DISCONNECTED',
       channel: instance?.channel ?? null,
       phoneNumber: instance?.externalId ?? null,

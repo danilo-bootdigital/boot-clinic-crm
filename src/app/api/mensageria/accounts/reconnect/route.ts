@@ -17,8 +17,21 @@ export async function POST() {
 
     const instance = await getPrimaryInstance(dbUser!.companyId);
     if (!instance) return NextResponse.json({ error: 'Sem instância para reconectar' }, { status: 404 });
-    if (!isEvolutionConfigured() || !waConfig(instance).evolutionInstanceId) {
+    if (!isEvolutionConfigured()) {
       return NextResponse.json({ configured: false, instance: instanceSummary(instance), qrCode: null });
+    }
+    // Não há instância na Evolution para reconectar (conta recém-criada, ou
+    // provedor recriado). O caminho certo é o connect, que cria a instância.
+    // Antes isso devolvia configured:false em silêncio e a tela ficava travada.
+    if (!waConfig(instance).evolutionInstanceId) {
+      return NextResponse.json(
+        {
+          error: 'Esta conta ainda não tem instância na Evolution. Use "Conectar" para criar e ler o QR Code.',
+          needsConnect: true,
+          instance: instanceSummary(instance),
+        },
+        { status: 409 }
+      );
     }
 
     const conn = await reconnectInstance(instance);

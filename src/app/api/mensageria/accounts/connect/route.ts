@@ -43,11 +43,28 @@ export async function POST(request: NextRequest) {
     if (!waConfig(instance).evolutionInstanceId) {
       // 1ª vez: cria a instância na Evolution (QR habilitado + webhook próprio).
       const created = await createInstance(instance, { webhookUrl });
-      if (!created.ok) {
-        return NextResponse.json({ error: 'Falha ao criar instância na Evolution', detail: created.error }, { status: 502 });
+
+      let evoId: string;
+      if (created.ok) {
+        evoId = (created.data as any)?.instance?.instanceId ?? waConfig(instance).instanceName;
+        qr = extractQr(created.data);
+      } else {
+        // ADOÇÃO: o nome da instância é determinístico (clinic_<companyId>), então
+        // ela pode já existir na Evolution mesmo sem registro do nosso lado —
+        // aconteceu na virada para a mensageria, que recriou as tabelas mas não
+        // mexeu no provedor. Nesse caso, em vez de travar, tentamos assumir a
+        // instância existente: registra o webhook e pede um QR novo.
+        const adopted = await setInstanceWebhook(instance, webhookUrl);
+        const conn = adopted.ok ? await getQrCode(instance) : null;
+        if (!adopted.ok || !conn?.ok) {
+          return NextResponse.json(
+            { error: 'Falha ao criar instância na Evolution', detail: created.error },
+            { status: 502 }
+          );
+        }
+        evoId = waConfig(instance).instanceName;
+        qr = extractQr(conn.data);
       }
-      const evoId = (created.data as any)?.instance?.instanceId ?? waConfig(instance).instanceName;
-      qr = extractQr(created.data);
       // createInstance já registra os WEBHOOK_EVENTS atuais → grava a versão p/ nunca
       // re-registrar essa instância recém-criada nos próximos reconnects.
       instance = await prisma.channelAccount.update({

@@ -12,6 +12,8 @@ type WaStatus = 'DISCONNECTED' | 'CONNECTING' | 'QRCODE' | 'CONNECTED' | 'ERROR'
 type StatusResp = {
   configured: boolean
   hasInstance: boolean
+  /** Instância existe NA EVOLUTION (não só a linha no nosso banco). */
+  provisioned?: boolean
   status: WaStatus
   phoneNumber: string | null
   profileName: string | null
@@ -136,21 +138,27 @@ export default function WhatsAppSettings() {
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">{data?.hasInstance ? (data?.label || 'Principal') : 'Nenhuma instância'}</p>
-            <p className="text-xs text-muted-foreground">{data?.hasInstance ? 'Instância principal da clínica' : 'Conecte o WhatsApp para começar'}</p>
+            <p className="text-xs text-muted-foreground">
+              {!data?.hasInstance
+                ? 'Conecte o WhatsApp para começar'
+                : data?.provisioned
+                  ? 'Instância principal da clínica'
+                  : 'Aguardando a primeira conexão'}
+            </p>
           </div>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${meta.cls}`}>{meta.label}</span>
       </div>
 
-      {/* Sem instância → Conectar */}
-      {!data?.hasInstance && (
+      {/* Sem instância NO PROVEDOR → Conectar (é o connect que a cria) */}
+      {data && !data.provisioned && (
         <button className={btnPrimary} disabled={busy !== null} onClick={() => act('connect', '/api/mensageria/accounts/connect', 'POST')}>
           <MessageCircle className="h-4 w-4" />{busy === 'connect' ? 'Conectando…' : 'Conectar WhatsApp'}
         </button>
       )}
 
       {/* Parear: QRCODE / CONNECTING */}
-      {data?.hasInstance && (st === 'QRCODE' || st === 'CONNECTING') && (
+      {data?.provisioned && (st === 'QRCODE' || st === 'CONNECTING') && (
         <div className="space-y-4">
           <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-5">
             {qr ? (
@@ -178,7 +186,7 @@ export default function WhatsAppSettings() {
       )}
 
       {/* Conectado */}
-      {data?.hasInstance && st === 'CONNECTED' && (
+      {data?.provisioned && st === 'CONNECTED' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 px-4 py-3">
             <CheckCircle2 className="h-5 w-5 text-success" />
@@ -201,8 +209,8 @@ export default function WhatsAppSettings() {
         </div>
       )}
 
-      {/* Desconectado / Erro (com instância) → Reconectar (reusa a MESMA instância) */}
-      {data?.hasInstance && (st === 'DISCONNECTED' || st === 'ERROR') && (
+      {/* Desconectado / Erro COM instância no provedor → Reconectar (reusa a mesma) */}
+      {data?.provisioned && (st === 'DISCONNECTED' || st === 'ERROR') && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {st === 'ERROR' ? 'A sessão apresentou erro.' : 'O WhatsApp está desconectado.'} Reconecte para gerar um novo QR Code — a mesma instância e as conversas existentes são mantidas.
