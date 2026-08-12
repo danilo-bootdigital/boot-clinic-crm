@@ -26,7 +26,10 @@ export async function GET() {
 
     const convs = await prisma.conversation.findMany({
       where: { companyId: dbUser!.companyId, deletedAt: null },
-      orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
+      // NULLS LAST é essencial: o Postgres põe NULL PRIMEIRO em DESC, então
+      // conversa sem mensagem nenhuma (importada de findChats) subia para o topo
+      // e enterrava o atendimento real embaixo de centenas de threads vazias.
+      orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       include: {
         contact: { select: { id: true, name: true, phone: true, patientId: true } },
         account: { select: { id: true, label: true, channel: true } },

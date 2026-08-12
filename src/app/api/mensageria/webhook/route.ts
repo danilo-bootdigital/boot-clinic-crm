@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, MessageSource } from '@prisma/client';
 import { ingestMessage, ingestInboundMedia, upsertContactProfile } from '@/lib/messaging/ingest';
-import { extractText, jidToExternalId, jidToPhone, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
+import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
 import { downloadAndStoreInboundMedia } from '@/lib/messaging/adapters/whatsapp/media-inbound';
 import { ackToStatus, statusPatch } from '@/lib/messaging/adapters/whatsapp/message-status';
@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
           externalId,
           name: c?.pushName || c?.name || c?.notify,
           avatarUrl: c?.profilePicUrl || c?.profilePictureUrl,
+          phone: jidToPhone(c?.id || c?.remoteJid),
         });
       }
       return logAndRespond('PROCESSED', { processed: list.length });
@@ -199,6 +200,7 @@ export async function POST(request: NextRequest) {
           channel: Channel.WHATSAPP,
           externalId,
           name: c?.name || c?.pushName,
+          phone: jidToPhone(c?.id || c?.remoteJid),
         });
         n++;
       }
@@ -256,7 +258,8 @@ export async function POST(request: NextRequest) {
         // Identidade != telefone: `@lid` é id opaco do WhatsApp, não número.
         const externalId = jidToExternalId(msg?.key?.remoteJid);
         if (!externalId || String(msg?.key?.remoteJid || '').includes('@g.us')) { skipped++; continue; } // grupos: fora por ora
-        const phone = jidToPhone(msg?.key?.remoteJid);
+        // Remetente `@lid` não traz telefone no jid; alguns payloads mandam à parte.
+        const phone = jidToPhone(msg?.key?.remoteJid) ?? altPhoneFromKey(msg?.key);
         const text = extractText(msg?.message);
         const mtype = classifyMessage(msg?.message);
         if (!firstType) firstType = mtype;

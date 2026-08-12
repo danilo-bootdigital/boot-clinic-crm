@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/api/permissions';
 import { getPrimaryInstance, findChats, findContacts, findMessages, isEvolutionConfigured } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { Channel, MessageSource } from '@prisma/client';
 import { upsertConversationThread, ingestMessage, upsertContactProfile } from '@/lib/messaging/ingest';
-import { extractText, jidToExternalId, jidToPhone, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
+import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
 
 // Import síncrono é LIMITADO para caber no tempo do serverless. Re-rodar importa mais.
 const CHAT_LIMIT = 120;
@@ -49,6 +49,7 @@ export async function POST() {
         externalId,
         name: nome,
         avatarUrl: c?.profilePicUrl || c?.profilePictureUrl || null,
+        phone: jidToPhone(jid),
       });
       contactsNamed++;
     }
@@ -91,7 +92,7 @@ export async function POST() {
     for (const rec of records) {
       const externalId = jidToExternalId(rec?.key?.remoteJid);
       if (!externalId || String(rec?.key?.remoteJid || '').includes('@g.us')) continue;
-      const phone = jidToPhone(rec?.key?.remoteJid);
+      const phone = jidToPhone(rec?.key?.remoteJid) ?? altPhoneFromKey(rec?.key);
       const text = extractText(rec?.message);
       const ts = rec?.messageTimestamp ? new Date(Number(rec.messageTimestamp) * 1000) : undefined;
       const fromMe = rec?.key?.fromMe === true;

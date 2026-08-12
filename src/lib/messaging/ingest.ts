@@ -394,6 +394,8 @@ export async function upsertContactProfile(opts: {
   name?: string | null;
   handle?: string | null;
   avatarUrl?: string | null;
+  /** Só quando o canal informa um telefone DE VERDADE (nunca um `@lid`). */
+  phone?: string | null;
 }) {
   await resolveContact({
     companyId: opts.companyId,
@@ -402,6 +404,7 @@ export async function upsertContactProfile(opts: {
     name: opts.name,
     handle: opts.handle,
     avatarUrl: opts.avatarUrl,
+    phone: opts.phone,
     // Evento de contato é POR CONTATO: cada registro traz o nome do próprio
     // contato, então aqui o nome é confiável.
     nameIsFromContact: true,

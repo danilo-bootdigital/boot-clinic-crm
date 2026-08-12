@@ -49,6 +49,28 @@ export function jidToExternalId(jid?: string | null): string | undefined {
 }
 
 /**
+ * Telefone que ACOMPANHA um remetente `@lid`, quando o provedor o envia.
+ *
+ * Isto é o que permite unificar: a conversa chega chaveada pelo lid, mas o nome
+ * do contato veio pelo telefone (findContacts). Com o telefone em mãos, o
+ * resolveContact anexa a identidade lid ao contato que JÁ tem nome, em vez de
+ * criar um segundo contato anônimo.
+ *
+ * Os nomes de campo são DEFENSIVOS: variam entre versões de Baileys/Evolution
+ * (`senderPn`, `remoteJidAlt`, `participantPn`). Não observei o payload real —
+ * se nenhum vier, a função devolve undefined e nada piora.
+ */
+export function altPhoneFromKey(key: any): string | undefined {
+  if (!key || typeof key !== 'object') return undefined;
+  const candidatos = [key.senderPn, key.remoteJidAlt, key.participantPn, key.participantAlt];
+  for (const c of candidatos) {
+    const phone = jidToPhone(typeof c === 'string' ? c : undefined);
+    if (phone) return phone;
+  }
+  return undefined;
+}
+
+/**
  * TELEFONE, e só quando o jid realmente carrega um.
  *
  * `@lid` é identidade opaca, não número: gravá-la como telefone enche o cadastro

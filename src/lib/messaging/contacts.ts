@@ -57,7 +57,11 @@ export interface ResolveContactInput {
  */
 export async function resolveContact(input: ResolveContactInput) {
   const { companyId, channel, externalId } = input;
-  const phone = normalizePhone(input.phone ?? (channel === Channel.WHATSAPP ? externalId : null));
+  // Telefone vem SÓ do que o chamador afirmou ser telefone. Antes caía no
+  // externalId quando o canal era WhatsApp, e isso gravava `@lid` (identificador
+  // opaco de 15 dígitos) na coluna de telefone — criando "telefones" falsos e,
+  // pior, habilitando o casamento por sufixo a unir duas pessoas diferentes.
+  const phone = normalizePhone(input.phone);
 
   // 1. Identidade exata.
   let identity = await prisma.contactIdentity.findUnique({
