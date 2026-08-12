@@ -43,6 +43,10 @@ redigitação.
    ativa não aparece como se recebesse mensagem.
 6. **Webhook nunca registra payload cru.** Mantém o padrão já existente em
    `WhatsAppWebhookEvent`: hash + metadados sanitizados (LGPD).
+7. **Toda mensagem carrega a etiqueta de procedência.** Canal, conta de entrada
+   e origem do envio são **campos obrigatórios da mensagem**, gravados no
+   ingest — nunca inferidos na tela a partir da conversa. Mensagem sem
+   procedência é bug de ingest, não caso de borda de UI (§4.4).
 
 ---
 
@@ -51,9 +55,10 @@ redigitação.
 | Decisão | Escolha | Consequência |
 |---|---|---|
 | **TikTok** | Adapter pronto, sem integração | Não existe API pública de DM do TikTok. O modelo e a UI suportam `TIKTOK`, mas nenhum conector é ligado. Sem promessa falsa na tela. |
-| **Modelo de dados** | Generalizar as tabelas atuais | `WhatsApp*` → `Conversation`/`Message`/`Attachment` com `channel`. Migration com `RENAME`, histórico preservado, zero código duplicado. |
+| **Modelo de dados** | Generalizar as tabelas atuais | `WhatsApp*` → `Conversation`/`Message`/`Attachment` com `channel`. Um modelo, zero código duplicado. |
 | **Direção** | Receber **e** responder | Envio, status de entrega, retry e as regras de janela de cada canal entram no escopo. |
 | **Identidade** | Criar entidade `Contact` | `Deal` aponta para `Contact`; `Patient` só nasce no agendamento, com CPF e telefone. |
+| **Migração** | **Destrutiva autorizada** | Produção ainda não tem cliente. Autorização explícita do Danilo em 2026-08-12: `DROP` das tabelas `whatsapp_*` e criação limpa das novas, sem `RENAME` e sem backfill. **Esta autorização expira quando o primeiro cliente entrar.** |
 
 ### 2.1 Por que não reescrever do zero
 
@@ -145,7 +150,52 @@ model ContactIdentity {
 }
 ```
 
-### 4.3 Regra de resolução de identidade (o coração do ingest)
+### 4.3 Etiqueta de procedência (regra 7)
+
+"De onde veio" são **três** informações diferentes. Colapsar as três numa só
+etiqueta produz tela que mente — por isso são três campos na `Message`:
+
+| Campo | Pergunta que responde | Valores |
+|---|---|---|
+| `channel` | Por qual plataforma entrou? | `WHATSAPP` \| `INSTAGRAM` \| `TIKTOK` |
+| `channelAccountId` | Em qual conta/número **nosso** caiu? | FK para `ChannelAccount` (ex.: número da Recepção vs. do Comercial) |
+| `source` | Quem produziu esta mensagem? | `CONTACT` (recebida) \| `CRM` (enviada pela tela) \| `MOBILE` (enviada pelo celular, fora do CRM) \| `AUTOMATION` (envio automático) |
+
+O campo `source` **já existe** em `WhatsAppMessage` com exatamente esses três
+primeiros valores. A generalização preserva a semântica e acrescenta
+`AUTOMATION`.
+
+#### Ponto de entrada (quando o canal informa)
+
+Canal que expõe procedência de campanha grava também:
+
+| Campo | Uso |
+|---|---|
+| `entryPoint` | `DIRECT` \| `AD` \| `STORY_REPLY` \| `POST_COMMENT` \| `PROFILE_LINK` \| `LEAD_FORM` |
+| `referral` | `Json?` — payload de referral sanitizado (id do anúncio, id do post, headline). Nunca payload cru completo |
+
+Isso é o que permite responder "esse paciente veio do anúncio ou do orgânico?"
+— e é a ponte natural para o `DealSource` na conversão (§5).
+
+#### Regras de gravação e exibição
+
+1. **O ingest grava a procedência.** `channel`, `channelAccountId` e `source`
+   são obrigatórios no ato da gravação. Não existe caminho que insira mensagem
+   sem eles.
+2. **A tela nunca deduz o canal a partir da conversa.** A etiqueta lê o campo da
+   própria mensagem. Numa thread de contato com identidades em dois canais, as
+   mensagens têm etiquetas diferentes na mesma lista — é justamente o caso que a
+   dedução quebraria.
+3. **Cada bolha exibe a etiqueta**: ícone do canal + nome da conta de entrada.
+   `source` aparece quando **não** é o esperado — mensagem enviada pelo celular
+   fora do CRM precisa estar visivelmente marcada, senão o atendente acha que
+   ninguém respondeu.
+4. **A fila mostra a etiqueta do canal em cada conversa** e filtra por canal e
+   por conta.
+5. **Ícone nunca é a única marcação.** Cor e ícone vêm acompanhados de texto
+   (`aria-label` + rótulo visível ou tooltip) — daltonismo e leitor de tela.
+
+### 4.4 Regra de resolução de identidade (o coração do ingest)
 
 Ao chegar mensagem de `(channel, externalId)`:
 
@@ -184,8 +234,8 @@ A tela de conversa tem um painel de ações. Cada ação é explícita e auditad
 
 | Fase | Entrega | Depende de |
 |---|---|---|
-| **0** | Resolver o WIP do WhatsApp: a migration `20260717120000_add_whatsapp_webhook_events_version` está **criada e não aplicada** em produção. Decidir entre aplicar antes de renomear ou dobrar a coluna na migration de generalização | — |
-| **1** | Schema: renomeações + `Contact`/`ContactIdentity`/`Channel`. Migration com `RENAME` (preserva dados) + backfill de `Contact` a partir de `contactPhone`/`contactName` das conversas existentes | Fase 0 |
+| **0** | ~~Resolver o WIP do WhatsApp~~ **Resolvido pela migração destrutiva:** a migration pendente `20260717120000_add_whatsapp_webhook_events_version` é descartada, e a coluna que ela criava deixa de existir junto com a tabela | — |
+| **1** | Schema: `DROP` das tabelas `whatsapp_*` + criação de `ChannelAccount`/`Conversation`/`Message`/`MessageAttachment`/`ChannelWebhookEvent`/`QuickReply`/`Contact`/`ContactIdentity` com `channel` e procedência (§4.3) | Fase 0 |
 | **2** | Refatorar o núcleo para canal-agnóstico: `ingest`, `webhook-log`, `message-status`, mídia. Adapter WhatsApp encapsula a Evolution. Rotas `/api/whatsapp/*` → `/api/mensageria/*` | Fase 1 |
 | **3** | Tela da mensageria: fila unificada com filtro por canal, thread, envio, painel do contato e painel de conversão | Fase 2 |
 | **4** | Ações de conversão (§5) com auditoria | Fase 3 |
@@ -202,7 +252,7 @@ se faz inteiro, ou não se começa. Não existe estado intermediário que builde
 
 | Risco | Mitigação |
 |---|---|
-| Rename de tabela em produção | `RENAME TABLE`/`RENAME COLUMN` preserva dados, mas é irreversível na prática. Conferir volume das tabelas `whatsapp_*` em produção antes; aplicar em janela combinada |
+| ~~Rename de tabela em produção~~ **Perda de dados na migração** | Aceita e autorizada enquanto não houver cliente (§2). O que se perde são conversas de teste. **Assim que o primeiro cliente entrar, esta linha vira bloqueante** e qualquer mudança nessas tabelas passa a exigir migração preservadora |
 | App Review da Meta | Prazo fora do nosso controle. Fase 5 não bloqueia as fases 1-4 |
 | Expectativa de TikTok | Documentado na regra 5: canal sem conector não finge receber mensagem |
 | Contato duplicado | `@@unique([companyId, channel, externalId])` + merge manual, nunca automático |
