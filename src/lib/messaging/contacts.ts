@@ -5,7 +5,7 @@
 // ContactIdentity. Fusão de contatos é ação MANUAL do atendente — nunca
 // automática por semelhança de nome, senão histórico de uma pessoa vaza para
 // outra.
-import { Channel } from '@prisma/client';
+import { Channel, ContactNameSource } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 
 // Normaliza telefone para dígitos. O WhatsApp entrega o número em formatos que
@@ -32,6 +32,18 @@ export interface ResolveContactInput {
   avatarUrl?: string | null;
   /** Telefone, quando o canal informa separadamente da identidade. */
   phone?: string | null;
+  /**
+   * Se o `name` recebido é confiável como nome DESTE contato.
+   *
+   * No WhatsApp, `pushName` é o nome de QUEM ENVIOU a mensagem. Numa mensagem
+   * `fromMe`, quem enviou é a clínica — então o pushName é o nome do dono do
+   * número, enquanto o telefone é o da outra pessoa. Usar esse nome batiza todos
+   * os contatos com o nome do dono, que é exatamente o bug que aparecia depois
+   * do sync de histórico (cheio de mensagens fromMe).
+   *
+   * Default false: nome só é aceito quando o chamador afirma que é do contato.
+   */
+  nameIsFromContact?: boolean;
 }
 
 /**
@@ -82,10 +94,14 @@ export async function resolveContact(input: ResolveContactInput) {
 
   // 3. Gente nova.
   if (!contact) {
+    const trustedName = input.nameIsFromContact ? input.name?.trim() : undefined;
     contact = await prisma.contact.create({
       data: {
         companyId,
-        name: input.name?.trim() || input.handle?.trim() || externalId,
+        // Sem nome confiável, o identificador do canal serve de nome até uma
+        // mensagem RECEBIDA (ou alguém no CRM) trazer o nome de verdade.
+        name: trustedName || input.handle?.trim() || externalId,
+        nameSource: ContactNameSource.CHANNEL,
         phone: phone ?? null,
       },
     });
@@ -116,7 +132,8 @@ export async function resolveContact(input: ResolveContactInput) {
 
 /**
  * Melhora os dados do contato sem sobrescrever informação melhor por pior.
- * Nome só é promovido quando o atual é o próprio identificador (placeholder).
+ * Nome só é aprendido do canal quando vem de uma mensagem RECEBIDA e quando o
+ * nome atual não foi digitado por uma pessoa (nameSource MANUAL).
  */
 async function enrichContact(
   contactId: string,
@@ -126,15 +143,17 @@ async function enrichContact(
 ) {
   const contact = await prisma.contact.findUnique({
     where: { id: contactId },
-    select: { name: true, phone: true },
+    select: { name: true, phone: true, nameSource: true },
   });
   if (!contact) return;
 
   const contactPatch: Record<string, unknown> = {};
-  const isPlaceholderName =
-    contact.name === identity.externalId || contact.name === input.externalId || contact.name === contact.phone;
-  const incomingName = input.name?.trim();
-  if (incomingName && incomingName !== identity.externalId && isPlaceholderName) {
+  // Nome digitado por uma pessoa no CRM é soberano: o canal nunca sobrescreve.
+  // Nome aprendido do canal pode ser MELHORADO por uma mensagem recebida —
+  // é o que conserta um contato que ficou com nome errado.
+  const incomingName = input.nameIsFromContact ? input.name?.trim() : undefined;
+  const canLearnName = contact.nameSource === ContactNameSource.CHANNEL;
+  if (incomingName && incomingName !== identity.externalId && canLearnName && incomingName !== contact.name) {
     contactPatch.name = incomingName;
   }
   if (!contact.phone && phone) contactPatch.phone = phone;

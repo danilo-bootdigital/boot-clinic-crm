@@ -44,6 +44,11 @@ export interface Provenance {
 interface ContactRef {
   /** Identidade no canal: telefone (WhatsApp), IGSID (Instagram), open_id (TikTok). */
   externalId: string;
+  /**
+   * Nome informado pelo canal. ATENÇÃO: no WhatsApp isso é o `pushName`, que é
+   * o nome de QUEM ENVIOU. O ingest só o aceita como nome do contato quando a
+   * procedência é CONTACT (mensagem recebida) — ver derivação abaixo.
+   */
   name?: string | null;
   handle?: string | null;
   avatarUrl?: string | null;
@@ -172,6 +177,11 @@ export async function ingestMessage(opts: {
     handle: opts.contact.handle,
     avatarUrl: opts.contact.avatarUrl,
     phone: opts.contact.phone,
+    // Ponto único da regra: o nome do canal só vale como nome do CONTATO em
+    // mensagem recebida. Em mensagem que a clínica mandou (CRM/MOBILE), o nome
+    // que vem no payload é o do DONO do número — usá-lo batizaria todos os
+    // contatos com o mesmo nome.
+    nameIsFromContact: opts.provenance.source === MessageSource.CONTACT,
   });
 
   const conversation = await resolveConversation({
@@ -254,6 +264,11 @@ export async function ingestInboundMedia(opts: {
     handle: opts.contact.handle,
     avatarUrl: opts.contact.avatarUrl,
     phone: opts.contact.phone,
+    // Ponto único da regra: o nome do canal só vale como nome do CONTATO em
+    // mensagem recebida. Em mensagem que a clínica mandou (CRM/MOBILE), o nome
+    // que vem no payload é o do DONO do número — usá-lo batizaria todos os
+    // contatos com o mesmo nome.
+    nameIsFromContact: opts.provenance.source === MessageSource.CONTACT,
   });
 
   const conversation = await resolveConversation({
@@ -313,6 +328,12 @@ export async function upsertConversationThread(opts: {
   channel: Channel;
   accountId: string | null;
   contact: ContactRef;
+  /**
+   * O `contact.name` é o nome DESTE contato (e não o do dono do número). Em
+   * eventos de chat o campo certo é o nome do chat — nunca o pushName de uma
+   * mensagem enviada pela clínica.
+   */
+  nameIsFromContact?: boolean;
   lastMessage?: string | null;
   lastMessageAt?: Date | null;
 }): Promise<'created' | 'updated'> {
@@ -324,6 +345,7 @@ export async function upsertConversationThread(opts: {
     handle: opts.contact.handle,
     avatarUrl: opts.contact.avatarUrl,
     phone: opts.contact.phone,
+    nameIsFromContact: opts.nameIsFromContact ?? false,
   });
 
   const existing = await prisma.conversation.findFirst({
@@ -380,5 +402,8 @@ export async function upsertContactProfile(opts: {
     name: opts.name,
     handle: opts.handle,
     avatarUrl: opts.avatarUrl,
+    // Evento de contato é POR CONTATO: cada registro traz o nome do próprio
+    // contato, então aqui o nome é confiável.
+    nameIsFromContact: true,
   });
 }

@@ -48,7 +48,10 @@ export async function POST() {
         companyId: dbUser!.companyId,
         channel: Channel.WHATSAPP,
         accountId: instance.id,
-        contact: { externalId: phone, name: c?.pushName, avatarUrl: c?.profilePicUrl, phone },
+        // `name` do chat é o nome do contato; `pushName` num registro de chat
+        // pode ser o do dono do número — por isso não é usado aqui.
+        contact: { externalId: phone, name: c?.name, avatarUrl: c?.profilePicUrl, phone },
+        nameIsFromContact: true,
         lastMessage: lmText ?? null,
         lastMessageAt: lmText ? lmAt : null,
       });

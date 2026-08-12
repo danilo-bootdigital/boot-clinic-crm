@@ -580,6 +580,13 @@ model ChannelAccount {
   @@map("channel_accounts")
 }
 
+// De onde veio o nome do contato. Existe para o canal poder MELHORAR um nome
+// que ele mesmo aprendeu, sem nunca sobrescrever o que uma pessoa digitou.
+enum ContactNameSource {
+  CHANNEL // aprendido do payload do canal (pushName, handle) — pode ser corrigido
+  MANUAL // digitado por alguém no CRM — o canal nunca sobrescreve
+}
+
 // Pessoa que fala com a clínica por qualquer canal. Pode ainda NÃO ser paciente
 // — é justamente o que permite receber DM de rede social sem CPF (diretriz
 // regra 4). Vira paciente só quando os dados obrigatórios existirem.
@@ -587,7 +594,10 @@ model Contact {
   id        String    @id @default(cuid())
   companyId String
   name      String
-  phone     String? // pode não existir (DM de rede social)
+  // Procedência do nome: ver ContactNameSource. Default CHANNEL porque o caso
+  // comum é o nome chegar do canal.
+  nameSource ContactNameSource @default(CHANNEL)
+  phone      String? // pode não existir (DM de rede social)
   email     String?
   patientId String? // vínculo quando/se virar paciente (FK escalar, padrão do projeto)
   notes     String?

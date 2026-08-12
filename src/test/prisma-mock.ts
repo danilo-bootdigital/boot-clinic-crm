@@ -180,6 +180,11 @@ export function makePrismaMock(): PrismaMock {
   mock.contact.relations = {
     identities: { table: mock.contactIdentity, foreignKey: 'contactId', many: true },
   };
+  // Caminho usado quando a identidade JÁ existe: resolveContact lê
+  // identity.contact para devolver o dono da identidade.
+  mock.contactIdentity.relations = {
+    contact: { table: mock.contact, localKey: 'contactId' },
+  };
 
   return mock;
 }
