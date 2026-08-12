@@ -11,7 +11,7 @@ import {
   subscribePageToWebhook,
 } from '@/lib/messaging/adapters/instagram/graph';
 import { igConfigPatch } from '@/lib/messaging/adapters/instagram/account';
-import { callbackUrl } from '../connect/route';
+import { callbackUrl } from '@/lib/messaging/adapters/instagram/oauth';
 
 // GET /api/mensageria/accounts/instagram/callback?code=...&state=...
 //

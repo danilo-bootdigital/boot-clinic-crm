@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { clientValidateFile, formatBytes, CLIENT_ACCEPT_ATTR } from '@/lib/messaging/media-client';
 import { MessageMediaBubble } from '@/components/mensageria/MessageMediaBubble';
 import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/mensageria/ChannelBadge';
+import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 
 interface WhatsAppConversation {
   id: string;
@@ -420,6 +421,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                     Transferir
                   </button>
                 </div>
+              </div>
+              {/* Conversão (§5): colapsado é um botão; aberto vira painel aqui,
+                  abaixo do cabeçalho, sem cobrir a thread. */}
+              <div className="mt-3">
+                <SendToPipeline conversationId={selectedConversation.id} />
               </div>
             </div>
 

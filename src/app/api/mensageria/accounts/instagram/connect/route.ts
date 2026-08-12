@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac } from 'node:crypto';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { authorizeUrl, isInstagramConfigured } from '@/lib/messaging/adapters/instagram/graph';
 import { isSecretBoxConfigured } from '@/lib/crypto/secret-box';
+import { callbackUrl, signState } from '@/lib/messaging/adapters/instagram/oauth';
 
 // GET /api/mensageria/accounts/instagram/connect
 //
@@ -12,23 +12,6 @@ import { isSecretBoxConfigured } from '@/lib/crypto/secret-box';
 // no callback um token com escopo limitado, revogável a qualquer momento.
 
 export const dynamic = 'force-dynamic';
-
-export function callbackUrl(origin: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || origin;
-  return `${base.replace(/\/$/, '')}/api/mensageria/accounts/instagram/callback`;
-}
-
-/**
- * `state` assinado: carrega a clínica e prova que o callback veio de um fluxo
- * que NÓS iniciamos. Sem isso, alguém induz um admin a abrir um callback
- * forjado e conecta o Instagram do atacante na clínica da vítima (CSRF).
- */
-export function signState(companyId: string, userId: string): string {
-  const secret = process.env.META_APP_SECRET || '';
-  const payload = `${companyId}:${userId}:${Date.now()}`;
-  const sig = createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
-  return Buffer.from(`${payload}:${sig}`).toString('base64url');
-}
 
 export async function GET(request: NextRequest) {
   try {

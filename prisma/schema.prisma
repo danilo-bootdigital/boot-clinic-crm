@@ -280,6 +280,10 @@ model Deal {
   pipelineId        String?
   stageId           String?
   patientId         String?
+  // Contato da mensageria que originou a oportunidade (diretriz §5). Nulável:
+  // deal criado à mão no CRM não tem contato de canal. FK escalar, mesmo padrão
+  // de patientId.
+  contactId         String?
   responsibleUserId String
   lossReasonId      String?
   nextFollowUpAt    DateTime?
@@ -290,6 +294,7 @@ model Deal {
   updatedAt         DateTime   @updatedAt
   deletedAt         DateTime?
 
+  @@index([companyId, contactId])
   @@map("deals")
 }
 
