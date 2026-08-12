@@ -1,3 +1,4 @@
+import { looksLikeGroupId } from '@/lib/messaging/phone';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, MessageSource } from '@prisma/client';
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
       const list: any[] = toList(d, 'contacts');
       for (const c of list) {
         const externalId = jidToExternalId(c?.id || c?.remoteJid);
-        if (!externalId) continue;
+        if (!externalId || looksLikeGroupId(c?.id || c?.remoteJid) || looksLikeGroupId(externalId)) continue;
         await upsertContactProfile({
           companyId,
           channel: Channel.WHATSAPP,
@@ -194,7 +195,7 @@ export async function POST(request: NextRequest) {
       let n = 0;
       for (const c of list) {
         const externalId = jidToExternalId(c?.id || c?.remoteJid);
-        if (!externalId || (c?.id && String(c.id).includes('@g.us'))) continue; // ignora grupos por ora
+        if (!externalId || looksLikeGroupId(c?.id || c?.remoteJid) || looksLikeGroupId(externalId)) continue; // ignora grupos por ora
         await upsertContactProfile({
           companyId,
           channel: Channel.WHATSAPP,
@@ -257,7 +258,7 @@ export async function POST(request: NextRequest) {
       for (const msg of raws) {
         // Identidade != telefone: `@lid` é id opaco do WhatsApp, não número.
         const externalId = jidToExternalId(msg?.key?.remoteJid);
-        if (!externalId || String(msg?.key?.remoteJid || '').includes('@g.us')) { skipped++; continue; } // grupos: fora por ora
+        if (!externalId || looksLikeGroupId(msg?.key?.remoteJid) || looksLikeGroupId(externalId)) { skipped++; continue; } // grupos: fora por ora
         // Remetente `@lid` não traz telefone no jid; alguns payloads mandam à parte.
         const phone = jidToPhone(msg?.key?.remoteJid) ?? altPhoneFromKey(msg?.key);
         const text = extractText(msg?.message);

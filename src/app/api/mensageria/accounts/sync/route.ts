@@ -1,3 +1,4 @@
+import { looksLikeGroupId } from '@/lib/messaging/phone';
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
 import { NextResponse } from 'next/server';
 import { resolveModuleUser } from '@/lib/api/session';
@@ -40,7 +41,9 @@ export async function POST() {
     for (const c of rawContacts) {
       const jid = c?.remoteJid || c?.id;
       const externalId = jidToExternalId(jid);
-      if (!externalId || String(jid || '').includes('@g.us')) continue;
+      // Grupo entra como contato quando o payload vem sem o domínio: filtra
+      // também pela FORMA do id (ver looksLikeGroupId).
+      if (!externalId || looksLikeGroupId(jid) || looksLikeGroupId(externalId)) continue;
       const nome = c?.pushName || c?.name || c?.notify || c?.verifiedName;
       if (!nome) continue;
       await upsertContactProfile({
@@ -91,7 +94,7 @@ export async function POST() {
     let msgCreated = 0, msgDup = 0;
     for (const rec of records) {
       const externalId = jidToExternalId(rec?.key?.remoteJid);
-      if (!externalId || String(rec?.key?.remoteJid || '').includes('@g.us')) continue;
+      if (!externalId || looksLikeGroupId(rec?.key?.remoteJid) || looksLikeGroupId(externalId)) continue;
       const phone = jidToPhone(rec?.key?.remoteJid) ?? altPhoneFromKey(rec?.key);
       const text = extractText(rec?.message);
       const ts = rec?.messageTimestamp ? new Date(Number(rec.messageTimestamp) * 1000) : undefined;

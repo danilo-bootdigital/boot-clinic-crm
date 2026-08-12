@@ -7,6 +7,7 @@
 // outra.
 import { Channel, ContactNameSource } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
+import { looksLikePhone } from './phone';
 
 // Normaliza telefone para dígitos. O WhatsApp entrega o número em formatos que
 // variam (com/sem código de país, com/sem o 9º dígito), por isso a busca por
@@ -14,7 +15,12 @@ import { prisma } from '@/lib/db/prisma';
 export function normalizePhone(value?: string | null): string | undefined {
   if (!value) return undefined;
   const digits = value.replace(/\D/g, '');
-  return digits || undefined;
+  if (!digits) return undefined;
+  // Guarda final: mesmo que um chamador erre e passe um `@lid` como telefone,
+  // ele não entra na coluna. Defesa em profundidade — o chamador já deveria ter
+  // filtrado, mas foi exatamente esse caminho que sujou a base uma vez.
+  if (!looksLikePhone(digits)) return undefined;
+  return digits;
 }
 
 // Sufixo usado para casar números escritos de formas diferentes.
