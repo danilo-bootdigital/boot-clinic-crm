@@ -29,7 +29,7 @@ export const UpdateSpecialtySchema = CreateSpecialtySchema.partial().extend({
 
 export const CreateProfessionalSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
-  crm: z.string().optional(),
+  crm: z.string().trim().min(1, "CRM é obrigatório"),
   phone: z.string().min(1, "Telefone é obrigatório"),
   email: z.string().email("E-mail inválido").optional(),
   clinicId: z.string().cuid(),

@@ -6,7 +6,9 @@ import { requirePermission } from '@/lib/api/permissions';
 
 const Schema = z.object({
   name: z.string().min(1).optional(),
-  crm: z.string().optional().nullable(),
+  // Edição também exige CRM: é a porta por onde os cadastros antigos (sem CRM)
+  // são regularizados. Aceitar null aqui deixaria o registro incompleto para sempre.
+  crm: z.string().trim().min(1, 'CRM é obrigatório').optional(),
   phone: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
@@ -31,7 +33,7 @@ async function update(request: NextRequest, { params }: { params: { id: string }
       where: { id: params.id },
       data: {
         ...(d.name !== undefined && { name: d.name }),
-        ...(d.crm !== undefined && { crm: d.crm || null }),
+        ...(d.crm !== undefined && { crm: d.crm.trim() }),
         ...(d.phone !== undefined && { phone: d.phone || null }),
         ...(d.email !== undefined && { email: d.email || null }),
         ...(d.isActive !== undefined && { isActive: d.isActive }),

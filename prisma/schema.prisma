@@ -858,9 +858,15 @@ model Specialty {
 model Professional {
   id        String    @id @default(cuid())
   name      String
+  // CRM é obrigatório para novos cadastros (validado na API e na tela). A coluna
+  // segue nulável porque já existem registros sem CRM criados antes da regra —
+  // eles são cobrados na próxima edição.
   crm       String?
   phone     String?
   email     String?
+  // Assinatura digitalizada: caminho no bucket PRIVADO
+  // `professional-signatures`. Nunca guardamos URL assinada, só o caminho.
+  signaturePath String?
   companyId String
   // Vínculo opcional 1:1 com a conta de acesso (usuário com papel DOCTOR).
   // Criar/editar um usuário médico sincroniza este registro automaticamente.
@@ -1050,6 +1056,7 @@ enum EntityType {
   // Administração — cadastros de acesso/conta (auditoria de edição)
   USER
   COMPANY
+  PROFESSIONAL
 }
 
 enum ActionType {

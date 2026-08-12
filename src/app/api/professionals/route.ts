@@ -6,7 +6,10 @@ import { requirePermission } from '@/lib/api/permissions';
 
 const Schema = z.object({
   name: z.string().min(1),
-  crm: z.string().optional(),
+  // Obrigatório por regra de produto: médico que atende na clínica precisa de
+  // registro profissional. Registros antigos sem CRM existem e são cobrados na
+  // próxima edição — por isso a validação é aqui, não uma constraint no banco.
+  crm: z.string().trim().min(1, 'CRM é obrigatório'),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   specialtyIds: z.array(z.string()).optional(),
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     const item = await prisma.professional.create({
       data: {
         name: data.name,
-        crm: data.crm || null,
+        crm: data.crm.trim(),
         phone: data.phone || null,
         email: data.email || null,
         companyId: dbUser!.companyId,

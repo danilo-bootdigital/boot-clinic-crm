@@ -5,6 +5,7 @@ import { Plus, Trash2, Stethoscope, Check, X, Link2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ProfessionalSignature } from '@/components/agenda/ProfessionalSignature'
 import { Badge } from '@/components/ui/badge'
 
 interface Professional {
@@ -147,12 +148,14 @@ export function Professionals() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Nome*</label>
+                  <label className="text-sm font-medium">Dr(a)*</label>
                   <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Dra. Maria Silva" required />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">CRM / Registro</label>
-                  <Input value={form.crm} onChange={(e) => setForm({ ...form, crm: e.target.value })} placeholder="CRM 123456" />
+                  {/* Obrigatório: documento clínico e receita sem registro
+                      profissional não têm valor. */}
+                  <label className="text-sm font-medium">CRM*</label>
+                  <Input value={form.crm} onChange={(e) => setForm({ ...form, crm: e.target.value })} placeholder="CRM 123456" required />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Telefone</label>
@@ -217,7 +220,13 @@ export function Professionals() {
                         </Badge>
                       )}
                     </div>
-                    {p.crm && <p className="text-sm text-muted-foreground mt-1">{p.crm}</p>}
+                    {p.crm ? (
+                      <p className="text-sm text-muted-foreground mt-1">{p.crm}</p>
+                    ) : (
+                      /* Cadastro anterior à regra do CRM. Mostrar a pendência é o
+                         que faz ela ser resolvida — some se ficar escondida. */
+                      <p className="mt-1 text-sm text-warning">CRM não informado — edite para regularizar</p>
+                    )}
                     {(p.phone || p.email) && (
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">{[p.phone, p.email].filter(Boolean).join(' · ')}</p>
                     )}
@@ -228,6 +237,7 @@ export function Professionals() {
                         ))}
                       </div>
                     )}
+                    <ProfessionalSignature professionalId={p.id} professionalName={p.name} />
                   </div>
                   <div className="flex items-center space-x-1 ml-4">
                     <Badge variant="secondary" className={p.isActive ? 'bg-success/15 text-success' : 'bg-muted text-foreground'}>
