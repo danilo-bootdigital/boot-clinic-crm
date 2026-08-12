@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Stethoscope, ClipboardList, FileText, FileSignature, Receipt, Image as ImageIcon } from 'lucide-react'
+import { Stethoscope, ClipboardList, FileText, FileSignature, Receipt, FlaskConical, Image as ImageIcon } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { ModuleCard } from '@/components/ui/module-card'
 
@@ -12,6 +12,9 @@ const CARDS = [
   { key: 'contratos', title: 'Contratos', description: 'Contratos personalizáveis e modelos', href: '/clinico/contratos', icon: <FileSignature className="h-5 w-5" /> },
   { key: 'orcamentos', title: 'Orçamentos', description: 'Orçamentos clínicos e procedimentos', href: '/clinico/orcamentos', icon: <Receipt className="h-5 w-5" /> },
   { key: 'imagens', title: 'Imagens e anexos', description: 'Fotos clínicas, exames e documentos', href: '/clinico/imagens', icon: <ImageIcon className="h-5 w-5" /> },
+  // Usa a permissão do prontuário: pedido de exames é ato clínico do
+  // atendimento, e não há uma área própria configurada para ele.
+  { key: 'prontuario', title: 'Pedidos de exames', description: 'Solicitações de exames laboratoriais emitidas', href: '/clinico/exames', icon: <FlaskConical className="h-5 w-5" /> },
 ]
 
 export default function ClinicoHubPage() {
