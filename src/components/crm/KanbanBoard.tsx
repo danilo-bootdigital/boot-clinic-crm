@@ -115,6 +115,33 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
     return stageDeals.reduce((sum, deal) => sum + (deal.valueEstimated || 0), 0);
   };
 
+  const brl = (n: number) =>
+    `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  // Métricas do resumo — derivadas dos deals já carregados (respeita os filtros).
+  const won = deals.filter((deal) => deal.status === DealStatus.WON);
+  const lost = deals.filter((deal) => deal.status === DealStatus.LOST);
+  const open = deals.filter(
+    (deal) => deal.status !== DealStatus.WON && deal.status !== DealStatus.LOST
+  );
+  const openValue = open.reduce((sum, deal) => sum + (deal.valueEstimated || 0), 0);
+  const closed = won.length + lost.length;
+
+  const pipelineSummary: { label: string; value: string; hint?: string }[] = [
+    { label: 'Oportunidades', value: String(deals.length), hint: `${open.length} em aberto` },
+    { label: 'Em aberto', value: brl(openValue), hint: 'valor estimado' },
+    {
+      label: 'Ticket médio',
+      value: open.length > 0 ? brl(openValue / open.length) : '—',
+      hint: 'por oportunidade aberta',
+    },
+    {
+      label: 'Conversão',
+      value: closed > 0 ? `${Math.round((won.length / closed) * 100)}%` : '—',
+      hint: closed > 0 ? `${won.length} de ${closed} fechadas` : 'nada fechado ainda',
+    },
+  ];
+
   // Mover deal entre etapas
   const handleDrop = async (stageId: string) => {
     if (!draggedDeal) return;
@@ -235,18 +262,38 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
         </div>
       </div>
 
-      {/* Funil do pipeline */}
+      {/* Funil do pipeline + resumo */}
       {stages.length > 0 && deals.length > 0 && (
-        <div className="mb-6 rounded-xl border border-border bg-card p-5 shadow-card">
-          <h3 className="mb-1 text-base font-semibold text-foreground">Funil do pipeline</h3>
-          <p className="mb-2 text-sm text-muted-foreground">Negócios por estágio</p>
-          <FunnelPipeline
-            data={stages.map((stage) => ({
-              name: stage.name,
-              value: getDealsByStage(stage.id).length,
-            }))}
-            valueFormatter={(n) => `${n} deal${n !== 1 ? 's' : ''}`}
-          />
+        <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,20rem)_1fr]">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+            <h3 className="mb-1 text-base font-semibold text-foreground">Funil do pipeline</h3>
+            <p className="mb-3 text-sm text-muted-foreground">Negócios por estágio</p>
+            <FunnelPipeline
+              data={stages.map((stage) => ({
+                name: stage.name,
+                value: getDealsByStage(stage.id).length,
+              }))}
+              valueFormatter={(n) => `${n} deal${n !== 1 ? 's' : ''}`}
+            />
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+            <h3 className="mb-1 text-base font-semibold text-foreground">Resumo</h3>
+            <p className="mb-4 text-sm text-muted-foreground">Oportunidades no filtro atual</p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {pipelineSummary.map((metric) => (
+                <div key={metric.label}>
+                  <p className="text-xs text-muted-foreground">{metric.label}</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+                    {metric.value}
+                  </p>
+                  {metric.hint && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{metric.hint}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

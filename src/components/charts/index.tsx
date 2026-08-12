@@ -157,11 +157,13 @@ export interface FunnelDatum {
 /**
  * Funil de pipeline comercial — estágios na ordem (não reordena por valor).
  *
- * Layout próprio em SVG/CSS em vez do FunnelChart do Recharts: com estágios
+ * Layout próprio em CSS no lugar do FunnelChart do Recharts: com estágios
  * zerados ou sequência não decrescente (0,0,1,1,0…) o funil do Recharts gera
- * polígonos degenerados que se cruzam e empilha os rótulos no centro. Aqui cada
- * estágio é uma barra centralizada, proporcional ao maior valor, e o zero vira
- * um traço tracejado — o funil continua legível com qualquer distribuição.
+ * polígonos degenerados que se cruzam e empilha os rótulos no centro.
+ *
+ * Cada estágio é uma faixa de altura fixa com preenchimento proporcional ao
+ * maior valor; nome e contagem ficam DENTRO da faixa, então o componente é
+ * pensado para coluna estreita (~18–22rem) e não depende de largura total.
  */
 export function FunnelPipeline({
   data,
@@ -174,35 +176,30 @@ export function FunnelPipeline({
   const total = data.reduce((sum, d) => sum + d.value, 0)
 
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-1">
       {data.map((stage, i) => {
         const share = max > 0 ? stage.value / max : 0
-        // Piso de 8% para o menor valor não virar um fio invisível.
-        const width = stage.value > 0 ? Math.max(8, share * 100) : 0
+        // Piso de 6% para o menor valor não virar um fio invisível.
+        const width = stage.value > 0 ? Math.max(6, share * 100) : 0
         const fill = VIZ_SEQUENCE[i % VIZ_SEQUENCE.length]
 
         return (
           <li
             key={`${stage.name}-${i}`}
-            className="grid grid-cols-[minmax(6rem,10rem)_1fr_auto] items-center gap-3"
+            className="relative flex h-8 items-center overflow-hidden rounded-md bg-muted/60"
+            title={`${stage.name}: ${valueFormatter(stage.value)}`}
           >
-            <span className="truncate text-xs text-muted-foreground" title={stage.name}>
+            {/* Preenchimento em tinta clara: mantém o texto legível por cima. */}
+            {stage.value > 0 && (
+              <div
+                className="absolute inset-y-0 left-0 transition-[width] duration-300"
+                style={{ width: `${width}%`, background: fill, opacity: 0.32 }}
+              />
+            )}
+            <span className="relative truncate pl-2.5 text-xs font-medium text-foreground">
               {stage.name}
             </span>
-
-            <div className="flex h-6 items-center justify-center">
-              {stage.value > 0 ? (
-                <div
-                  className="h-6 rounded-[4px] transition-[width] duration-300"
-                  style={{ width: `${width}%`, background: fill }}
-                  title={`${stage.name}: ${valueFormatter(stage.value)}`}
-                />
-              ) : (
-                <div className="h-px w-full border-t border-dashed border-border" />
-              )}
-            </div>
-
-            <span className="w-24 text-right text-xs tabular-nums text-foreground">
+            <span className="relative ml-auto shrink-0 pl-2 pr-2.5 text-xs tabular-nums text-foreground">
               <span className="font-semibold">{stage.value}</span>
               {total > 0 && (
                 <span className="ml-1 text-muted-foreground">
