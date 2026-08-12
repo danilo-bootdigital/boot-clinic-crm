@@ -784,6 +784,87 @@ model QuickReply {
   @@map("quick_replies")
 }
 
+
+// ============================================================================
+// PEDIDO DE EXAMES
+// Documento no formato de receita: cabeçalho da clínica, dados do paciente,
+// exames selecionados de um catálogo curado, e nome/CRM/assinatura de quem
+// atendeu. Modelo de referência: "Solicitação de Exames Laboratoriais".
+// ============================================================================
+
+// Catálogo de exames da clínica. Semeado no primeiro uso com o painel padrão e
+// editável depois — cada clínica ajusta o seu.
+model ExamCatalogItem {
+  id        String    @id @default(cuid())
+  companyId String
+  group     String // "Exames Fundamentais" | "Avaliação Hormonal"
+  subgroup  String? // "Mulheres" | "Homens" — quando o grupo se divide
+  name      String
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId, group, order])
+  @@map("exam_catalog_items")
+}
+
+// De onde o pedido foi emitido.
+enum ExamRequestOrigin {
+  PATIENT_CHART // ficha do paciente
+  TELEMEDICINE // durante o atendimento remoto
+}
+
+model ExamRequest {
+  id             String @id @default(cuid())
+  companyId      String
+  patientId      String
+  professionalId String
+
+  // SNAPSHOT dos dados impressos. Um pedido já emitido é documento: se depois o
+  // profissional corrigir o CRM ou o paciente trocar de nome, o que foi
+  // entregue ao paciente NÃO pode mudar retroativamente.
+  professionalNameSnapshot String
+  professionalCrmSnapshot  String?
+  patientNameSnapshot      String
+  patientBirthDateSnapshot DateTime?
+
+  clinicalIndication String  @db.Text
+  observations       String? @db.Text
+
+  origin             ExamRequestOrigin @default(PATIENT_CHART)
+  teleconsultationId String? // quando emitido durante telemedicina
+
+  issuedAt        DateTime  @default(now())
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  items ExamRequestItem[]
+
+  @@index([companyId, patientId, issuedAt])
+  @@index([companyId, issuedAt])
+  @@map("exam_requests")
+}
+
+// Exame pedido. Guarda o NOME, não uma FK para o catálogo: renomear ou desativar
+// um item do catálogo não pode reescrever pedido já emitido.
+model ExamRequestItem {
+  id        String  @id @default(cuid())
+  requestId String
+  name      String
+  group     String
+  subgroup  String?
+  order     Int     @default(0)
+
+  request ExamRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("exam_request_items")
+}
+
 // Preferências de notificação por empresa
 model NotificationSetting {
   id                   String   @id @default(cuid())
@@ -1057,6 +1138,7 @@ enum EntityType {
   USER
   COMPANY
   PROFESSIONAL
+  EXAM_REQUEST
 }
 
 enum ActionType {

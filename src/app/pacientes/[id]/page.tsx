@@ -9,6 +9,7 @@ import Tags from '@/components/patients/Tags'
 import Attachments from '@/components/patients/Attachments'
 import Anamneses from '@/components/clinical/Anamneses'
 import MedicalRecords from '@/components/clinical/MedicalRecords'
+import { ExamRequestForm } from '@/components/clinical/ExamRequestForm'
 import Contracts from '@/components/clinical/Contracts'
 import Quotes from '@/components/clinical/Quotes'
 import ClinicalImages from '@/components/clinical/ClinicalImages'
@@ -39,6 +40,9 @@ const TABS: { key: string; label: string; area?: string }[] = [
   { key: 'contratos', label: 'Contratos', area: 'contratos' },
   { key: 'orcamentos', label: 'Orçamentos', area: 'orcamentos' },
   { key: 'imagens', label: 'Imagens', area: 'imagens' },
+  // Pedido de exames é ato clínico do atendimento: usa a mesma permissão do
+  // prontuário em vez de criar uma área nova (que ninguém teria configurada).
+  { key: 'exames', label: 'Pedido de exames', area: 'prontuario' },
 ]
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
@@ -170,6 +174,14 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {tab === 'contratos' && <Contracts patient={patient} canEdit={access.contratos === 'edit'} />}
       {tab === 'orcamentos' && <Quotes patientId={id} canEdit={access.orcamentos === 'edit'} />}
       {tab === 'imagens' && <ClinicalImages patientId={id} canEdit={access.imagens === 'edit'} />}
+      {tab === 'exames' &&
+        (access.prontuario === 'edit' ? (
+          <ExamRequestForm patientId={id} origin="PATIENT_CHART" />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Você tem acesso de leitura ao prontuário — emitir pedido de exames exige permissão de edição.
+          </p>
+        ))}
     </div>
   )
 }
