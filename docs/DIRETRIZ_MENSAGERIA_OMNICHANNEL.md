@@ -186,10 +186,14 @@ Isso é o que permite responder "esse paciente veio do anúncio ou do orgânico?
    própria mensagem. Numa thread de contato com identidades em dois canais, as
    mensagens têm etiquetas diferentes na mesma lista — é justamente o caso que a
    dedução quebraria.
-3. **Cada bolha exibe a etiqueta**: ícone do canal + nome da conta de entrada.
-   `source` aparece quando **não** é o esperado — mensagem enviada pelo celular
-   fora do CRM precisa estar visivelmente marcada, senão o atendente acha que
-   ninguém respondeu.
+3. **A bolha NÃO exibe etiqueta em thread de canal único.** Revisado em
+   2026-08-12 por decisão do Danilo: repetir "WhatsApp · Principal" em cada
+   mensagem é ruído, porque o canal já está no cabeçalho e na fila. A etiqueta
+   na bolha aparece **só quando a mensagem diverge do canal da conversa** — o
+   caso de contato unificado em dois canais, onde a dedução seria errada.
+   A procedência completa (canal · conta · origem do envio) fica no `title` da
+   bolha: acessível sem poluir. Isto é decisão de TELA; a regra 7 (gravar
+   procedência no ingest) permanece intacta.
 4. **A fila mostra a etiqueta do canal em cada conversa** e filtra por canal e
    por conta.
 5. **Ícone nunca é a única marcação.** Cor e ícone vêm acompanhados de texto

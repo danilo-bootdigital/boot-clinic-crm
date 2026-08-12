@@ -102,3 +102,47 @@
   }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 }
+
+/* ---------------------------------------------------------------------------
+   Superfície de conversa da mensageria.
+   Exceção deliberada ao design system, restrita à thread: o registro visual de
+   app de mensagem (fundo bege, bolha branca de entrada, verde de saída) é o que
+   torna a tela imediatamente legível para quem atende. As cores chegam por
+   variáveis definidas no próprio container, então não vazam para o resto do
+   produto. Sem imagem de fundo — o padrão de rabiscos do WhatsApp é asset
+   proprietário deles.
+--------------------------------------------------------------------------- */
+@layer components {
+  .chat-surface {
+    background-color: var(--chat-bg);
+  }
+  .dark .chat-surface {
+    background-color: var(--chat-bg-dark);
+  }
+
+  .chat-bubble-in {
+    background-color: var(--bubble-in);
+    color: #111b21;
+  }
+  .dark .chat-bubble-in {
+    background-color: var(--bubble-in-dark);
+    color: #e9edef;
+  }
+
+  .chat-bubble-out {
+    background-color: var(--bubble-out);
+    color: #111b21;
+  }
+  .dark .chat-bubble-out {
+    background-color: var(--bubble-out-dark);
+    color: #e9edef;
+  }
+
+  /* O "lido" precisa contrastar com a bolha de saída nos dois temas. */
+  .chat-tick-read {
+    color: #1d9bf0;
+  }
+  .dark .chat-tick-read {
+    color: #53bdeb;
+  }
+}

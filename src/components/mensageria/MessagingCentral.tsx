@@ -8,6 +8,31 @@ import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
+// Procedência no `title` da bolha: a informação continua acessível (hover) sem
+// poluir a thread. A regra 7 da diretriz é sobre GRAVAR a procedência no
+// ingest; exibi-la em CADA bolha era decisão de tela, e em canal único só
+// atrapalha.
+const SOURCE_TEXTO: Record<string, string> = {
+  CONTACT: 'recebida',
+  CRM: 'enviada pelo sistema',
+  MOBILE: 'enviada pelo celular, fora do sistema',
+  AUTOMATION: 'envio automático',
+};
+
+function provenanceTitle(m: {
+  channel?: string | null;
+  accountLabel?: string | null;
+  source?: string | null;
+}): string {
+  const canal =
+    m.channel === 'WHATSAPP' ? 'WhatsApp'
+    : m.channel === 'INSTAGRAM' ? 'Instagram'
+    : m.channel === 'TIKTOK' ? 'TikTok'
+    : null;
+  return [canal, m.accountLabel, m.source ? SOURCE_TEXTO[m.source] : null].filter(Boolean).join(' · ');
+}
+
+
 interface WhatsAppConversation {
   id: string;
   // Etiqueta de procedência da conversa (§4.3).
@@ -452,7 +477,24 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             </div>
 
             {/* Área de Mensagens */}
-            <div className="flex-1 overflow-y-auto p-4 bg-muted">
+            {/* Superfície de conversa no registro visual de app de mensagem.
+                É uma EXCEÇÃO deliberada ao DS, restrita à thread: as cores estão
+                em variáveis locais (não são tokens globais) para não vazarem para
+                o resto do produto. Sem imagem de fundo — o padrão de rabiscos do
+                WhatsApp é asset proprietário deles. */}
+            <div
+              className="chat-surface flex-1 overflow-y-auto p-4"
+              style={
+                {
+                  '--chat-bg': '#EFEAE2',
+                  '--chat-bg-dark': '#0B141A',
+                  '--bubble-in': '#FFFFFF',
+                  '--bubble-in-dark': '#202C33',
+                  '--bubble-out': '#D9FDD3',
+                  '--bubble-out-dark': '#005C4B',
+                } as React.CSSProperties
+              }
+            >
               <div className="space-y-4">
                 {messages.map((message) => {
                   const isIn = message.direction === 'INCOMING';
@@ -461,26 +503,28 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   return (
                     <div key={message.id} className={`flex ${isIn ? 'justify-start' : 'justify-end'}`}>
                       <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          isIn ? 'bg-card text-foreground border border-border' : 'bg-primary text-white'
+                        className={`max-w-xs lg:max-w-md rounded-lg px-3 py-2 shadow-sm ${
+                          isIn ? 'chat-bubble-in' : 'chat-bubble-out'
                         }`}
+                        // A procedência sai do visual mas continua acessível: numa
+                        // thread de um só canal a etiqueta em cada bolha era ruído.
+                        title={provenanceTitle(message)}
                       >
                         {isMedia && (
                           <MessageMediaBubble
                             messageType={message.messageType as 'IMAGE' | 'DOCUMENT' | 'AUDIO'}
                             mediaStatus={message.mediaStatus}
                             attachment={message.attachment}
-                            dark={!isIn}
+                            dark={false}
                           />
                         )}
                         {showCaption && <p className="text-sm whitespace-pre-wrap break-words">{message.caption || message.content}</p>}
-                        {message.channel && (
-                          <div className={`mt-1 ${isIn ? '' : 'opacity-90'}`}>
-                            <ChannelBadge
-                              channel={message.channel}
-                              accountLabel={message.accountLabel}
-                              source={message.source}
-                            />
+                        {/* Só aparece quando a mensagem DIVERGE do canal da
+                            conversa — o caso de contato unificado em dois canais.
+                            Em thread de canal único não há o que informar. */}
+                        {message.channel && message.channel !== selectedConversation.channel && (
+                          <div className="mt-1">
+                            <ChannelBadge channel={message.channel} accountLabel={message.accountLabel} />
                           </div>
                         )}
                         <div className="mt-1 flex items-center justify-end gap-1.5">
@@ -490,7 +534,9 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                           {!isIn && message.status === 'PENDING' && <span className="text-xs opacity-75">· enviando…</span>}
                           {!isIn && message.status === 'SENT' && <span className="text-xs opacity-75" title="Enviado">✓</span>}
                           {!isIn && message.status === 'DELIVERED' && <span className="text-xs opacity-75" title="Entregue">✓✓</span>}
-                          {!isIn && message.status === 'READ' && <span className="text-xs font-semibold text-sky-300" title="Lido">✓✓</span>}
+                          {/* Azul do "lido" precisa contrastar com a bolha CLARA
+                              de saída — o sky-300 anterior sumia no verde. */}
+                          {!isIn && message.status === 'READ' && <span className="chat-tick-read text-xs font-semibold" title="Lido">✓✓</span>}
                           {!isIn && message.status === 'FAILED' && (
                             <button onClick={() => handleRetry(message.id)} className="text-xs underline opacity-90 hover:opacity-100">falhou · reenviar</button>
                           )}
