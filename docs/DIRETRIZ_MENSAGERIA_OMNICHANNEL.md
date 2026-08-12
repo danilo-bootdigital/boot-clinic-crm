@@ -239,7 +239,7 @@ A tela de conversa tem um painel de ações. Cada ação é explícita e auditad
 | **2** | Refatorar o núcleo para canal-agnóstico: `ingest`, `webhook-log`, `message-status`, mídia. Adapter WhatsApp encapsula a Evolution. Rotas `/api/whatsapp/*` → `/api/mensageria/*` | Fase 1 |
 | **3** | Tela da mensageria: fila unificada com filtro por canal, thread, envio, painel do contato e painel de conversão | Fase 2 |
 | **4** | Ações de conversão (§5) com auditoria | Fase 3 |
-| **5** | Adapter Instagram: App na Meta, webhook, envio, janela de 24h | Fase 2 |
+| **5** | Adapter Instagram: **código PRONTO** (OAuth, webhook assinado, envio com janela de 24h, aba de configuração). Pendente só a configuração na Meta — ver [`CHECKLIST_CONEXAO_INSTAGRAM.md`](CHECKLIST_CONEXAO_INSTAGRAM.md) | Fase 2 |
 | **6** | Adapter TikTok: só a interface do adapter e o canal no enum. Sem conector | Fase 2 |
 
 **Ordem não negociável:** Fase 1 e 2 são um bloco. Renomear os models quebra
