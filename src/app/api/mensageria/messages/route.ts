@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { sendWhatsappForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
+import { sendInstagramText, replyWindow } from '@/lib/messaging/adapters/instagram/graph';
 
 const CreateSchema = z.object({
   conversationId: z.string().min(1),
@@ -78,18 +79,56 @@ export async function POST(request: NextRequest) {
       include: { contact: { select: { phone: true } } },
     });
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
-    // Envio só existe para canal com adapter de saída. WhatsApp é o único hoje.
-    if (conv.channel !== Channel.WHATSAPP) {
+    // Despacho por canal: cada adapter tem suas regras de saída.
+    if (conv.channel === Channel.TIKTOK) {
       return NextResponse.json(
-        { error: `Envio ainda não suportado no canal ${conv.channel}` },
+        { error: 'Envio não suportado no canal TIKTOK (sem API pública de DM)' },
         { status: 501 }
       );
     }
-    if (!conv.contact.phone) {
-      return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
-    }
 
-    const sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, conv.contact.phone, d.content);
+    let sent: { configured: boolean; ok: boolean; messageId?: string | null; instanceId?: string | null; error?: string };
+
+    if (conv.channel === Channel.INSTAGRAM) {
+      // Janela de 24h da Meta: recusamos ANTES de chamar a API, para o atendente
+      // ver o motivo em vez de um erro opaco do provedor.
+      const window = await replyWindow(conv.id);
+      if (!window.open) {
+        return NextResponse.json(
+          {
+            error: window.lastInboundAt
+              ? 'Janela de 24h encerrada: o Instagram só permite responder até 24h após a última mensagem da pessoa.'
+              : 'Só é possível responder no Instagram depois que a pessoa enviar uma mensagem.',
+            replyWindow: { open: false, lastInboundAt: window.lastInboundAt, closesAt: window.closesAt },
+          },
+          { status: 409 }
+        );
+      }
+
+      const account = conv.accountId
+        ? await prisma.channelAccount.findFirst({ where: { id: conv.accountId, companyId: dbUser!.companyId } })
+        : null;
+      if (!account) {
+        return NextResponse.json({ error: 'Conta do Instagram não encontrada para esta conversa' }, { status: 409 });
+      }
+
+      // No Instagram a identidade é o IGSID, não o telefone.
+      const identity = await prisma.contactIdentity.findFirst({
+        where: { companyId: dbUser!.companyId, contactId: conv.contactId, channel: Channel.INSTAGRAM },
+        select: { externalId: true },
+      });
+      if (!identity) {
+        return NextResponse.json({ error: 'Contato sem identidade no Instagram' }, { status: 400 });
+      }
+
+      const res = await sendInstagramText(account, identity.externalId, d.content);
+      sent = { configured: res.configured, ok: res.ok, messageId: res.messageId ?? null, instanceId: account.id, error: res.error };
+    } else {
+      if (!conv.contact.phone) {
+        return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
+      }
+      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, conv.contact.phone, d.content);
+    }
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.accountId ?? null;
 

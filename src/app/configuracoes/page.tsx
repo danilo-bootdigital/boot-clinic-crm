@@ -11,13 +11,15 @@ import { Input } from '@/components/ui/input'
 import { FilterSelect } from '@/components/ui/filter-bar'
 import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy'
 import WhatsAppSettings from '@/components/configuracoes/WhatsAppSettings'
+import InstagramSettings from '@/components/configuracoes/InstagramSettings'
 
-type Tab = 'clinica' | 'usuarios' | 'notificacoes' | 'whatsapp'
+type Tab = 'clinica' | 'usuarios' | 'notificacoes' | 'whatsapp' | 'instagram'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'clinica', label: 'Clínica' },
   { key: 'usuarios', label: 'Usuários e Permissões' },
   { key: 'notificacoes', label: 'Notificações' },
   { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'instagram', label: 'Instagram' },
 ]
 
 const ROLES = ['SUPER_ADMIN', 'OWNER', 'MANAGER', 'DOCTOR', 'RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE']
@@ -30,7 +32,13 @@ const label = 'block text-sm font-medium text-foreground mb-1'
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('clinica')
+  // O callback do Instagram redireciona para ?tab=instagram — sem isso o
+  // usuário volta da Meta na aba errada e não vê o resultado da conexão.
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'clinica'
+    const wanted = new URLSearchParams(window.location.search).get('tab')
+    return TABS.some((t) => t.key === wanted) ? (wanted as Tab) : 'clinica'
+  })
 
   return (
     <div className="space-y-6">
@@ -44,6 +52,7 @@ export default function ConfiguracoesPage() {
       {tab === 'usuarios' && <UsuariosTab />}
       {tab === 'notificacoes' && <NotificacoesTab />}
       {tab === 'whatsapp' && <WhatsAppSettings />}
+      {tab === 'instagram' && <InstagramSettings />}
     </div>
   )
 }
