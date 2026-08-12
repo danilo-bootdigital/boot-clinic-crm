@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { sendWhatsappForCompany } from '@/lib/whatsapp/evolution';
+import { sendWhatsappForCompany } from '@/lib/messaging/adapters/whatsapp/evolution';
 
 // Notificações da teleconsulta por WhatsApp + registro na timeline do paciente.
 // Best-effort: se a Evolution API não estiver configurada, a mensagem é apenas

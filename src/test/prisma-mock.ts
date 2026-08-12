@@ -17,6 +17,10 @@ function matches(rec: Rec, where: Rec): boolean {
       if (rec[k] !== null && rec[k] !== undefined) return false;
     } else if (typeof v === 'object' && 'contains' in v) {
       if (typeof rec[k] !== 'string' || !rec[k].includes(v.contains)) return false;
+    } else if (typeof v === 'object' && 'endsWith' in v) {
+      if (typeof rec[k] !== 'string' || !rec[k].endsWith(v.endsWith)) return false;
+    } else if (typeof v === 'object' && 'not' in v) {
+      if (v.not === null ? rec[k] === null || rec[k] === undefined : rec[k] === v.not) return false;
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       // where aninhado não suportado aqui — trata como igualdade de referência
       if (rec[k] !== v) return false;
@@ -25,6 +29,20 @@ function matches(rec: Rec, where: Rec): boolean {
     }
   }
   return true;
+}
+
+// Prisma expõe unique composta como UMA chave (companyId_channel_externalId).
+// Achata para os campos reais antes de casar.
+function flattenWhere(where: Rec): Rec {
+  const out: Rec = {};
+  for (const [k, v] of Object.entries(where)) {
+    if (k.includes('_') && v && typeof v === 'object' && !Array.isArray(v) && !('contains' in v) && !('endsWith' in v) && !('not' in v)) {
+      Object.assign(out, v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
 }
 
 function applyData(rec: Rec, data: Rec) {
@@ -48,14 +66,37 @@ class Table {
     return this.opts.unique.map((f) => String(rec[f])).join('|');
   }
 
-  async findFirst({ where = {} }: { where?: Rec } = {}) {
-    return this.rows.find((r) => matches(r, where)) ?? null;
+  // Relações usadas pelo include das rotas. Declaradas em makePrismaMock.
+  relations: Record<string, { table: Table; localKey?: string; foreignKey?: string; many?: boolean }> = {};
+
+  private hydrate(rec: Rec | null, include?: Rec): Rec | null {
+    if (!rec || !include) return rec;
+    const out = { ...rec };
+    for (const [name, spec] of Object.entries(include)) {
+      const rel = this.relations[name];
+      if (!rel || !spec) continue;
+      if (rel.many) {
+        const fk = rel.foreignKey!;
+        out[name] = rel.table.rows.filter((r) => r[fk] === rec.id && r.deletedAt == null);
+      } else {
+        const lk = rel.localKey!;
+        out[name] = rec[lk] ? rel.table.rows.find((r) => r.id === rec[lk]) ?? null : null;
+      }
+    }
+    return out;
   }
-  async findUnique({ where = {} }: { where?: Rec } = {}) {
-    return this.rows.find((r) => matches(r, where)) ?? null;
+
+  async findFirst({ where = {}, include }: { where?: Rec; include?: Rec } = {}) {
+    const w = flattenWhere(where);
+    return this.hydrate(this.rows.find((r) => matches(r, w)) ?? null, include);
   }
-  async findMany({ where = {} }: { where?: Rec } = {}) {
-    return this.rows.filter((r) => matches(r, where));
+  async findUnique({ where = {}, include }: { where?: Rec; include?: Rec } = {}) {
+    const w = flattenWhere(where);
+    return this.hydrate(this.rows.find((r) => matches(r, w)) ?? null, include);
+  }
+  async findMany({ where = {}, include }: { where?: Rec; include?: Rec } = {}) {
+    const w = flattenWhere(where);
+    return this.rows.filter((r) => matches(r, w)).map((r) => this.hydrate(r, include)!);
   }
   async count({ where = {} }: { where?: Rec } = {}) {
     return this.rows.filter((r) => matches(r, where)).length;
@@ -91,11 +132,14 @@ class Table {
 }
 
 export interface PrismaMock {
-  whatsAppInstance: Table;
-  whatsAppConversation: Table;
-  whatsAppMessage: Table;
-  whatsAppAttachment: Table;
-  whatsAppWebhookEvent: Table;
+  // Mensageria: nomes dos models canal-agnósticos.
+  channelAccount: Table;
+  conversation: Table;
+  message: Table;
+  messageAttachment: Table;
+  channelWebhookEvent: Table;
+  contact: Table;
+  contactIdentity: Table;
   company: Table;
   auditLog: Table;
   __reset(): void;
@@ -103,19 +147,39 @@ export interface PrismaMock {
 
 export function makePrismaMock(): PrismaMock {
   const mock: PrismaMock = {
-    whatsAppInstance: new Table('inst', { unique: ['instanceName'] }),
-    whatsAppConversation: new Table('conv'),
-    whatsAppMessage: new Table('msg', { unique: ['instanceId', 'externalId'] }),
-    whatsAppAttachment: new Table('att'),
-    whatsAppWebhookEvent: new Table('whev'),
+    channelAccount: new Table('acc'),
+    conversation: new Table('conv'),
+    // Dedup da mensageria é por (accountId, externalId).
+    message: new Table('msg', { unique: ['accountId', 'externalId'] }),
+    messageAttachment: new Table('att'),
+    channelWebhookEvent: new Table('chev'),
+    contact: new Table('contact'),
+    // Uma identidade por (clínica, canal, id externo) — o que impede duplicar contato.
+    contactIdentity: new Table('ident', { unique: ['companyId', 'channel', 'externalId'] }),
     company: new Table('company'),
     auditLog: new Table('audit'),
     __reset() {
       for (const t of [
-        mock.whatsAppInstance, mock.whatsAppConversation, mock.whatsAppMessage,
-        mock.whatsAppAttachment, mock.whatsAppWebhookEvent, mock.company, mock.auditLog,
+        mock.channelAccount, mock.conversation, mock.message,
+        mock.messageAttachment, mock.channelWebhookEvent, mock.contact,
+        mock.contactIdentity, mock.company, mock.auditLog,
       ]) t.rows = [];
     },
   };
+
+  // Relações necessárias para os `include` das rotas da mensageria.
+  mock.conversation.relations = {
+    contact: { table: mock.contact, localKey: 'contactId' },
+    account: { table: mock.channelAccount, localKey: 'accountId' },
+    messages: { table: mock.message, foreignKey: 'conversationId', many: true },
+  };
+  mock.message.relations = {
+    account: { table: mock.channelAccount, localKey: 'accountId' },
+    attachments: { table: mock.messageAttachment, foreignKey: 'messageId', many: true },
+  };
+  mock.contact.relations = {
+    identities: { table: mock.contactIdentity, foreignKey: 'contactId', many: true },
+  };
+
   return mock;
 }

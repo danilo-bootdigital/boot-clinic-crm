@@ -56,7 +56,7 @@ export default function WhatsAppSettings() {
   const initial = useRef(true)
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/whatsapp/status', { cache: 'no-store' })
+    const res = await fetch('/api/mensageria/status', { cache: 'no-store' })
     if (res.status === 401) { router.push('/login?redirect=/configuracoes'); return }
     if (res.status === 403) { setError('Sem acesso ao módulo WhatsApp.'); setData(null); return }
     if (res.ok) { setData(await res.json()); setError(null) }
@@ -90,7 +90,7 @@ export default function WhatsAppSettings() {
   async function syncHistory() {
     setBusy('sync'); setError(null); setSyncMsg(null)
     try {
-      const res = await fetch('/api/whatsapp/instance/sync', { method: 'POST', cache: 'no-store' })
+      const res = await fetch('/api/mensageria/accounts/sync', { method: 'POST', cache: 'no-store' })
       const j = await res.json().catch(() => ({}))
       if (res.status === 401) { router.push('/login?redirect=/configuracoes'); return }
       if (!res.ok) { setError(j.error || 'Falha ao sincronizar'); return }
@@ -144,7 +144,7 @@ export default function WhatsAppSettings() {
 
       {/* Sem instância → Conectar */}
       {!data?.hasInstance && (
-        <button className={btnPrimary} disabled={busy !== null} onClick={() => act('connect', '/api/whatsapp/instance/connect', 'POST')}>
+        <button className={btnPrimary} disabled={busy !== null} onClick={() => act('connect', '/api/mensageria/accounts/connect', 'POST')}>
           <MessageCircle className="h-4 w-4" />{busy === 'connect' ? 'Conectando…' : 'Conectar WhatsApp'}
         </button>
       )}
@@ -167,10 +167,10 @@ export default function WhatsAppSettings() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className={btnOutline} disabled={busy !== null} onClick={() => act('qr', '/api/whatsapp/instance/qrcode', 'GET')}>
+            <button className={btnOutline} disabled={busy !== null} onClick={() => act('qr', '/api/mensageria/accounts/qrcode', 'GET')}>
               <RefreshCw className="h-4 w-4" />{busy === 'qr' ? 'Atualizando…' : 'Atualizar QR Code'}
             </button>
-            <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/whatsapp/instance/logout', 'POST', 'Cancelar o pareamento e desconectar a instância?')}>
+            <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/mensageria/accounts/logout', 'POST', 'Cancelar o pareamento e desconectar a instância?')}>
               <Power className="h-4 w-4" />Cancelar
             </button>
           </div>
@@ -193,7 +193,7 @@ export default function WhatsAppSettings() {
             <button className={btnOutline} disabled={busy !== null} onClick={syncHistory}>
               <RefreshCw className="h-4 w-4" />{busy === 'sync' ? 'Sincronizando…' : 'Sincronizar conversas'}
             </button>
-            <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/whatsapp/instance/logout', 'POST', 'Desconectar o WhatsApp da clínica? As conversas existentes são preservadas.')}>
+            <button className={btnDanger} disabled={busy !== null} onClick={() => act('logout', '/api/mensageria/accounts/logout', 'POST', 'Desconectar o WhatsApp da clínica? As conversas existentes são preservadas.')}>
               <Power className="h-4 w-4" />{busy === 'logout' ? 'Desconectando…' : 'Desconectar'}
             </button>
           </div>
@@ -207,7 +207,7 @@ export default function WhatsAppSettings() {
           <p className="text-sm text-muted-foreground">
             {st === 'ERROR' ? 'A sessão apresentou erro.' : 'O WhatsApp está desconectado.'} Reconecte para gerar um novo QR Code — a mesma instância e as conversas existentes são mantidas.
           </p>
-          <button className={btnPrimary} disabled={busy !== null} onClick={() => act('reconnect', '/api/whatsapp/instance/reconnect', 'POST')}>
+          <button className={btnPrimary} disabled={busy !== null} onClick={() => act('reconnect', '/api/mensageria/accounts/reconnect', 'POST')}>
             <RefreshCw className="h-4 w-4" />{busy === 'reconnect' ? 'Reconectando…' : 'Reconectar'}
           </button>
         </div>

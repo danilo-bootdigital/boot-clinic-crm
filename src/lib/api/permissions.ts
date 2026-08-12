@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { UserRole } from '@prisma/client';
 
+// NOTA: a chave 'whatsapp' é o módulo da MENSAGERIA. O nome antigo permanece
+// porque está gravado em User.permissions (Json) — renomear aqui apagaria o
+// acesso dos usuários existentes. Trocar exige migração desse Json.
 export const MODULES = ['patients', 'clinico', 'telemedicina', 'crm', 'agenda', 'followup', 'whatsapp', 'automacoes', 'financeiro', 'dashboard', 'configuracoes'] as const;
 export type ModuleKey = (typeof MODULES)[number];
 export type PermLevel = 'none' | 'view' | 'edit';

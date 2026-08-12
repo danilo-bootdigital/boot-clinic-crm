@@ -7,7 +7,7 @@ import { writeAudit } from '@/lib/api/audit';
 // Monta a URL do webhook a partir da origem da requisição (ou env de site).
 function webhookUrl(origin: string, token: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || origin;
-  return `${base.replace(/\/$/, '')}/api/whatsapp/webhook?token=${token}`;
+  return `${base.replace(/\/$/, '')}/api/mensageria/webhook?token=${token}`;
 }
 
 // GET — retorna o token atual da clínica (ou null) + a URL do webhook, se houver.

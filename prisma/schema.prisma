@@ -39,7 +39,7 @@ model Company {
   users            User[]
   patients         Patient[]
   tags             Tag[]
-  whatsappInstances WhatsAppInstance[] // instâncias da Evolution API desta clínica (1:N)
+  channelAccounts  ChannelAccount[] // contas de canal da mensageria desta clínica (1:N)
 
   @@map("companies")
 }
@@ -489,154 +489,260 @@ model NotificationEvent {
   @@map("notification_events")
 }
 
-// Módulo de WhatsApp (estrutura interna; envio real via Evolution API quando configurada)
+// ============================================================================
+// MENSAGERIA OMNICHANNEL
+// Inbox unificado de canais (WhatsApp, Instagram, TikTok). Canal é DADO, não
+// módulo: uma Conversation e uma Message para todos os canais, com `channel`.
+// Desenho: docs/DIRETRIZ_MENSAGERIA_OMNICHANNEL.md
+// ============================================================================
 
-// Multiempresa: cada clínica pode ter UMA OU MAIS instâncias da Evolution API
-// (números/sessões próprios). Por padrão há 1 instância primária (isPrimary), mas
-// a clínica pode conectar outros números por departamento (Recepção, Comercial,
-// Financeiro, Pós-venda). Substitui o WHATSAPP_INSTANCE global. 1:N com Company.
-model WhatsAppInstance {
-  id                  String                 @id @default(cuid())
-  companyId           String // clínica dona desta instância (1:N — sem unique)
-  instanceName        String                 @unique // nome da instância na Evolution (ex.: clinic_<companyId>)
-  evolutionInstanceId String?                @unique // id retornado pela Evolution ao criar
-  label               String                 @default("Principal") // nome amigável (ex.: Recepção, Comercial)
-  isPrimary           Boolean                @default(true) // instância default da clínica (1 por clínica, garantida na aplicação)
-  department          String? // departamento opcional (livre por enquanto)
-  phoneNumber         String? // número conectado (preenchido após parear)
-  profileName         String? // nome do perfil do WhatsApp conectado
-  qrCode              String? // QR Code em base64 (transitório, durante o pareamento)
-  status              WhatsAppInstanceStatus @default(DISCONNECTED)
-  webhookToken        String?                @unique // token do webhook inbound desta instância
-  lastConnectedAt     DateTime?
-  disconnectedAt      DateTime?
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-
-  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  conversations WhatsAppConversation[]
-  messages      WhatsAppMessage[]
-
-  @@index([companyId])
-  @@index([status])
-  @@map("whatsapp_instances")
+// Canal por onde a mensagem entra/sai. TIKTOK existe no modelo mas não tem
+// conector: não há API pública de DM do TikTok (diretriz §3).
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  TIKTOK
 }
 
-// Estado da conexão da instância da clínica com o WhatsApp (via Evolution API).
-enum WhatsAppInstanceStatus {
+// Quem produziu a mensagem — é uma das três dimensões da etiqueta de
+// procedência (diretriz §4.3). Preserva a semântica do antigo campo
+// `source` String de WhatsAppMessage e acrescenta AUTOMATION.
+enum MessageSource {
+  CONTACT // recebida do contato
+  CRM // enviada pela tela da mensageria
+  MOBILE // enviada pelo celular, fora do CRM (aparece marcada na thread)
+  AUTOMATION // envio automático (régua de follow-up, lembrete)
+}
+
+// Ponto de entrada da conversa, quando o canal informa. Alimenta o DealSource
+// na conversão — é o que responde "veio de anúncio ou de orgânico?".
+enum MessageEntryPoint {
+  DIRECT
+  AD
+  STORY_REPLY
+  POST_COMMENT
+  PROFILE_LINK
+  LEAD_FORM
+}
+
+// Estado da conexão de uma conta de canal.
+enum ChannelAccountStatus {
   DISCONNECTED // sem sessão / deslogada
   CONNECTING // criando/abrindo a sessão
-  QRCODE // aguardando leitura do QR Code
+  QRCODE // aguardando leitura do QR Code (específico do adapter WhatsApp)
   CONNECTED // pareada e ativa
   ERROR // falha na sessão (expirada/erro)
 }
 
-model WhatsAppConversation {
-  id            String    @id @default(cuid())
-  companyId     String
-  instanceId    String? // instância (número) por onde a conversa entra/sai; null = usar a primária
-  patientId     String?
-  contactName   String
-  contactPhone  String
-  contactAvatar String? // URL da foto do contato (quando disponível via CONTACTS_SET)
+// Conta/número da CLÍNICA em um canal. Multiempresa: 1:N com Company, e a
+// clínica pode ter várias contas por canal (Recepção, Comercial, Pós-venda).
+// Substitui WhatsAppInstance; os campos específicos da Evolution API ficam em
+// `providerConfig` para o núcleo não conhecer provedor (diretriz regra 2).
+model ChannelAccount {
+  id         String  @id @default(cuid())
+  companyId  String // clínica dona desta conta (1:N — sem unique)
+  channel    Channel
+  label      String  @default("Principal") // nome amigável (Recepção, Comercial)
+  isPrimary  Boolean @default(true) // conta default do canal (1 por canal/clínica, garantida na aplicação)
+  department String? // departamento opcional (livre)
+
+  // Identidade PÚBLICA desta conta no canal: número E164 (WhatsApp),
+  // IG business id (Instagram), advertiser id (TikTok).
+  externalId  String?
+  displayName String? // nome do perfil conectado
+  avatarUrl   String?
+
+  status          ChannelAccountStatus @default(DISCONNECTED)
+  lastConnectedAt DateTime?
+  disconnectedAt  DateTime?
+
+  // --- Ponte com o provedor (só o adapter lê) ---
+  // WhatsApp/Evolution: { instanceName, evolutionInstanceId, qrCode }
+  // Instagram/Meta: { pageId, igUserId }
+  providerConfig Json?
+  // Versão dos eventos já registrados no provedor; gate p/ re-registrar só
+  // quando defasado (herdado do webhookEventsVersion do módulo WhatsApp).
+  providerEventsVersion Int @default(0)
+  // Token do webhook inbound desta conta.
+  webhookToken String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  messages      Message[]
+
+  // Uma conta por identidade externa dentro do canal.
+  @@unique([channel, externalId])
+  @@index([companyId, channel])
+  @@index([status])
+  @@map("channel_accounts")
+}
+
+// Pessoa que fala com a clínica por qualquer canal. Pode ainda NÃO ser paciente
+// — é justamente o que permite receber DM de rede social sem CPF (diretriz
+// regra 4). Vira paciente só quando os dados obrigatórios existirem.
+model Contact {
+  id        String    @id @default(cuid())
+  companyId String
+  name      String
+  phone     String? // pode não existir (DM de rede social)
+  email     String?
+  patientId String? // vínculo quando/se virar paciente (FK escalar, padrão do projeto)
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  identities    ContactIdentity[]
+  conversations Conversation[]
+
+  @@index([companyId, phone])
+  @@index([companyId, name])
+  @@index([patientId])
+  @@map("contacts")
+}
+
+// Identidade do contato EM UM canal. É a chave de resolução do ingest: a mesma
+// pessoa no Instagram e no WhatsApp é UM contato com duas identidades.
+model ContactIdentity {
+  id         String   @id @default(cuid())
+  companyId  String
+  contactId  String
+  channel    Channel
+  externalId String // telefone E164 (WhatsApp) | IGSID (Instagram) | open_id (TikTok)
+  handle     String? // @ do perfil, quando o canal expõe
+  avatarUrl  String?
+  createdAt  DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  // O que impede contato duplicado por canal.
+  @@unique([companyId, channel, externalId])
+  @@index([contactId])
+  @@map("contact_identities")
+}
+
+// Thread de conversa com um contato em um canal, por conta de entrada.
+model Conversation {
+  id        String  @id @default(cuid())
+  companyId String
+  channel   Channel
+  accountId String? // conta por onde a conversa entra/sai; null = usar a primária
+  contactId String
+
   status        String    @default("OPEN") // OPEN | CLOSED
   lastMessage   String?
   lastMessageAt DateTime?
   unreadCount   Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
 
-  instance WhatsAppInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  // Procedência da conversa (§4.3): como este contato chegou.
+  entryPoint MessageEntryPoint?
 
-  @@index([instanceId])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  account  ChannelAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact  Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages Message[]
+
   @@index([companyId, lastMessageAt])
-  // Omnichannel: 1 thread por número dentro da instância (CRM + celular = mesma conversa).
-  @@index([companyId, instanceId, contactPhone])
-  @@map("whatsapp_conversations")
+  @@index([companyId, channel, status])
+  @@index([contactId])
+  @@index([accountId])
+  @@map("conversations")
 }
 
-model WhatsAppMessage {
-  id             String   @id @default(cuid())
+model Message {
+  id             String @id @default(cuid())
   companyId      String
   conversationId String
-  instanceId     String? // instância (número) que enviou/recebeu a mensagem
-  externalId     String? // id da mensagem no WhatsApp (key.id) — chave de deduplicação
-  source         String? // CRM | MOBILE | CONTACT (origem: enviada pelo CRM, pelo celular, ou recebida)
-  content        String
-  direction      String // INCOMING | OUTGOING
-  status         String   @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
-  createdAt      DateTime @default(now())
 
-  // --- Mídia/omnichannel (aditivo; mantidos como String p/ não quebrar linhas antigas) ---
-  messageType       String? // TEXT | IMAGE | AUDIO | VIDEO | DOCUMENT | STICKER | ... (null = legado TEXT)
+  // --- Etiqueta de procedência: obrigatória no ingest (diretriz regra 7) ---
+  channel   Channel
+  accountId String? // em qual conta NOSSA caiu/saiu
+  source    MessageSource // quem produziu esta mensagem
+
+  externalId String? // id da mensagem no provedor — chave de deduplicação
+  content    String
+  direction  String // INCOMING | OUTGOING
+  status     String @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
+
+  messageType       String? // TEXT | IMAGE | AUDIO | VIDEO | DOCUMENT | STICKER | ...
   caption           String?   @db.Text // legenda de mídia (separada de `content`)
-  replyToMessageId  String? // id LOCAL da mensagem citada (sem FK — mesmo padrão escalar do módulo)
-  replyToExternalId String? // key.id do WhatsApp citado (quando só temos a referência externa)
-  sentAt            DateTime? // carimbos de ciclo de vida (preenchidos quando a Evolution reportar)
+  replyToMessageId  String? // id LOCAL da mensagem citada (FK escalar)
+  replyToExternalId String? // id no provedor da mensagem citada
+  sentAt            DateTime?
   deliveredAt       DateTime?
   readAt            DateTime?
   failedAt          DateTime?
   errorCode         String? // código de erro do provedor (sanitizado)
   errorMessage      String? // mensagem de erro sanitizada (nunca payload cru)
-  createdByUserId   String? // autor no CRM (null = recebida / celular / histórico)
-  // Estado do PROCESSAMENTO da mídia (distinto de scanStatus do anexo):
-  // null = mensagem sem mídia; PENDING = mídia ainda não baixada/armazenada;
-  // AVAILABLE = arquivo no bucket pronto; FAILED = falha ao baixar/enviar.
-  mediaStatus       String? // null | PENDING | AVAILABLE | FAILED
-  // Backfill seguro: linhas antigas recebem now() ao aplicar a coluna.
-  updatedAt         DateTime  @default(now()) @updatedAt
+  createdByUserId   String? // autor no CRM (null = recebida / celular / automação)
 
-  instance    WhatsAppInstance?    @relation(fields: [instanceId], references: [id], onDelete: SetNull)
-  attachments WhatsAppAttachment[]
+  // Procedência de campanha, quando o canal informa (§4.3).
+  entryPoint MessageEntryPoint?
+  referral   Json? // referral sanitizado (id do anúncio/post, headline)
+
+  // Estado do PROCESSAMENTO da mídia (distinto de scanStatus do anexo):
+  // null = sem mídia; PENDING = não baixada; AVAILABLE = no bucket; FAILED.
+  mediaStatus String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  account      ChannelAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  attachments  MessageAttachment[]
 
   @@index([conversationId, createdAt])
   @@index([companyId, createdAt])
+  @@index([companyId, channel, createdAt])
   // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
-  @@unique([instanceId, externalId])
-  @@map("whatsapp_messages")
+  @@unique([accountId, externalId])
+  @@map("messages")
 }
 
-// Anexo de mídia de uma mensagem (imagem/áudio/documento). Uma mensagem pode ter
-// N anexos. Guarda SOMENTE o caminho interno no storage privado (nunca URL assinada).
-// companyId escalar (mesmo padrão de WhatsAppMessage/Conversation) p/ filtro por empresa;
-// FK em messageId com cascade impede anexo órfão.
-model WhatsAppAttachment {
+// Anexo de mídia de uma mensagem. Guarda SOMENTE o caminho interno no storage
+// privado (nunca URL assinada).
+model MessageAttachment {
   id               String    @id @default(cuid())
   companyId        String
   messageId        String
-  storagePath      String // caminho interno no bucket privado (ex.: companyId/convId/msgId/uuid-nome)
-  originalFileName String? // nome original (apenas exibição — NUNCA usado no path)
+  storagePath      String // caminho no bucket privado (companyId/convId/msgId/uuid-nome)
+  originalFileName String? // apenas exibição — NUNCA usado no path
   mimeType         String
   sizeBytes        Int?
   checksum         String? // sha-256 do conteúdo (integridade / dedup futura)
   durationSeconds  Int? // áudio/vídeo
   width            Int? // imagem/vídeo
   height           Int?
-  providerMediaId  String? // id da mídia na Evolution (para baixar depois)
-  providerUrl      String? // URL temporária do provedor (transitória; não é fonte de verdade)
-  scanStatus       String    @default("PENDING") // PENDING | CLEAN | INFECTED | SKIPPED (ponto de extensão p/ antivírus)
+  providerMediaId  String? // id da mídia no provedor (para baixar depois)
+  providerUrl      String? // URL temporária do provedor (transitória)
+  scanStatus       String    @default("PENDING") // PENDING | CLEAN | INFECTED | SKIPPED
   createdAt        DateTime  @default(now())
   deletedAt        DateTime? // soft delete (padrão do projeto)
 
-  message WhatsAppMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([messageId])
-  @@map("whatsapp_attachments")
+  @@map("message_attachments")
 }
 
 // Observabilidade do webhook — metadados p/ diagnóstico SEM payload cru (LGPD).
-// Guarda apenas hash do payload + campos essenciais. Retenção a ser definida (limpeza
-// periódica futura por createdAt). companyId nulável: eventos com token inválido
-// são registrados ANTES de resolver a clínica.
-model WhatsAppWebhookEvent {
+// companyId nulável: eventos com token inválido são registrados ANTES de
+// resolver a clínica.
+model ChannelWebhookEvent {
   id            String   @id @default(cuid())
   companyId     String? // null quando o token não resolve uma clínica
-  instanceId    String?
-  eventType     String // qrcode | connection | contacts | chats | messages.upsert | ...
-  messageType   String? // quando aplicável (TEXT/IMAGE/...)
-  externalId    String? // key.id, quando houver
+  channel       Channel?
+  accountId     String?
+  eventType     String // qrcode | connection | messages.upsert | ...
+  messageType   String?
+  externalId    String? // id da mensagem no provedor, quando houver
   status        String // RECEIVED | PROCESSED | SKIPPED | DUPLICATE | REJECTED | FAILED
   payloadHash   String? // sha-256 do corpo (correlação sem guardar conteúdo)
   correlationId String? // id de correlação por requisição
@@ -645,12 +751,12 @@ model WhatsAppWebhookEvent {
   createdAt     DateTime @default(now())
 
   @@index([companyId, createdAt])
-  @@index([instanceId, externalId])
+  @@index([accountId, externalId])
   @@index([eventType])
-  @@map("whatsapp_webhook_events")
+  @@map("channel_webhook_events")
 }
 
-model WhatsAppQuickReply {
+model QuickReply {
   id        String    @id @default(cuid())
   companyId String
   title     String
@@ -659,7 +765,8 @@ model WhatsAppQuickReply {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
-  @@map("whatsapp_quick_replies")
+  @@index([companyId])
+  @@map("quick_replies")
 }
 
 // Preferências de notificação por empresa

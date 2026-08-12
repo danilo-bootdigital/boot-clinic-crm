@@ -13,8 +13,8 @@ let adminAvailable = true;
 vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => (adminAvailable ? adminClient : null) }));
 
 import {
-  pathBelongsToCompany, createWhatsappMediaSignedUrl, deleteWhatsappMedia, uploadWhatsappMedia,
-} from '@/lib/storage/whatsapp-storage';
+  pathBelongsToCompany, createWhatsappMediaSignedUrl, deleteWhatsappMedia, uploadMessagingMedia,
+} from '@/lib/storage/messaging-storage';
 
 const JPEG = (() => { const a = new Uint8Array(2048); a.set([0xff, 0xd8, 0xff, 0xe0]); return a; })();
 
@@ -68,9 +68,9 @@ describe('deleteWhatsappMedia — isolamento', () => {
   });
 });
 
-describe('uploadWhatsappMedia', () => {
+describe('uploadMessagingMedia', () => {
   it('faz upload de imagem válida com path isolado por empresa', async () => {
-    const r = await uploadWhatsappMedia({
+    const r = await uploadMessagingMedia({
       companyId: 'c1', conversationId: 'conv1', messageId: 'msg1',
       fileName: 'foto.jpg', contentType: 'image/jpeg', bytes: JPEG,
     });
@@ -80,7 +80,7 @@ describe('uploadWhatsappMedia', () => {
     expect(storageApi.upload).toHaveBeenCalledOnce();
   });
   it('rejeita mídia inválida ANTES de chamar o storage', async () => {
-    await expect(uploadWhatsappMedia({
+    await expect(uploadMessagingMedia({
       companyId: 'c1', conversationId: 'conv1', messageId: 'msg1',
       fileName: 'x.svg', contentType: 'image/svg+xml', bytes: new Uint8Array([1, 2, 3]),
     })).rejects.toThrow(/não permitido/i);

@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   // '/' precisa ser correspondência exata; o resto pode ser por prefixo.
   // (Antes '/' usava startsWith e tornava TODAS as rotas públicas.)
-  const exactPublicPaths = ['/', '/login', '/api/whatsapp/webhook', '/api/asaas/webhook']
+  const exactPublicPaths = ['/', '/login', '/api/mensageria/webhook', '/api/asaas/webhook']
   // Prefixos com barra final para não casar rotas como /api/publicReport ou /loginX.
   // '/tele/' é a sala pública da teleconsulta (paciente acessa por link, sem login).
   // '/api/cron/' são jobs agendados (Vercel Cron) — autenticam por CRON_SECRET na própria rota.
