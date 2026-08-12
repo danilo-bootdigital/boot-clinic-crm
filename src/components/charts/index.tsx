@@ -154,6 +154,20 @@ export interface FunnelDatum {
   value: number
 }
 
+/** Desenho tapered (silhueta de funil) ou lista de faixas com texto. */
+export type FunnelVariant = 'funnel' | 'list'
+
+/**
+ * Cor do estágio numa rampa proporcional: forte no topo, clara na base,
+ * independente de quantos estágios existem. Evita o VIZ_SEQUENCE repetir
+ * (escuro, claro, escuro…) quando há mais estágios que cores.
+ */
+function rampColor(index: number, count: number) {
+  if (count <= 1) return VIZ_SEQUENCE[0]
+  const step = Math.round((index / (count - 1)) * (VIZ_SEQUENCE.length - 1))
+  return VIZ_SEQUENCE[step]
+}
+
 /**
  * Funil de pipeline comercial — estágios na ordem (não reordena por valor).
  *
@@ -161,55 +175,110 @@ export interface FunnelDatum {
  * zerados ou sequência não decrescente (0,0,1,1,0…) o funil do Recharts gera
  * polígonos degenerados que se cruzam e empilha os rótulos no centro.
  *
- * Cada estágio é uma faixa de altura fixa com preenchimento proporcional ao
- * maior valor; nome e contagem ficam DENTRO da faixa, então o componente é
- * pensado para coluna estreita (~18–22rem) e não depende de largura total.
+ * Duas leituras da mesma série, ambas dimensionadas para coluna estreita
+ * (~18–22rem):
+ * - `funnel`: silhueta tapered via clip-path, rótulos na coluna à direita.
+ * - `list`: faixa por estágio com nome e contagem dentro da barra.
  */
 export function FunnelPipeline({
   data,
+  variant = 'funnel',
   valueFormatter = defaultFmt,
 }: {
   data: FunnelDatum[]
+  variant?: FunnelVariant
   valueFormatter?: Formatter
 }) {
   const max = Math.max(...data.map((d) => d.value), 0)
   const total = data.reduce((sum, d) => sum + d.value, 0)
+  const pct = (value: number) => (total > 0 ? `${Math.round((value / total) * 100)}%` : null)
+
+  // Largura relativa de cada estágio. Estágio zerado vira um gargalo fino em
+  // vez de desaparecer, senão a silhueta se parte no meio.
+  const widths = data.map((stage) =>
+    stage.value > 0 && max > 0 ? Math.max(12, (stage.value / max) * 100) : 5
+  )
+
+  if (variant === 'funnel') {
+    return (
+      <div className="grid grid-cols-[1fr_minmax(0,7rem)] gap-3">
+        {/* Silhueta: faixas encostadas, sem gap, para o taper ficar contínuo. */}
+        <div role="presentation">
+          {data.map((stage, i) => {
+            const top = widths[i]
+            const bottom = i < widths.length - 1 ? widths[i + 1] : widths[i]
+            const clipPath = `polygon(${50 - top / 2}% 0%, ${50 + top / 2}% 0%, ${
+              50 + bottom / 2
+            }% 100%, ${50 - bottom / 2}% 100%)`
+
+            return (
+              <div
+                key={`${stage.name}-shape-${i}`}
+                className="h-8"
+                style={{
+                  clipPath,
+                  background:
+                    stage.value > 0 ? rampColor(i, data.length) : 'hsl(var(--muted))',
+                }}
+                title={`${stage.name}: ${valueFormatter(stage.value)}`}
+              />
+            )
+          })}
+        </div>
+
+        {/* Rótulos alinhados às faixas pela mesma altura de linha (h-8). */}
+        <ul>
+          {data.map((stage, i) => (
+            <li
+              key={`${stage.name}-label-${i}`}
+              className="flex h-8 items-center gap-2 text-xs"
+            >
+              <span className="truncate text-muted-foreground" title={stage.name}>
+                {stage.name}
+              </span>
+              <span className="ml-auto shrink-0 tabular-nums text-foreground">
+                <span className="font-semibold">{stage.value}</span>
+                {pct(stage.value) && (
+                  <span className="ml-1 text-muted-foreground">{pct(stage.value)}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
 
   return (
     <ul className="space-y-1">
-      {data.map((stage, i) => {
-        const share = max > 0 ? stage.value / max : 0
-        // Piso de 6% para o menor valor não virar um fio invisível.
-        const width = stage.value > 0 ? Math.max(6, share * 100) : 0
-        const fill = VIZ_SEQUENCE[i % VIZ_SEQUENCE.length]
-
-        return (
-          <li
-            key={`${stage.name}-${i}`}
-            className="relative flex h-8 items-center overflow-hidden rounded-md bg-muted/60"
-            title={`${stage.name}: ${valueFormatter(stage.value)}`}
-          >
-            {/* Preenchimento em tinta clara: mantém o texto legível por cima. */}
-            {stage.value > 0 && (
-              <div
-                className="absolute inset-y-0 left-0 transition-[width] duration-300"
-                style={{ width: `${width}%`, background: fill, opacity: 0.32 }}
-              />
+      {data.map((stage, i) => (
+        <li
+          key={`${stage.name}-${i}`}
+          className="relative flex h-8 items-center overflow-hidden rounded-md bg-muted/60"
+          title={`${stage.name}: ${valueFormatter(stage.value)}`}
+        >
+          {/* Preenchimento em tinta clara: mantém o texto legível por cima. */}
+          {stage.value > 0 && (
+            <div
+              className="absolute inset-y-0 left-0 transition-[width] duration-300"
+              style={{
+                width: `${widths[i]}%`,
+                background: rampColor(i, data.length),
+                opacity: 0.32,
+              }}
+            />
+          )}
+          <span className="relative truncate pl-2.5 text-xs font-medium text-foreground">
+            {stage.name}
+          </span>
+          <span className="relative ml-auto shrink-0 pl-2 pr-2.5 text-xs tabular-nums text-foreground">
+            <span className="font-semibold">{stage.value}</span>
+            {pct(stage.value) && (
+              <span className="ml-1 text-muted-foreground">{pct(stage.value)}</span>
             )}
-            <span className="relative truncate pl-2.5 text-xs font-medium text-foreground">
-              {stage.name}
-            </span>
-            <span className="relative ml-auto shrink-0 pl-2 pr-2.5 text-xs tabular-nums text-foreground">
-              <span className="font-semibold">{stage.value}</span>
-              {total > 0 && (
-                <span className="ml-1 text-muted-foreground">
-                  {Math.round((stage.value / total) * 100)}%
-                </span>
-              )}
-            </span>
-          </li>
-        )
-      })}
+          </span>
+        </li>
+      ))}
     </ul>
   )
 }

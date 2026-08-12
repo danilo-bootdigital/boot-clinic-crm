@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { DealSource } from '@/lib/validations/crm';
-import { FunnelPipeline } from '@/components/charts';
+import { FunnelPipeline, type FunnelVariant } from '@/components/charts';
 import { Input } from '@/components/ui/input';
 import { FilterSelect } from '@/components/ui/filter-bar';
 
@@ -54,11 +54,19 @@ interface KanbanBoardProps {
   onDealClick?: (deal: Deal) => void;
 }
 
+const FUNNEL_VARIANT_KEY = 'crm:funnelVariant';
+
+const FUNNEL_VARIANTS: { value: FunnelVariant; label: string; title: string }[] = [
+  { value: 'funnel', label: 'Funil', title: 'Desenho de funil' },
+  { value: 'list', label: 'Texto', title: 'Lista de estágios' },
+];
+
 export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProps) {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedDeal, setDraggedDeal] = useState<Deal | null>(null);
+  const [funnelVariant, setFunnelVariant] = useState<FunnelVariant>('funnel');
   const [filters, setFilters] = useState({
     responsibleUserId: '',
     source: '',
@@ -71,6 +79,17 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
     loadStages();
     loadDeals();
   }, [pipelineId]);
+
+  // Formato do funil: lido depois da montagem para não divergir do HTML do servidor.
+  useEffect(() => {
+    const stored = window.localStorage.getItem(FUNNEL_VARIANT_KEY);
+    if (stored === 'funnel' || stored === 'list') setFunnelVariant(stored);
+  }, []);
+
+  const changeFunnelVariant = (variant: FunnelVariant) => {
+    setFunnelVariant(variant);
+    window.localStorage.setItem(FUNNEL_VARIANT_KEY, variant);
+  };
 
   const loadStages = async () => {
     try {
@@ -264,11 +283,48 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
 
       {/* Funil do pipeline + resumo */}
       {stages.length > 0 && deals.length > 0 && (
-        <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,20rem)_1fr]">
+        <div
+          className={`mb-6 grid gap-4 ${
+            funnelVariant === 'funnel'
+              ? 'lg:grid-cols-[minmax(0,24rem)_1fr]'
+              : 'lg:grid-cols-[minmax(0,20rem)_1fr]'
+          }`}
+        >
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
-            <h3 className="mb-1 text-base font-semibold text-foreground">Funil do pipeline</h3>
-            <p className="mb-3 text-sm text-muted-foreground">Negócios por estágio</p>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Funil do pipeline</h3>
+                <p className="text-sm text-muted-foreground">Negócios por estágio</p>
+              </div>
+              <div
+                role="tablist"
+                aria-label="Formato do funil"
+                className="inline-flex shrink-0 rounded-lg border border-border bg-muted/60 p-0.5"
+              >
+                {FUNNEL_VARIANTS.map((option) => {
+                  const active = option.value === funnelVariant;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      title={option.title}
+                      onClick={() => changeFunnelVariant(option.value)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                        active
+                          ? 'bg-card text-foreground shadow-card'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <FunnelPipeline
+              variant={funnelVariant}
               data={stages.map((stage) => ({
                 name: stage.name,
                 value: getDealsByStage(stage.id).length,
