@@ -19,9 +19,6 @@ import {
   Tooltip,
   Cell,
   Legend,
-  FunnelChart,
-  Funnel,
-  LabelList,
 } from 'recharts'
 
 // Sequência teal para categorias (do mais forte ao mais claro).
@@ -157,50 +154,66 @@ export interface FunnelDatum {
   value: number
 }
 
-/** Funil de pipeline comercial — estágios na ordem (não reordena por valor). */
+/**
+ * Funil de pipeline comercial — estágios na ordem (não reordena por valor).
+ *
+ * Layout próprio em SVG/CSS em vez do FunnelChart do Recharts: com estágios
+ * zerados ou sequência não decrescente (0,0,1,1,0…) o funil do Recharts gera
+ * polígonos degenerados que se cruzam e empilha os rótulos no centro. Aqui cada
+ * estágio é uma barra centralizada, proporcional ao maior valor, e o zero vira
+ * um traço tracejado — o funil continua legível com qualquer distribuição.
+ */
 export function FunnelPipeline({
   data,
-  height = 260,
   valueFormatter = defaultFmt,
 }: {
   data: FunnelDatum[]
-  height?: number
   valueFormatter?: Formatter
 }) {
-  const colored = data.map((d, i) => ({ ...d, fill: VIZ_SEQUENCE[i % VIZ_SEQUENCE.length] }))
+  const max = Math.max(...data.map((d) => d.value), 0)
+  const total = data.reduce((sum, d) => sum + d.value, 0)
+
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <FunnelChart>
-        <Tooltip
-          content={({ active, payload }: any) =>
-            active && payload?.length ? (
-              <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-popover">
-                <p className="text-xs font-semibold text-foreground">{payload[0]?.payload?.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {valueFormatter(Number(payload[0]?.value ?? 0))}
-                </p>
-              </div>
-            ) : null
-          }
-        />
-        <Funnel dataKey="value" data={colored} isAnimationActive={false}>
-          <LabelList
-            position="right"
-            dataKey="name"
-            stroke="none"
-            fill="#333333"
-            fontSize={12}
-          />
-          <LabelList
-            position="left"
-            dataKey="value"
-            stroke="none"
-            fill="#666666"
-            fontSize={12}
-          />
-        </Funnel>
-      </FunnelChart>
-    </ResponsiveContainer>
+    <ul className="space-y-1.5">
+      {data.map((stage, i) => {
+        const share = max > 0 ? stage.value / max : 0
+        // Piso de 8% para o menor valor não virar um fio invisível.
+        const width = stage.value > 0 ? Math.max(8, share * 100) : 0
+        const fill = VIZ_SEQUENCE[i % VIZ_SEQUENCE.length]
+
+        return (
+          <li
+            key={`${stage.name}-${i}`}
+            className="grid grid-cols-[minmax(6rem,10rem)_1fr_auto] items-center gap-3"
+          >
+            <span className="truncate text-xs text-muted-foreground" title={stage.name}>
+              {stage.name}
+            </span>
+
+            <div className="flex h-6 items-center justify-center">
+              {stage.value > 0 ? (
+                <div
+                  className="h-6 rounded-[4px] transition-[width] duration-300"
+                  style={{ width: `${width}%`, background: fill }}
+                  title={`${stage.name}: ${valueFormatter(stage.value)}`}
+                />
+              ) : (
+                <div className="h-px w-full border-t border-dashed border-border" />
+              )}
+            </div>
+
+            <span className="w-24 text-right text-xs tabular-nums text-foreground">
+              <span className="font-semibold">{stage.value}</span>
+              {total > 0 && (
+                <span className="ml-1 text-muted-foreground">
+                  {Math.round((stage.value / total) * 100)}%
+                </span>
+              )}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
