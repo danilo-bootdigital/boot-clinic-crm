@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { printExamRequest } from '@/lib/clinical/print-exam-request';
 
 // Emissão de pedido de exames. Componente único, montado em dois lugares:
@@ -24,7 +24,7 @@ interface Professional {
   name: string;
   crm?: string | null;
 }
-interface Modelo {
+export interface Modelo {
   id: string;
   name: string;
   clinicalIndication?: string | null;
@@ -39,12 +39,19 @@ export function ExamRequestForm({
   teleconsultationId,
   /** Profissional do atendimento: quando informado, já vem selecionado. */
   defaultProfessionalId,
+  /**
+   * Modelo escolhido no passo anterior. O pedido abre JÁ preenchido com ele;
+   * `null` é o pedido em branco. A escolha acontece fora deste componente para
+   * o médico decidir o ponto de partida antes de encarar o painel inteiro.
+   */
+  template = null,
   onIssued,
 }: {
   patientId: string;
   origin?: 'PATIENT_CHART' | 'TELEMEDICINE';
   teleconsultationId?: string;
   defaultProfessionalId?: string;
+  template?: Modelo | null;
   onIssued?: (id: string) => void;
 }) {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -57,7 +64,6 @@ export function ExamRequestForm({
   const [emitindo, setEmitindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [emitido, setEmitido] = useState<string | null>(null);
-  const [modelos, setModelos] = useState<Modelo[]>([]);
   // Exames digitados: um por linha. Existe para o médico não ficar preso ao
   // catálogo quando precisa de algo fora do painel.
   const [livres, setLivres] = useState('');
@@ -67,12 +73,10 @@ export function ExamRequestForm({
     let ativo = true;
     (async () => {
       try {
-        const [cat, profs, mods] = await Promise.all([
+        const [cat, profs] = await Promise.all([
           fetch('/api/clinico/exames/catalogo').then((r) => (r.ok ? r.json() : null)),
           fetch('/api/professionals?activeOnly=1').then((r) => (r.ok ? r.json() : [])),
-          fetch('/api/clinico/exames/modelos').then((r) => (r.ok ? r.json() : [])),
         ]);
-        if (ativo) setModelos(Array.isArray(mods) ? mods : []);
         if (!ativo) return;
         if (cat) {
           setGrupos(cat.grupos ?? []);
@@ -90,6 +94,17 @@ export function ExamRequestForm({
       ativo = false;
     };
   }, [defaultProfessionalId]);
+
+  // Aplica o modelo escolhido UMA vez, quando o catálogo já existe — antes
+  // disso não há como casar os itens salvos com os do painel.
+  const modeloAplicado = useRef(false);
+  useEffect(() => {
+    if (!template || modeloAplicado.current || grupos.length === 0) return;
+    modeloAplicado.current = true;
+    aplicarModelo(template);
+    // aplicarModelo é estável dentro do render do componente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, grupos]);
 
   const profSelecionado = useMemo(
     () => profissionais.find((p) => p.id === professionalId),
@@ -198,8 +213,6 @@ export function ExamRequestForm({
         setErro(body?.error ?? 'Não foi possível salvar o modelo.');
         return;
       }
-      const mods = await fetch('/api/clinico/exames/modelos').then((r) => (r.ok ? r.json() : []));
-      setModelos(Array.isArray(mods) ? mods : []);
     } finally {
       setSalvandoModelo(false);
     }
@@ -218,24 +231,6 @@ export function ExamRequestForm({
 
   return (
     <div className="space-y-4">
-      {modelos.length > 0 && (
-        <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <p className="mb-2 text-sm font-medium text-foreground">Usar um modelo salvo</p>
-          <div className="flex flex-wrap gap-2">
-            {modelos.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => aplicarModelo(m)}
-                className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
-                title={`${m.totalExames} exames`}
-              >
-                {m.name} <span className="text-muted-foreground">({m.totalExames})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>

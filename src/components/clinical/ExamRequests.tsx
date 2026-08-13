@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExamRequestForm } from '@/components/clinical/ExamRequestForm';
+import { ExamRequestForm, type Modelo } from '@/components/clinical/ExamRequestForm';
 import { printExamRequest } from '@/lib/clinical/print-exam-request';
 
 // Aba "Pedido de exames" da ficha do paciente: consulta o histórico e emite um
@@ -21,7 +21,12 @@ interface Pedido {
 
 export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdit: boolean }) {
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
-  const [criando, setCriando] = useState(false);
+  // Fluxo em dois passos: primeiro escolhe o ponto de partida (modelo salvo ou
+  // em branco), depois abre o pedido já carregado. Encarar o painel inteiro sem
+  // decidir isso antes é o que tornava a emissão trabalhosa.
+  const [etapa, setEtapa] = useState<'fechado' | 'escolha' | 'form'>('fechado');
+  const [modelos, setModelos] = useState<Modelo[]>([]);
+  const [modeloEscolhido, setModeloEscolhido] = useState<Modelo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvandoModelo, setSalvandoModelo] = useState<string | null>(null);
 
@@ -34,9 +39,29 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
     }
   }, [patientId]);
 
+  const carregarModelos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/clinico/exames/modelos', { cache: 'no-store' });
+      setModelos(res.ok ? await res.json() : []);
+    } catch {
+      setModelos([]);
+    }
+  }, []);
+
   useEffect(() => {
     carregar();
-  }, [carregar]);
+    carregarModelos();
+  }, [carregar, carregarModelos]);
+
+  function abrirEscolha() {
+    setModeloEscolhido(null);
+    setEtapa((e) => (e === 'fechado' ? 'escolha' : 'fechado'));
+  }
+
+  function escolher(m: Modelo | null) {
+    setModeloEscolhido(m);
+    setEtapa('form');
+  }
 
   async function reimprimir(id: string) {
     const res = await fetch(`/api/clinico/exames/${id}`);
@@ -79,24 +104,86 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
         {canEdit && (
           <button
             type="button"
-            onClick={() => setCriando((v) => !v)}
+            onClick={abrirEscolha}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
-            {criando ? 'Fechar' : 'Novo pedido'}
+            {etapa === 'fechado' ? 'Novo pedido' : 'Fechar'}
           </button>
         )}
       </div>
 
       {erro && <p className="text-sm text-destructive">{erro}</p>}
 
-      {criando && canEdit && (
+      {etapa === 'escolha' && canEdit && (
         <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+          <p className="text-sm font-medium text-foreground">Começar a partir de</p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Escolha um modelo salvo ou comece em branco. Dá para ajustar tudo depois.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => escolher(null)}
+              className="rounded-lg border border-dashed border-border px-3 py-3 text-left hover:bg-muted"
+            >
+              <span className="block text-sm font-medium text-foreground">Pedido em branco</span>
+              <span className="block text-xs text-muted-foreground">Nenhum exame marcado</span>
+            </button>
+            {modelos.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => escolher(m)}
+                className="rounded-lg border border-border px-3 py-3 text-left hover:bg-muted"
+              >
+                <span className="block truncate text-sm font-medium text-foreground">{m.name}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {m.totalExames} {m.totalExames === 1 ? 'exame' : 'exames'}
+                </span>
+              </button>
+            ))}
+          </div>
+          {modelos.length === 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Nenhum modelo salvo ainda. Emita um pedido e use &quot;Salvar como modelo&quot; para
+              reaproveitar depois.
+            </p>
+          )}
+        </div>
+      )}
+
+      {etapa === 'form' && canEdit && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+            <p className="text-sm text-muted-foreground">
+              {modeloEscolhido ? (
+                <>
+                  Modelo: <strong className="text-foreground">{modeloEscolhido.name}</strong>
+                </>
+              ) : (
+                'Pedido em branco'
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setEtapa('escolha')}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Trocar ponto de partida
+            </button>
+          </div>
           <ExamRequestForm
+            // A key força remontar ao trocar de modelo: sem isso o formulário
+            // manteria a seleção do modelo anterior misturada com a nova.
+            key={modeloEscolhido?.id ?? 'em-branco'}
             patientId={patientId}
             origin="PATIENT_CHART"
+            template={modeloEscolhido}
             onIssued={() => {
-              // Recarrega o histórico para o pedido recém-emitido aparecer.
+              // Recarrega histórico e modelos: o pedido novo aparece na lista e
+              // um "salvar como modelo" feito no formulário reflete aqui.
               carregar();
+              carregarModelos();
             }}
           />
         </div>
