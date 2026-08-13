@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveDbUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
+import { isMedico } from '@/lib/api/is-doctor';
 
 const Schema = z.object({
   name: z.string().min(1),
@@ -38,10 +39,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Regra do papel: quem TEM conta de acesso só aparece como médico se o papel
-    // for DOCTOR. Cadastro sem usuário vinculado permanece — é o médico que não
-    // faz login, e filtrá-lo esvaziaria a agenda de quem cadastrou à mão.
-    const medicos = items.filter((p) => !p.userId || p.user?.role === 'DOCTOR');
+    // Regra do papel — ver lib/api/is-doctor.ts (com teste).
+    const medicos = items.filter(isMedico);
     // Achata as especialidades para o front: specialtyIds + specialtyNames.
     const result = medicos.map(({ specialties, user, ...p }) => ({
       ...p,
