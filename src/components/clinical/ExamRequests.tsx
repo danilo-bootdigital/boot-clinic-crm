@@ -27,6 +27,10 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
   const [etapa, setEtapa] = useState<'fechado' | 'escolha' | 'form'>('fechado');
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [modeloEscolhido, setModeloEscolhido] = useState<Modelo | null>(null);
+  // Terceiro ponto de partida: o painel da clínica. Sem ele, uma clínica que
+  // tem catálogo mas nenhum modelo salvo nunca alcançaria os próprios exames.
+  const [temPainel, setTemPainel] = useState(false);
+  const [pontoDePartida, setPontoDePartida] = useState<'painel' | 'modelo' | 'branco'>('painel');
   const [erro, setErro] = useState<string | null>(null);
   const [salvandoModelo, setSalvandoModelo] = useState<string | null>(null);
 
@@ -41,10 +45,15 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
 
   const carregarModelos = useCallback(async () => {
     try {
-      const res = await fetch('/api/clinico/exames/modelos', { cache: 'no-store' });
-      setModelos(res.ok ? await res.json() : []);
+      const [mods, cat] = await Promise.all([
+        fetch('/api/clinico/exames/modelos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : [])),
+        fetch('/api/clinico/exames/catalogo', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)),
+      ]);
+      setModelos(Array.isArray(mods) ? mods : []);
+      setTemPainel(Boolean(cat && cat.vazio === false));
     } catch {
       setModelos([]);
+      setTemPainel(false);
     }
   }, []);
 
@@ -58,7 +67,8 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
     setEtapa((e) => (e === 'fechado' ? 'escolha' : 'fechado'));
   }
 
-  function escolher(m: Modelo | null) {
+  function escolher(origem: 'painel' | 'modelo' | 'branco', m: Modelo | null = null) {
+    setPontoDePartida(origem);
     setModeloEscolhido(m);
     setEtapa('form');
   }
@@ -121,27 +131,39 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
             Escolha um modelo salvo ou comece em branco. Dá para ajustar tudo depois.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => escolher(null)}
-              className="rounded-lg border border-dashed border-border px-3 py-3 text-left hover:bg-muted"
-            >
-              <span className="block text-sm font-medium text-foreground">Pedido em branco</span>
-              <span className="block text-xs text-muted-foreground">Nenhum exame marcado</span>
-            </button>
+            {temPainel && (
+              <button
+                type="button"
+                onClick={() => escolher('painel')}
+                className="rounded-lg border border-border px-3 py-3 text-left hover:bg-muted"
+              >
+                <span className="block text-sm font-medium text-foreground">Painel da clínica</span>
+                <span className="block text-xs text-muted-foreground">
+                  Todos os exames, nenhum marcado
+                </span>
+              </button>
+            )}
             {modelos.map((m) => (
               <button
                 key={m.id}
                 type="button"
-                onClick={() => escolher(m)}
+                onClick={() => escolher('modelo', m)}
                 className="rounded-lg border border-border px-3 py-3 text-left hover:bg-muted"
               >
                 <span className="block truncate text-sm font-medium text-foreground">{m.name}</span>
                 <span className="block text-xs text-muted-foreground">
-                  {m.totalExames} {m.totalExames === 1 ? 'exame' : 'exames'}
+                  {m.totalExames} {m.totalExames === 1 ? 'exame' : 'exames'} · modelo salvo
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => escolher('branco')}
+              className="rounded-lg border border-dashed border-border px-3 py-3 text-left hover:bg-muted"
+            >
+              <span className="block text-sm font-medium text-foreground">Pedido em branco</span>
+              <span className="block text-xs text-muted-foreground">Só digitação, sem painel</span>
+            </button>
           </div>
           {modelos.length === 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
@@ -156,10 +178,12 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
         <div className="rounded-xl border border-border bg-card p-4 shadow-card">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
             <p className="text-sm text-muted-foreground">
-              {modeloEscolhido ? (
+              {pontoDePartida === 'modelo' && modeloEscolhido ? (
                 <>
                   Modelo: <strong className="text-foreground">{modeloEscolhido.name}</strong>
                 </>
+              ) : pontoDePartida === 'painel' ? (
+                'Painel da clínica'
               ) : (
                 'Pedido em branco'
               )}
@@ -175,10 +199,11 @@ export function ExamRequests({ patientId, canEdit }: { patientId: string; canEdi
           <ExamRequestForm
             // A key força remontar ao trocar de modelo: sem isso o formulário
             // manteria a seleção do modelo anterior misturada com a nova.
-            key={modeloEscolhido?.id ?? 'em-branco'}
+            key={`${pontoDePartida}-${modeloEscolhido?.id ?? ''}`}
             patientId={patientId}
             origin="PATIENT_CHART"
             template={modeloEscolhido}
+            blank={pontoDePartida === 'branco'}
             onIssued={() => {
               // Recarrega histórico e modelos: o pedido novo aparece na lista e
               // um "salvar como modelo" feito no formulário reflete aqui.

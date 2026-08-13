@@ -40,11 +40,18 @@ export function ExamRequestForm({
   /** Profissional do atendimento: quando informado, já vem selecionado. */
   defaultProfessionalId,
   /**
-   * Modelo escolhido no passo anterior. O pedido abre JÁ preenchido com ele;
-   * `null` é o pedido em branco. A escolha acontece fora deste componente para
-   * o médico decidir o ponto de partida antes de encarar o painel inteiro.
+   * Modelo escolhido no passo anterior; o pedido abre JÁ preenchido com ele.
+   * Sem modelo E sem `blank`, abre o painel da clínica com nada marcado.
    */
   template = null,
+  /**
+   * Folha limpa: só a área de digitação, sem painel e sem sugestões.
+   *
+   * É explícito, e não "ausência de modelo", porque existem TRÊS pontos de
+   * partida: painel da clínica, modelo salvo e em branco. Derivar do template
+   * nulo deixava o painel inalcançável para clínica sem modelo salvo.
+   */
+  blank = false,
   onIssued,
 }: {
   patientId: string;
@@ -52,6 +59,7 @@ export function ExamRequestForm({
   teleconsultationId?: string;
   defaultProfessionalId?: string;
   template?: Modelo | null;
+  blank?: boolean;
   onIssued?: (id: string) => void;
 }) {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -68,11 +76,10 @@ export function ExamRequestForm({
   // catálogo quando precisa de algo fora do painel.
   const [livres, setLivres] = useState('');
   const [salvandoModelo, setSalvandoModelo] = useState(false);
-  // Pedido em branco: folha limpa. Sem painel de exames, sem indicação e sem
-  // observações pré-preenchidas — só a área de digitação. Os dados do
-  // profissional e do paciente entram no documento de qualquer forma, porque
-  // vêm do cadastro no momento da emissão (snapshot), não deste formulário.
-  const emBranco = template === null;
+  // Os dados do profissional e do paciente entram no documento de qualquer
+  // forma, porque vêm do cadastro no momento da emissão (snapshot), não deste
+  // formulário — então o modo em branco não perde nada disso.
+  const emBranco = blank;
 
   useEffect(() => {
     let ativo = true;
@@ -86,7 +93,7 @@ export function ExamRequestForm({
         if (cat) {
           setGrupos(cat.grupos ?? []);
           // As sugestões do painel só fazem sentido quando se parte dele.
-          if (template !== null) {
+          if (!blank) {
             setIndicacao(cat.sugestoes?.indicacaoClinica ?? '');
             setObservacoes(cat.sugestoes?.observacoes ?? '');
           }
@@ -101,7 +108,7 @@ export function ExamRequestForm({
     return () => {
       ativo = false;
     };
-  }, [defaultProfessionalId, template]);
+  }, [defaultProfessionalId, blank]);
 
   // Aplica o modelo escolhido UMA vez, quando o catálogo já existe — antes
   // disso não há como casar os itens salvos com os do painel.
