@@ -280,6 +280,12 @@ export function ExamRequestForm({
       </div>
 
       <div className={emBranco ? 'hidden' : 'space-y-4'}>
+        {!emBranco && grupos.length === 0 && (
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Esta clínica ainda não tem um painel de exames montado. Use o campo de digitação
+            abaixo para listar os exames deste pedido.
+          </p>
+        )}
         {grupos.map((g) => {
           const ids = g.subgroups.flatMap((sg) => sg.items.map((i) => i.id));
           const todos = ids.every((id) => selecionados.has(id));

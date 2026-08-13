@@ -2,21 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import {
-  EXAM_CATALOG_SEED,
-  INDICACAO_CLINICA_PADRAO,
-  OBSERVACOES_PADRAO,
-} from '@/lib/clinical/exam-catalog-default';
+import { z } from 'zod';
 
-// GET /api/clinico/exames/catalogo
+// GET  /api/clinico/exames/catalogo — painel de exames DESTA clínica
+// POST /api/clinico/exames/catalogo — adiciona um exame ao painel
 //
-// Catálogo de exames da clínica, agrupado para a tela montar o painel de
-// seleção. Semeia o painel padrão no PRIMEIRO acesso — mesmo padrão do
-// /api/professionals, que cria o profissional default quando não há nenhum.
-// Depois disso o catálogo é da clínica: editar/desativar item não mexe na
-// semente nem em pedidos já emitidos.
+// MULTIEMPRESA: o painel é exclusivo da clínica. NÃO existe semeadura
+// automática — a versão anterior copiava o painel de uma clínica para toda
+// clínica que abrisse o módulo, o que espalhava a lista curada de uma para
+// todas. Cada clínica monta o seu, e quem não tem painel emite pelo campo de
+// digitação livre.
 
 export const dynamic = 'force-dynamic';
+
+const CreateSchema = z.object({
+  name: z.string().trim().min(1, 'Nome do exame é obrigatório').max(180),
+  group: z.string().trim().min(1, 'Grupo é obrigatório').max(120),
+  subgroup: z.string().trim().max(120).optional().or(z.literal('')),
+});
 
 export async function GET(_request: NextRequest) {
   try {
@@ -26,19 +29,6 @@ export async function GET(_request: NextRequest) {
     if (denied) return denied;
 
     const companyId = dbUser!.companyId;
-
-    const existentes = await prisma.examCatalogItem.count({ where: { companyId, deletedAt: null } });
-    if (existentes === 0) {
-      await prisma.examCatalogItem.createMany({
-        data: EXAM_CATALOG_SEED.map((item, i) => ({
-          companyId,
-          group: item.group,
-          subgroup: item.subgroup ?? null,
-          name: item.name,
-          order: i,
-        })),
-      });
-    }
 
     const itens = await prisma.examCatalogItem.findMany({
       where: { companyId, deletedAt: null, isActive: true },
@@ -64,14 +54,57 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({
       grupos,
-      // Sugestões do modelo: a tela pré-preenche e o médico ajusta.
-      sugestoes: {
-        indicacaoClinica: INDICACAO_CLINICA_PADRAO,
-        observacoes: OBSERVACOES_PADRAO,
-      },
+      // A tela usa isto para explicar o painel vazio em vez de parecer quebrada.
+      vazio: itens.length === 0,
     });
   } catch (err) {
     console.error('Erro ao carregar catálogo de exames:', err);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { dbUser, error } = await resolveModuleUser('clinico');
+    if (error) return error;
+    const denied = requirePermission(dbUser!, 'clinico', 'edit');
+    if (denied) return denied;
+
+    const d = CreateSchema.parse(await request.json());
+    const companyId = dbUser!.companyId;
+
+    const duplicado = await prisma.examCatalogItem.findFirst({
+      where: { companyId, deletedAt: null, name: d.name, group: d.group },
+      select: { id: true },
+    });
+    if (duplicado) {
+      return NextResponse.json({ error: 'Esse exame já está no painel' }, { status: 409 });
+    }
+
+    // Entra no fim do grupo, preservando a ordem que a clínica montou.
+    const ultimo = await prisma.examCatalogItem.findFirst({
+      where: { companyId, deletedAt: null },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+
+    const item = await prisma.examCatalogItem.create({
+      data: {
+        companyId,
+        name: d.name,
+        group: d.group,
+        subgroup: d.subgroup || null,
+        order: (ultimo?.order ?? -1) + 1,
+      },
+      select: { id: true, name: true, group: true, subgroup: true },
+    });
+
+    return NextResponse.json(item, { status: 201 });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
+    }
+    console.error('Erro ao adicionar exame ao painel:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
