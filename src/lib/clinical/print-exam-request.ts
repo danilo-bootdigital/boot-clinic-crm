@@ -34,6 +34,10 @@ export interface ExamRequestDoc {
 }
 
 export function printExamRequest(doc: ExamRequestDoc) {
+  // Quando o pedido é só a lista digitada, não há painel a nomear: imprimir
+  // "Outros exames" como título de um documento inteiro fica sem sentido.
+  const grupoUnicoLivre = doc.grupos.length === 1 && doc.grupos[0].group === 'Outros exames';
+
   const grupos = doc.grupos
     .map((g) => {
       const blocos = g.subgroups
@@ -43,7 +47,8 @@ export function printExamRequest(doc: ExamRequestDoc) {
           return `${titulo}<ul class="exames">${itens}</ul>`;
         })
         .join('');
-      return `<section class="grupo"><h2>${esc(g.group)}</h2>${blocos}</section>`;
+      const titulo = grupoUnicoLivre ? '<h2>Exames solicitados</h2>' : `<h2>${esc(g.group)}</h2>`;
+      return `<section class="grupo">${titulo}${blocos}</section>`;
     })
     .join('');
 
@@ -112,7 +117,11 @@ export function printExamRequest(doc: ExamRequestDoc) {
       <p><strong>Data:</strong> ${esc(dataBR(doc.emitidoEm))}</p>
     </div>
 
-    <p class="indicacao"><strong>Indicação Clínica:</strong> ${esc(doc.indicacaoClinica)}</p>
+    ${
+      doc.indicacaoClinica?.trim()
+        ? `<p class="indicacao"><strong>Indicação Clínica:</strong> ${esc(doc.indicacaoClinica)}</p>`
+        : ''
+    }
 
     ${grupos}
 

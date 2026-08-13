@@ -24,7 +24,8 @@ const CreateSchema = z.object({
   // Exames digitados à mão: o que não está no catálogo. Entram na mesma lista
   // do documento, sob um grupo próprio, para o médico não ficar preso ao painel.
   freeItems: z.array(z.string().trim().min(1).max(180)).default([]),
-  clinicalIndication: z.string().trim().min(1, 'Indicação clínica é obrigatória').max(2000),
+  // Opcional: pedido em branco não tem indicação, só a lista digitada.
+  clinicalIndication: z.string().trim().max(2000).optional(),
   observations: z.string().max(4000).optional(),
   origin: z.nativeEnum(ExamRequestOrigin).default(ExamRequestOrigin.PATIENT_CHART),
   teleconsultationId: z.string().optional(),
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
         professionalCrmSnapshot: professional.crm.trim(),
         patientNameSnapshot: patient.name,
         patientBirthDateSnapshot: patient.birthDate,
-        clinicalIndication: d.clinicalIndication.trim(),
+        clinicalIndication: d.clinicalIndication?.trim() || null,
         observations: d.observations?.trim() || null,
         origin: d.origin,
         teleconsultationId: d.teleconsultationId || null,

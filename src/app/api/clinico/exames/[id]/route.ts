@@ -75,7 +75,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
         crm: pedido.professionalCrmSnapshot,
         signatureUrl,
       },
-      indicacaoClinica: pedido.clinicalIndication,
+      indicacaoClinica: pedido.clinicalIndication ?? '',
       observacoes: pedido.observations,
       emitidoEm: pedido.issuedAt,
       origem: pedido.origin,

@@ -68,6 +68,11 @@ export function ExamRequestForm({
   // catálogo quando precisa de algo fora do painel.
   const [livres, setLivres] = useState('');
   const [salvandoModelo, setSalvandoModelo] = useState(false);
+  // Pedido em branco: folha limpa. Sem painel de exames, sem indicação e sem
+  // observações pré-preenchidas — só a área de digitação. Os dados do
+  // profissional e do paciente entram no documento de qualquer forma, porque
+  // vêm do cadastro no momento da emissão (snapshot), não deste formulário.
+  const emBranco = template === null;
 
   useEffect(() => {
     let ativo = true;
@@ -80,8 +85,11 @@ export function ExamRequestForm({
         if (!ativo) return;
         if (cat) {
           setGrupos(cat.grupos ?? []);
-          setIndicacao(cat.sugestoes?.indicacaoClinica ?? '');
-          setObservacoes(cat.sugestoes?.observacoes ?? '');
+          // As sugestões do painel só fazem sentido quando se parte dele.
+          if (template !== null) {
+            setIndicacao(cat.sugestoes?.indicacaoClinica ?? '');
+            setObservacoes(cat.sugestoes?.observacoes ?? '');
+          }
         }
         const lista: Professional[] = Array.isArray(profs) ? profs : profs?.professionals ?? [];
         setProfissionais(lista);
@@ -93,7 +101,7 @@ export function ExamRequestForm({
     return () => {
       ativo = false;
     };
-  }, [defaultProfessionalId]);
+  }, [defaultProfessionalId, template]);
 
   // Aplica o modelo escolhido UMA vez, quando o catálogo já existe — antes
   // disso não há como casar os itens salvos com os do painel.
@@ -257,9 +265,9 @@ export function ExamRequestForm({
             </p>
           )}
         </div>
-        <div>
+        <div className={emBranco ? 'hidden' : ''}>
           <label htmlFor="ind" className="mb-1 block text-sm font-medium text-foreground">
-            Indicação clínica*
+            Indicação clínica
           </label>
           <textarea
             id="ind"
@@ -271,7 +279,7 @@ export function ExamRequestForm({
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className={emBranco ? 'hidden' : 'space-y-4'}>
         {grupos.map((g) => {
           const ids = g.subgroups.flatMap((sg) => sg.items.map((i) => i.id));
           const todos = ids.every((id) => selecionados.has(id));
@@ -314,22 +322,25 @@ export function ExamRequestForm({
 
       <div>
         <label htmlFor="livres" className="mb-1 block text-sm font-medium text-foreground">
-          Outros exames <span className="text-muted-foreground">(um por linha)</span>
+          {emBranco ? 'Exames solicitados' : 'Outros exames'}{' '}
+          <span className="text-muted-foreground">(um por linha)</span>
         </label>
         <textarea
           id="livres"
-          rows={3}
+          rows={emBranco ? 10 : 3}
           value={livres}
           onChange={(e) => setLivres(e.target.value)}
           placeholder={'Ecocardiograma\nUltrassom de abdome total'}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Para o que não está no painel. Sai no documento sob &quot;Outros exames&quot;.
+          {emBranco
+            ? 'Digite um exame por linha. O documento sai com os dados do paciente e do profissional preenchidos automaticamente.'
+            : 'Para o que não está no painel. Sai no documento sob "Outros exames".'}
         </p>
       </div>
 
-      <div>
+      <div className={emBranco ? 'hidden' : ''}>
         <label htmlFor="obs" className="mb-1 block text-sm font-medium text-foreground">
           Observações
         </label>

@@ -83,7 +83,8 @@ export async function POST(request: NextRequest) {
       items = pedido.items.map((i) => ({ name: i.name, group: i.group, subgroup: i.subgroup }));
       // O que veio no corpo tem prioridade: permite renomear a indicação ao
       // salvar sem obrigar a reescrever a lista de exames.
-      indicacao = indicacao ?? pedido.clinicalIndication;
+      // clinicalIndication virou nulável (pedido em branco não tem).
+      indicacao = indicacao ?? pedido.clinicalIndication ?? undefined;
       observacoes = observacoes ?? pedido.observations ?? undefined;
     }
 

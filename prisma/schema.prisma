@@ -830,7 +830,8 @@ model ExamRequest {
   patientNameSnapshot      String
   patientBirthDateSnapshot DateTime?
 
-  clinicalIndication String  @db.Text
+  // Nulável: o pedido em branco é só a lista digitada, sem indicação.
+  clinicalIndication String? @db.Text
   observations       String? @db.Text
 
   origin             ExamRequestOrigin @default(PATIENT_CHART)
