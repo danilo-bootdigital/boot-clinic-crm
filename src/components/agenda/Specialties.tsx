@@ -73,9 +73,15 @@ export function Specialties({ professionalId }: SpecialtiesProps) {
 
       if (response.ok) {
         fetchSpecialties()
+        return
       }
+      // 409 = especialidade em uso. Sem mostrar o motivo, o clique parecia não
+      // fazer nada e o usuário tentava de novo.
+      const body = await response.json().catch(() => ({}))
+      alert(body?.error ?? 'Não foi possível excluir a especialidade.')
     } catch (error) {
       console.error('Error deleting specialty:', error)
+      alert('Falha de rede ao excluir a especialidade.')
     }
   }
 

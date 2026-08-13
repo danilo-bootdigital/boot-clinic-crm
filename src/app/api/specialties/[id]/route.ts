@@ -16,6 +16,28 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
     });
     if (!item) return NextResponse.json({ error: 'Especialidade não encontrada' }, { status: 404 });
 
+    // Trava de uso: sem ela, apagar uma especialidade deixava agendamentos
+    // apontando para um registro excluído (specialtyId é obrigatório em
+    // Appointment) e médicos vinculados a algo que não existe mais na lista.
+    const [medicos, agendamentos] = await Promise.all([
+      prisma.professionalSpecialty.count({ where: { specialtyId: item.id, companyId: dbUser!.companyId } }),
+      prisma.appointment.count({ where: { specialtyId: item.id, companyId: dbUser!.companyId, deletedAt: null } }),
+    ]);
+
+    if (medicos > 0 || agendamentos > 0) {
+      const partes = [
+        medicos > 0 ? `${medicos} ${medicos === 1 ? 'médico(a)' : 'médicos(as)'}` : null,
+        agendamentos > 0 ? `${agendamentos} ${agendamentos === 1 ? 'agendamento' : 'agendamentos'}` : null,
+      ].filter(Boolean);
+      return NextResponse.json(
+        {
+          error: `"${item.name}" está em uso por ${partes.join(' e ')}. Desvincule antes de excluir.`,
+          emUso: { medicos, agendamentos },
+        },
+        { status: 409 }
+      );
+    }
+
     await prisma.specialty.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
     return NextResponse.json({ success: true });
   } catch (err) {
