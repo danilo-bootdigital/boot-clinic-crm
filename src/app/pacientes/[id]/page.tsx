@@ -9,7 +9,7 @@ import Tags from '@/components/patients/Tags'
 import Attachments from '@/components/patients/Attachments'
 import Anamneses from '@/components/clinical/Anamneses'
 import MedicalRecords from '@/components/clinical/MedicalRecords'
-import { ExamRequestForm } from '@/components/clinical/ExamRequestForm'
+import { ExamRequests } from '@/components/clinical/ExamRequests'
 import Contracts from '@/components/clinical/Contracts'
 import Quotes from '@/components/clinical/Quotes'
 import ClinicalImages from '@/components/clinical/ClinicalImages'
@@ -174,14 +174,9 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {tab === 'contratos' && <Contracts patient={patient} canEdit={access.contratos === 'edit'} />}
       {tab === 'orcamentos' && <Quotes patientId={id} canEdit={access.orcamentos === 'edit'} />}
       {tab === 'imagens' && <ClinicalImages patientId={id} canEdit={access.imagens === 'edit'} />}
-      {tab === 'exames' &&
-        (access.prontuario === 'edit' ? (
-          <ExamRequestForm patientId={id} origin="PATIENT_CHART" />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Você tem acesso de leitura ao prontuário — emitir pedido de exames exige permissão de edição.
-          </p>
-        ))}
+      {tab === 'exames' && (
+        <ExamRequests patientId={id} canEdit={access.prontuario === 'edit'} />
+      )}
     </div>
   )
 }

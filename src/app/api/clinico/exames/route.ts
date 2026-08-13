@@ -20,12 +20,21 @@ const CreateSchema = z.object({
   patientId: z.string().min(1),
   professionalId: z.string().min(1),
   // Ids do catálogo. A validação de posse é feita no servidor.
-  itemIds: z.array(z.string().min(1)).min(1, 'Selecione ao menos um exame'),
+  itemIds: z.array(z.string().min(1)).default([]),
+  // Exames digitados à mão: o que não está no catálogo. Entram na mesma lista
+  // do documento, sob um grupo próprio, para o médico não ficar preso ao painel.
+  freeItems: z.array(z.string().trim().min(1).max(180)).default([]),
   clinicalIndication: z.string().trim().min(1, 'Indicação clínica é obrigatória').max(2000),
   observations: z.string().max(4000).optional(),
   origin: z.nativeEnum(ExamRequestOrigin).default(ExamRequestOrigin.PATIENT_CHART),
   teleconsultationId: z.string().optional(),
+}).refine((d) => d.itemIds.length > 0 || d.freeItems.length > 0, {
+  message: 'Selecione ao menos um exame',
+  path: ['itemIds'],
 });
+
+// Grupo dos exames digitados fora do catálogo.
+const GRUPO_LIVRE = 'Outros exames';
 
 export async function GET(request: NextRequest) {
   try {
@@ -105,11 +114,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Itens: só os do catálogo DESTA clínica, na ordem do catálogo.
-    const itens = await prisma.examCatalogItem.findMany({
-      where: { id: { in: d.itemIds }, companyId: dbUser!.companyId, deletedAt: null },
-      orderBy: { order: 'asc' },
-      select: { name: true, group: true, subgroup: true },
-    });
+    const doCatalogo = d.itemIds.length
+      ? await prisma.examCatalogItem.findMany({
+          where: { id: { in: d.itemIds }, companyId: dbUser!.companyId, deletedAt: null },
+          orderBy: { order: 'asc' },
+          select: { name: true, group: true, subgroup: true },
+        })
+      : [];
+
+    // Digitados: normaliza e remove duplicata contra o que já veio do catálogo.
+    const jaSelecionados = new Set(doCatalogo.map((i) => i.name.toLowerCase()));
+    const livres = Array.from(
+      new Map(
+        d.freeItems
+          .map((nome) => nome.trim())
+          .filter((nome) => nome && !jaSelecionados.has(nome.toLowerCase()))
+          .map((nome) => [nome.toLowerCase(), nome])
+      ).values()
+    ).map((name) => ({ name, group: GRUPO_LIVRE, subgroup: null as string | null }));
+
+    const itens = [...doCatalogo, ...livres];
     if (itens.length === 0) {
       return NextResponse.json({ error: 'Nenhum exame válido selecionado' }, { status: 400 });
     }

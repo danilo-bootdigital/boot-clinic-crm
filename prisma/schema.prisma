@@ -865,6 +865,42 @@ model ExamRequestItem {
   @@map("exam_request_items")
 }
 
+
+// Modelo de pedido reutilizável. Nasce de duas formas: montado do zero ou
+// salvo a partir de um pedido já emitido ("salvar como modelo").
+model ExamTemplate {
+  id                 String    @id @default(cuid())
+  companyId          String
+  name               String
+  clinicalIndication String?   @db.Text
+  observations       String?   @db.Text
+  createdByUserId    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  items ExamTemplateItem[]
+
+  @@index([companyId, name])
+  @@map("exam_templates")
+}
+
+// Item do modelo. Guarda o NOME, como o item do pedido: modelo salvo não pode
+// mudar porque alguém renomeou algo no catálogo depois.
+model ExamTemplateItem {
+  id         String  @id @default(cuid())
+  templateId String
+  name       String
+  group      String
+  subgroup   String?
+  order      Int     @default(0)
+
+  template ExamTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("exam_template_items")
+}
+
 // Preferências de notificação por empresa
 model NotificationSetting {
   id                   String   @id @default(cuid())

@@ -24,6 +24,14 @@ interface Professional {
   name: string;
   crm?: string | null;
 }
+interface Modelo {
+  id: string;
+  name: string;
+  clinicalIndication?: string | null;
+  observations?: string | null;
+  items: { name: string; group: string; subgroup: string | null }[];
+  totalExames: number;
+}
 
 export function ExamRequestForm({
   patientId,
@@ -49,15 +57,22 @@ export function ExamRequestForm({
   const [emitindo, setEmitindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [emitido, setEmitido] = useState<string | null>(null);
+  const [modelos, setModelos] = useState<Modelo[]>([]);
+  // Exames digitados: um por linha. Existe para o médico não ficar preso ao
+  // catálogo quando precisa de algo fora do painel.
+  const [livres, setLivres] = useState('');
+  const [salvandoModelo, setSalvandoModelo] = useState(false);
 
   useEffect(() => {
     let ativo = true;
     (async () => {
       try {
-        const [cat, profs] = await Promise.all([
+        const [cat, profs, mods] = await Promise.all([
           fetch('/api/clinico/exames/catalogo').then((r) => (r.ok ? r.json() : null)),
           fetch('/api/professionals?activeOnly=1').then((r) => (r.ok ? r.json() : [])),
+          fetch('/api/clinico/exames/modelos').then((r) => (r.ok ? r.json() : [])),
         ]);
+        if (ativo) setModelos(Array.isArray(mods) ? mods : []);
         if (!ativo) return;
         if (cat) {
           setGrupos(cat.grupos ?? []);
@@ -106,8 +121,9 @@ export function ExamRequestForm({
       setErro('Escolha o profissional responsável.');
       return;
     }
-    if (selecionados.size === 0) {
-      setErro('Selecione ao menos um exame.');
+    const digitados = livres.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (selecionados.size === 0 && digitados.length === 0) {
+      setErro('Selecione ao menos um exame ou digite um na área livre.');
       return;
     }
     setEmitindo(true);
@@ -120,6 +136,7 @@ export function ExamRequestForm({
           patientId,
           professionalId,
           itemIds: Array.from(selecionados),
+          freeItems: livres.split('\n').map((l) => l.trim()).filter(Boolean),
           clinicalIndication: indicacao,
           observations: observacoes || undefined,
           origin,
@@ -142,6 +159,52 @@ export function ExamRequestForm({
     }
   }
 
+  // Aplica um modelo: casa os itens salvos com o catálogo pelo NOME. O que não
+  // existir mais no catálogo não some — vai para a área livre, para o médico ver
+  // que o modelo pedia aquilo.
+  function aplicarModelo(m: Modelo) {
+    const porNome = new Map<string, string>();
+    for (const g of grupos) {
+      for (const sg of g.subgroups) {
+        for (const item of sg.items) porNome.set(item.name.toLowerCase(), item.id);
+      }
+    }
+    const ids = new Set<string>();
+    const foraDoCatalogo: string[] = [];
+    for (const item of m.items) {
+      const id = porNome.get(item.name.toLowerCase());
+      if (id) ids.add(id);
+      else foraDoCatalogo.push(item.name);
+    }
+    setSelecionados(ids);
+    setLivres(foraDoCatalogo.join('\n'));
+    if (m.clinicalIndication) setIndicacao(m.clinicalIndication);
+    if (m.observations) setObservacoes(m.observations);
+    setErro(null);
+  }
+
+  async function salvarComoModelo(requestId: string) {
+    const nome = prompt('Nome do modelo (ex.: Check-up metabólico):');
+    if (!nome?.trim()) return;
+    setSalvandoModelo(true);
+    try {
+      const res = await fetch('/api/clinico/exames/modelos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nome.trim(), fromRequestId: requestId }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setErro(body?.error ?? 'Não foi possível salvar o modelo.');
+        return;
+      }
+      const mods = await fetch('/api/clinico/exames/modelos').then((r) => (r.ok ? r.json() : []));
+      setModelos(Array.isArray(mods) ? mods : []);
+    } finally {
+      setSalvandoModelo(false);
+    }
+  }
+
   async function imprimir(id: string) {
     const res = await fetch(`/api/clinico/exames/${id}`);
     if (!res.ok) {
@@ -155,6 +218,25 @@ export function ExamRequestForm({
 
   return (
     <div className="space-y-4">
+      {modelos.length > 0 && (
+        <div className="rounded-xl border border-border bg-muted/40 p-3">
+          <p className="mb-2 text-sm font-medium text-foreground">Usar um modelo salvo</p>
+          <div className="flex flex-wrap gap-2">
+            {modelos.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => aplicarModelo(m)}
+                className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                title={`${m.totalExames} exames`}
+              >
+                {m.name} <span className="text-muted-foreground">({m.totalExames})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label htmlFor="prof" className="mb-1 block text-sm font-medium text-foreground">
@@ -236,6 +318,23 @@ export function ExamRequestForm({
       </div>
 
       <div>
+        <label htmlFor="livres" className="mb-1 block text-sm font-medium text-foreground">
+          Outros exames <span className="text-muted-foreground">(um por linha)</span>
+        </label>
+        <textarea
+          id="livres"
+          rows={3}
+          value={livres}
+          onChange={(e) => setLivres(e.target.value)}
+          placeholder={'Ecocardiograma\nUltrassom de abdome total'}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Para o que não está no painel. Sai no documento sob &quot;Outros exames&quot;.
+        </p>
+      </div>
+
+      <div>
         <label htmlFor="obs" className="mb-1 block text-sm font-medium text-foreground">
           Observações
         </label>
@@ -254,19 +353,31 @@ export function ExamRequestForm({
         <button
           type="button"
           onClick={emitir}
-          disabled={emitindo || semCrm || selecionados.size === 0}
+          disabled={emitindo || semCrm || (selecionados.size === 0 && livres.trim() === '')}
           className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
         >
-          {emitindo ? 'Emitindo…' : `Emitir e imprimir (${selecionados.size})`}
+          {emitindo
+            ? 'Emitindo…'
+            : `Emitir e imprimir (${selecionados.size + livres.split('\n').filter((l) => l.trim()).length})`}
         </button>
         {emitido && (
-          <button
-            type="button"
-            onClick={() => imprimir(emitido)}
-            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-          >
-            Imprimir de novo
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => imprimir(emitido)}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              Imprimir de novo
+            </button>
+            <button
+              type="button"
+              onClick={() => salvarComoModelo(emitido)}
+              disabled={salvandoModelo}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {salvandoModelo ? 'Salvando…' : 'Salvar como modelo'}
+            </button>
+          </>
         )}
       </div>
     </div>
