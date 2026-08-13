@@ -9,6 +9,7 @@ import { StatCard } from '@/components/ui/stat-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import ModulesPanel from '@/components/admin/ModulesPanel'
 import UsersPanel from '@/components/admin/UsersPanel'
+import ExamPanelsPanel from '@/components/admin/ExamPanelsPanel'
 import { Input } from '@/components/ui/input'
 import { FilterSelect } from '@/components/ui/filter-bar'
 
@@ -68,6 +69,7 @@ export default function AdminPage() {
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null)
   const [modulesFor, setModulesFor] = useState<Company | null>(null)
   const [usersFor, setUsersFor] = useState<Company | null>(null)
+  const [examPanelsOpen, setExamPanelsOpen] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -241,6 +243,13 @@ export default function AdminPage() {
         icon={<Building2 className="h-5 w-5" />}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setExamPanelsOpen(true)}
+              title="Biblioteca de painéis de exame da plataforma. Aplicar copia o painel para o catálogo da clínica."
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Painéis de exame
+            </button>
             <button
               onClick={resyncWebhooks}
               disabled={resyncing}
@@ -482,6 +491,13 @@ export default function AdminPage() {
 
       {modulesFor && (
         <ModulesPanel companyId={modulesFor.id} companyName={modulesFor.name} onClose={() => setModulesFor(null)} />
+      )}
+
+      {examPanelsOpen && (
+        <ExamPanelsPanel
+          companies={(companies ?? []).map((c) => ({ id: c.id, name: c.name }))}
+          onClose={() => setExamPanelsOpen(false)}
+        />
       )}
 
       {usersFor && (

@@ -902,6 +902,41 @@ model ExamTemplateItem {
   @@map("exam_template_items")
 }
 
+
+// Biblioteca de painéis de exame do SAAS (nível plataforma, sem companyId).
+// Gerida pelo Super-Admin e APLICADA por cópia no catálogo de uma clínica.
+//
+// Cópia, e não referência, de propósito: a clínica edita o painel dela sem
+// afetar a biblioteca, e a biblioteca evolui sem reescrever o que as clínicas
+// já receberam. Mesmo princípio de snapshot usado no pedido e no modelo.
+model ExamPanelPreset {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  items ExamPanelPresetItem[]
+
+  @@map("exam_panel_presets")
+}
+
+model ExamPanelPresetItem {
+  id       String  @id @default(cuid())
+  presetId String
+  group    String
+  subgroup String?
+  name     String
+  order    Int     @default(0)
+
+  preset ExamPanelPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
+
+  @@index([presetId])
+  @@map("exam_panel_preset_items")
+}
+
 // Preferências de notificação por empresa
 model NotificationSetting {
   id                   String   @id @default(cuid())

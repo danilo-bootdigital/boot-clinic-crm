@@ -142,6 +142,10 @@ export interface PrismaMock {
   contactIdentity: Table;
   company: Table;
   auditLog: Table;
+  // Módulo de exames — usado pelos testes de isolamento multiempresa.
+  examCatalogItem: Table;
+  examTemplate: Table;
+  examRequest: Table;
   __reset(): void;
 }
 
@@ -158,11 +162,15 @@ export function makePrismaMock(): PrismaMock {
     contactIdentity: new Table('ident', { unique: ['companyId', 'channel', 'externalId'] }),
     company: new Table('company'),
     auditLog: new Table('audit'),
+    examCatalogItem: new Table('exam'),
+    examTemplate: new Table('tpl'),
+    examRequest: new Table('req'),
     __reset() {
       for (const t of [
         mock.channelAccount, mock.conversation, mock.message,
         mock.messageAttachment, mock.channelWebhookEvent, mock.contact,
         mock.contactIdentity, mock.company, mock.auditLog,
+        mock.examCatalogItem, mock.examTemplate, mock.examRequest,
       ]) t.rows = [];
     },
   };
