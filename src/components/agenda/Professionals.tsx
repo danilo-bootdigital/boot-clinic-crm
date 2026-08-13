@@ -118,7 +118,7 @@ export function Professionals() {
   if (loading) {
     return (
       <Card>
-        <CardHeader><CardTitle>Profissionais</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Médicos(as)</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted rounded animate-pulse" />)}
@@ -134,7 +134,7 @@ export function Professionals() {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Stethoscope className="h-5 w-5" />
-            Profissionais ({items.length})
+            Médicos(as) ({items.length})
           </CardTitle>
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" />

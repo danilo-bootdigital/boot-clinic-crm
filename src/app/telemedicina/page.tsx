@@ -92,7 +92,7 @@ export default function TelemedicinaPage() {
             <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Paciente</th>
-                <th className="px-4 py-3 font-medium">Profissional</th>
+                <th className="px-4 py-3 font-medium">Médico(a)</th>
                 <th className="px-4 py-3 font-medium">Horário</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium text-right">Ação</th>

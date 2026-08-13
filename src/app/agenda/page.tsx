@@ -21,7 +21,7 @@ type Mode = 'grid' | 'create' | 'detail'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'agenda', label: 'Agenda' },
-  { key: 'profissionais', label: 'Profissionais' },
+  { key: 'profissionais', label: 'Médicos(as)' },
   { key: 'salas', label: 'Salas' },
   { key: 'especialidades', label: 'Especialidades' },
   { key: 'bloqueios', label: 'Bloqueios' },
@@ -127,7 +127,7 @@ export default function AgendaPage() {
       {tab === 'agenda' && mode === 'detail' && selected && (
         <SectionCard title={selected.patient?.name || 'Agendamento'} className="max-w-2xl">
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-muted-foreground">Profissional</dt><dd>{selected.professional?.name || '—'}</dd></div>
+            <div><dt className="text-muted-foreground">Médico(a)</dt><dd>{selected.professional?.name || '—'}</dd></div>
             <div><dt className="text-muted-foreground">Especialidade</dt><dd>{selected.specialty?.name || '—'}</dd></div>
             <div><dt className="text-muted-foreground">Sala</dt><dd>{selected.room?.name || '—'}</dd></div>
             <div><dt className="text-muted-foreground">Início</dt><dd>{selected.startAt ? new Date(selected.startAt).toLocaleString('pt-BR') : '—'}</dd></div>

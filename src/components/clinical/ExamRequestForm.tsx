@@ -250,7 +250,7 @@ export function ExamRequestForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label htmlFor="prof" className="mb-1 block text-sm font-medium text-foreground">
-            Profissional responsável*
+            Médico(a) responsável*
           </label>
           <select
             id="prof"
@@ -268,7 +268,7 @@ export function ExamRequestForm({
           </select>
           {semCrm && (
             <p className="mt-1 text-xs text-destructive">
-              Este profissional está sem CRM. Preencha em Agenda → Profissionais antes de emitir.
+              Este médico está sem CRM. Preencha em Agenda → Médicos(as) antes de emitir.
             </p>
           )}
         </div>

@@ -112,7 +112,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className={label}>Profissional *</label>
+          <label className={label}>Médico(a) *</label>
           <FilterSelect className={field} value={form.professionalId} onChange={(e) => set('professionalId', e.target.value)} required>
             {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </FilterSelect>

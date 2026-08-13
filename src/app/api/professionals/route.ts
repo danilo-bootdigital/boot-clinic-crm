@@ -26,20 +26,24 @@ export async function GET(request: NextRequest) {
 
     const activeOnly = new URL(request.url).searchParams.get('activeOnly') === '1';
 
-    const count = await prisma.professional.count({ where: { companyId: dbUser!.companyId, deletedAt: null } });
-    if (count === 0) {
-      await prisma.professional.create({
-        data: { name: dbUser!.name || 'Dr(a). Responsável', companyId: dbUser!.companyId },
-      });
-    }
-
+    // NÃO cria mais um "profissional" com o nome de quem abriu a tela. Era
+    // assim que qualquer usuário — inclusive SUPER_ADMIN e recepção — entrava
+    // no cadastro de médicos da clínica.
     const items = await prisma.professional.findMany({
       where: { companyId: dbUser!.companyId, deletedAt: null, ...(activeOnly && { isActive: true }) },
       orderBy: { name: 'asc' },
-      include: { specialties: { select: { specialtyId: true, specialty: { select: { name: true } } } } },
+      include: {
+        specialties: { select: { specialtyId: true, specialty: { select: { name: true } } } },
+        user: { select: { role: true } },
+      },
     });
+
+    // Regra do papel: quem TEM conta de acesso só aparece como médico se o papel
+    // for DOCTOR. Cadastro sem usuário vinculado permanece — é o médico que não
+    // faz login, e filtrá-lo esvaziaria a agenda de quem cadastrou à mão.
+    const medicos = items.filter((p) => !p.userId || p.user?.role === 'DOCTOR');
     // Achata as especialidades para o front: specialtyIds + specialtyNames.
-    const result = items.map(({ specialties, ...p }) => ({
+    const result = medicos.map(({ specialties, user, ...p }) => ({
       ...p,
       specialtyIds: specialties.map((s) => s.specialtyId),
       specialtyNames: specialties.map((s) => s.specialty.name),

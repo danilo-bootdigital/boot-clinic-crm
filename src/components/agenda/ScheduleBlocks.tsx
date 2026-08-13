@@ -168,7 +168,7 @@ export function ScheduleBlocks({ professionalId }: ScheduleBlockProps) {
           <form onSubmit={handleSubmit} className="mb-6 p-4 border rounded-lg bg-muted">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Profissional</label>
+                <label className="text-sm font-medium">Médico(a)</label>
                 <Select value={newBlock.professionalId} onValueChange={(value) => setNewBlock({...newBlock, professionalId: value})}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o profissional" />

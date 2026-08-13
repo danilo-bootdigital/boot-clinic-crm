@@ -59,7 +59,7 @@ export default function MedicalRecords({ patientId, canEdit = true }: { patientI
               </FilterSelect>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Profissional</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Médico(a)</label>
               <FilterSelect className="w-full" value={form.professionalId} onChange={(e) => setForm({ ...form, professionalId: e.target.value })}>
                 <option value="">—</option>
                 {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -95,7 +95,7 @@ export default function MedicalRecords({ patientId, canEdit = true }: { patientI
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{r.content}</p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {r.professionalName ? `Profissional: ${r.professionalName} · ` : ''}Registrado por {r.createdByName || '—'}
+                {r.professionalName ? `Médico(a): ${r.professionalName} · ` : ''}Registrado por {r.createdByName || '—'}
               </p>
             </div>
           ))}

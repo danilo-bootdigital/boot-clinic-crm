@@ -30,7 +30,7 @@ export function AgendaDayView({
 }: AgendaDayViewProps) {
   const columns = useMemo(() => {
     if (professionalId) {
-      const name = professionals.find((p) => p.id === professionalId)?.name ?? 'Profissional'
+      const name = professionals.find((p) => p.id === professionalId)?.name ?? 'Médico(a)'
       return [{ id: professionalId, name }]
     }
     const ids = Array.from(new Set(appointments.map((a) => a.professionalId)))
@@ -40,7 +40,7 @@ export function AgendaDayView({
         name:
           professionals.find((p) => p.id === id)?.name ??
           appointments.find((a) => a.professionalId === id)?.professional?.name ??
-          'Profissional',
+          'Médico(a)',
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
     return cols.length ? cols : [{ id: '', name: 'Agenda' }]
