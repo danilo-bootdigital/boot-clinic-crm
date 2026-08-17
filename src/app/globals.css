@@ -101,6 +101,19 @@
     border-radius: 9999px;
   }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+  /* Altura de viewport para telas full-bleed (mensageria).
+     `100dvh` desconta a barra de endereço do navegador móvel: com `100vh` o
+     rodapé — que na central de mensagens é o campo de envio — fica embaixo da
+     barra e o atendente não alcança. `100vh` continua como fallback. */
+  .h-viewport {
+    height: 100vh;
+  }
+  @supports (height: 100dvh) {
+    .h-viewport {
+      height: 100dvh;
+    }
+  }
 }
 
 /* ---------------------------------------------------------------------------

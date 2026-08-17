@@ -10,6 +10,16 @@ import { Topbar } from "./Topbar";
 // '/tele' = sala pública da teleconsulta (paciente, sem login nem navegação do CRM).
 const BARE_ROUTES = ["/login", "/tele"];
 
+/**
+ * Rotas full-bleed: mantêm sidebar e topbar, mas a página ocupa TODA a área
+ * restante — sem `max-w-content`, sem padding e sem o scroll do `<main>`.
+ *
+ * É o que uma caixa de entrada precisa: a lista e a thread rolam cada uma no
+ * seu painel, com o campo de envio fixo no rodapé. Numa página comum (que rola
+ * inteira) o composer sumiria no fim do documento.
+ */
+const FULL_ROUTES = ["/mensageria"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -29,14 +39,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   }
 
-  const bare = BARE_ROUTES.some(
-    (r) => pathname === r || pathname.startsWith(r + "/"),
-  );
+  const matches = (routes: string[]) =>
+    routes.some((r) => pathname === r || pathname.startsWith(r + "/"));
+
+  const bare = matches(BARE_ROUTES);
+  const full = matches(FULL_ROUTES);
 
   if (bare) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={cn("bg-background", full ? "h-viewport overflow-hidden" : "min-h-screen")}>
       <Sidebar
         collapsed={collapsed}
         onToggle={toggleCollapsed}
@@ -46,16 +58,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div
         className={cn(
-          "flex min-h-screen flex-col transition-[padding] duration-200 ease-in-out",
+          "flex flex-col transition-[padding] duration-200 ease-in-out",
+          full ? "h-viewport" : "min-h-screen",
           collapsed ? "lg:pl-[72px]" : "lg:pl-64",
         )}
       >
         <Topbar onOpenMobileNav={() => setMobileOpen(true)} />
-        <main className="scrollbar-thin flex-1 px-4 py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-content animate-fade-in">
-            {children}
-          </div>
-        </main>
+        {full ? (
+          // `min-h-0` é o que permite os painéis internos rolarem: sem isso o
+          // flex item cresce com o conteúdo e o scroll volta para a janela.
+          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+        ) : (
+          <main className="scrollbar-thin flex-1 px-4 py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full max-w-content animate-fade-in">
+              {children}
+            </div>
+          </main>
+        )}
       </div>
     </div>
   );
