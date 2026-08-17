@@ -39,6 +39,20 @@ function readStored(key: string, fallback: string): string {
   return window.localStorage.getItem(key) ?? fallback
 }
 
+/**
+ * Dia inicial: `?date=YYYY-MM-DD` quando alguém chega de outra tela (ex.: o
+ * agendamento criado na conversa do WhatsApp), senão hoje.
+ */
+function readInitialCursor(): Date {
+  if (typeof window === 'undefined') return new Date()
+  const p = new URLSearchParams(window.location.search).get('date')
+  if (p && /^\d{4}-\d{2}-\d{2}$/.test(p)) {
+    const d = new Date(`${p}T00:00:00`)
+    if (!Number.isNaN(d.getTime())) return d
+  }
+  return new Date()
+}
+
 /** Orquestrador da agenda premium: toolbar + KPIs + Dia/Semana/Mês + drawer. */
 export function AgendaWorkspace({ professionals, onNew, onSelect, refreshKey }: AgendaWorkspaceProps) {
   const router = useRouter()
@@ -55,6 +69,13 @@ export function AgendaWorkspace({ professionals, onNew, onSelect, refreshKey }: 
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // `?date=` só é aplicado depois da montagem — ler a URL no initializer do
+  // useState divergiria do HTML renderizado no servidor (hydration mismatch).
+  useEffect(() => {
+    const alvo = readInitialCursor()
+    setCursor((atual) => (ymd(alvo) === ymd(atual) ? atual : alvo))
+  }, [])
 
   // Persistência de view + profissional.
   useEffect(() => {

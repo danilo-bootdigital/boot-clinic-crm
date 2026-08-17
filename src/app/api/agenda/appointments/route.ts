@@ -3,12 +3,9 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { findAppointmentConflict } from '@/lib/api/appointments';
+import { findAppointmentConflict, provisionTeleconsultation } from '@/lib/api/appointments';
 import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom } from '@/lib/api/ownership';
 import { runAutomations } from '@/lib/automations/engine';
-import { isModuleEnabled } from '@/lib/api/modules';
-import { createSessionForAppointment, buildPatientLink, teleEvent } from '@/lib/api/telemedicine';
-import { notifyTeleconsultation } from '@/lib/telemedicine/notify';
 
 const CreateSchema = z.object({
   patientId: z.string().min(1, 'Paciente é obrigatório'),
@@ -140,35 +137,14 @@ export async function POST(request: NextRequest) {
     await runAutomations('APPOINTMENT_CREATED', { companyId: dbUser!.companyId, patientId: appt.patientId, summary: 'Nova consulta agendada' });
 
     // Teleconsulta: nasce da Agenda. Gera sala + link + token automaticamente e
-    // dispara o envio do link por WhatsApp (best-effort). Só se o módulo estiver
-    // habilitado para a clínica (nível SaaS + ativação).
-    let teleSession: { id: string; room?: { publicSlug: string; roomUrl: string } | null } | null = null;
-    if (modality === 'TELEMEDICINA' && (await isModuleEnabled({ id: dbUser!.companyId, plan: dbUser!.company?.plan }, 'telemedicina'))) {
-      try {
-        const [patient, professional] = await Promise.all([
-          prisma.patient.findUnique({ where: { id: appt.patientId }, select: { name: true, phone: true, whatsapp: true } }),
-          prisma.professional.findUnique({ where: { id: appt.professionalId }, select: { name: true } }),
-        ]);
-        const session = await createSessionForAppointment(
+    // dispara o envio do link por WhatsApp (best-effort). O provisionamento vive
+    // em lib/api/appointments para ser idêntico ao da criação pela mensageria.
+    const teleSession = modality === 'TELEMEDICINA'
+      ? await provisionTeleconsultation(
           { id: appt.id, patientId: appt.patientId, professionalId: appt.professionalId, companyId: appt.companyId, startAt },
-          dbUser!.id,
-          patient?.name || 'Paciente',
-          professional?.name || 'Profissional',
-        );
-        teleSession = session as any;
-        const phone = patient?.whatsapp || patient?.phone;
-        if (session.room && phone) {
-          const link = buildPatientLink(session.room.publicSlug);
-          await notifyTeleconsultation('CREATED', {
-            companyId: appt.companyId, patientId: appt.patientId, sessionId: session.id,
-            phone, patientName: patient?.name || 'Paciente', link, startAt,
-          });
-          await teleEvent(session.id, appt.companyId, 'LINK_SENT', { actorId: dbUser!.id, metadata: { channel: 'whatsapp' } });
-        }
-      } catch (e) {
-        console.error('Falha ao criar sessão de telemedicina:', e);
-      }
-    }
+          dbUser!,
+        )
+      : null;
 
     return NextResponse.json({ ...appt, teleconsultationId: teleSession?.id ?? null }, { status: 201 });
   } catch (err) {
