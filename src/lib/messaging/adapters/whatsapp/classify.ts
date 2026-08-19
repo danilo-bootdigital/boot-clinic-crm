@@ -84,3 +84,68 @@ export function jidToPhone(jid?: string | null): string | undefined {
   if (!isPhoneDomain) return undefined;
   return jidLocalPart(jid);
 }
+
+/**
+ * METADADOS DE MÍDIA declarados pelo WhatsApp no próprio payload.
+ *
+ * Por que isto existe: o container de áudio de nota de voz (Ogg/Opus gravado em
+ * fluxo pelo aplicativo) frequentemente chega SEM duração utilizável no último
+ * page do Ogg. O `<audio>` do navegador então reporta duração `Infinity` ou um
+ * valor curto e errado — e a reprodução termina antes do fim do conteúdo. O
+ * WhatsApp, por outro lado, declara `seconds` no payload: essa é a duração
+ * AUTORITATIVA, e é ela que a interface deve usar.
+ *
+ * `fileLength` e `fileSha256` servem à integridade: se os bytes baixados não
+ * batem com o que o provedor declarou, o download veio truncado — e áudio
+ * truncado é exatamente o sintoma de "toca alguns segundos e para".
+ */
+export interface InboundMediaMeta {
+  durationSeconds?: number;
+  width?: number;
+  height?: number;
+  declaredBytes?: number;
+  sha256Base64?: string;
+}
+
+// Números do Baileys chegam como number, string ou Long ({low, high, unsigned})
+// dependendo da versão/serialização do webhook. Normaliza os três casos.
+function toPositiveInt(v: unknown): number | undefined {
+  let n: number;
+  if (typeof v === 'number') n = v;
+  else if (typeof v === 'bigint') n = Number(v);
+  else if (typeof v === 'string') n = Number(v);
+  else if (v && typeof v === 'object' && typeof (v as any).low === 'number') {
+    const { low, high } = v as { low: number; high?: number };
+    n = (high ? high * 4294967296 : 0) + (low >>> 0);
+  } else return undefined;
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.round(n);
+}
+
+// O nó de mídia dentro de um objeto `message` do WhatsApp (o mesmo que
+// classifyMessage inspeciona). Retorna {} quando a mensagem não tem mídia.
+function mediaNode(m: any): any | null {
+  if (!m || typeof m !== 'object') return null;
+  return (
+    m.audioMessage ||
+    m.imageMessage ||
+    m.videoMessage ||
+    m.documentMessage ||
+    m.documentWithCaptionMessage?.message?.documentMessage ||
+    null
+  );
+}
+
+export function extractMediaMeta(m: any): InboundMediaMeta {
+  const node = mediaNode(m);
+  if (!node) return {};
+  return {
+    durationSeconds: toPositiveInt(node.seconds),
+    width: toPositiveInt(node.width),
+    height: toPositiveInt(node.height),
+    declaredBytes: toPositiveInt(node.fileLength),
+    // Só a forma string (base64) é utilizável; Uint8Array serializado vira
+    // objeto indexado e não vale a pena reconstruir só para um aviso de log.
+    sha256Base64: typeof node.fileSha256 === 'string' ? node.fileSha256 : undefined,
+  };
+}

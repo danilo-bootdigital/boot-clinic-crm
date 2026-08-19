@@ -88,6 +88,21 @@ describe('webhook — recebimento de mídia (imagem/documento)', () => {
     expect(msg.messageType).toBe('AUDIO');
     expect(msg.mediaStatus).toBe('AVAILABLE');
     expect(await db.messageAttachment.count({ where: { companyId: COMPANY } })).toBe(1);
+    // Duração do provedor persistida: é ela que o player usa, porque o container
+    // Ogg/Opus da nota de voz não traz duração confiável.
+    const att = (await db.messageAttachment.findMany({ where: { companyId: COMPANY } }))[0];
+    expect(att.durationSeconds).toBe(3);
+  });
+
+  it('ÁUDIO truncado pelo provedor: fica disponível, mas a divergência é registrada', async () => {
+    vi.mocked(getMediaBase64).mockResolvedValue({ configured: true, ok: true, base64: 'AAAA', mimetype: 'audio/ogg', fileName: undefined } as any);
+    vi.mocked(uploadMessagingMedia).mockResolvedValue({ path: `${COMPANY}/c/m/uuid-midia.ogg`, mimeType: 'audio/ogg', sizeBytes: 3, checksum: 'abc', originalFileName: 'midia.ogg' } as any);
+    await post({ event: 'messages.upsert', data: { key: { remoteJid: '5511999998888@s.whatsapp.net', fromMe: false, id: 'aud2' }, message: { audioMessage: { mimetype: 'audio/ogg', ptt: true, seconds: 42, fileLength: '90000' } } } });
+    const msg = (await db.message.findMany({ where: { companyId: COMPANY } }))[0];
+    expect(msg.mediaStatus).toBe('AVAILABLE'); // áudio parcial vale mais que placeholder
+    expect(msg.errorMessage).toMatch(/3 de 90000 bytes/);
+    const att = (await db.messageAttachment.findMany({ where: { companyId: COMPANY } }))[0];
+    expect(att.durationSeconds).toBe(42);
   });
 
   it('tipo não suportado (vídeo) não some — vira placeholder, sem download', async () => {

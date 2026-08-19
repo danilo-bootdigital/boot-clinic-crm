@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { formatBytes } from '@/lib/messaging/media-client';
+import { AudioMessagePlayer } from '@/components/mensageria/AudioMessagePlayer';
 
 interface Attachment {
   id: string;
   mimeType: string;
   sizeBytes?: number | null;
   originalFileName?: string | null;
+  durationSeconds?: number | null;
 }
 
 interface Props {
@@ -36,14 +38,19 @@ export function MessageMediaBubble({ messageType, mediaStatus, attachment, dark 
   const icon = isImage ? '📷' : isAudio ? '🎤' : '📎';
   const available = mediaStatus === 'AVAILABLE' && !!attachment;
 
-  // Carrega a URL assinada sob demanda quando disponível (imagem e áudio).
+  // Imagem carrega na renderização (precisa aparecer sem clique). Áudio NÃO: o
+  // player pede a URL no play, porque a assinatura expira em 5 min e uma URL
+  // emitida na renderização já pode estar morta quando o usuário aperta play.
+  // Como efeito colateral, abrir uma conversa deixa de disparar uma chamada de
+  // API + um registro de auditoria por áudio da thread.
+  const attachmentId = attachment?.id;
   useEffect(() => {
     let alive = true;
-    if ((isImage || isAudio) && available && attachment) {
-      fetchSignedUrl(attachment.id).then((u) => { if (alive) { if (u) setMediaUrl(u); else setImgError(true); } });
+    if (isImage && available && attachmentId) {
+      fetchSignedUrl(attachmentId).then((u) => { if (alive) { if (u) setMediaUrl(u); else setImgError(true); } });
     }
     return () => { alive = false; };
-  }, [isImage, isAudio, available, attachment]);
+  }, [isImage, available, attachmentId]);
 
   if (mediaStatus === 'PENDING') {
     return <p className={`text-sm italic ${muted}`}>{icon} Carregando mídia…</p>;
@@ -75,10 +82,16 @@ export function MessageMediaBubble({ messageType, mediaStatus, attachment, dark 
   }
 
   if (isAudio) {
-    if (imgError) return <p className={`text-sm italic ${muted}`}>🎤 Falha ao carregar áudio</p>;
-    if (!mediaUrl) return <p className={`text-sm italic ${muted}`}>🎤 carregando áudio…</p>;
-    // eslint-disable-next-line jsx-a11y/media-has-caption
-    return <audio controls preload="none" src={mediaUrl} className="mb-1 w-56 max-w-full" onError={() => setImgError(true)} />;
+    return (
+      <AudioMessagePlayer
+        attachmentId={attachment.id}
+        mimeType={attachment.mimeType}
+        sizeBytes={attachment.sizeBytes}
+        durationSeconds={attachment.durationSeconds}
+        fileName={attachment.originalFileName}
+        dark={dark}
+      />
+    );
   }
 
   // Documento

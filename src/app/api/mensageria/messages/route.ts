@@ -28,7 +28,15 @@ function serialize(m: any) {
     status: m.status, sentAt: m.sentAt ?? null, deliveredAt: m.deliveredAt ?? null,
     readAt: m.readAt ?? null, createdAt: m.createdAt,
     // Nunca expõe storagePath — só metadados + o id p/ buscar a signed URL sob demanda.
-    attachment: att ? { id: att.id, mimeType: att.mimeType, sizeBytes: att.sizeBytes, originalFileName: att.originalFileName } : null,
+    // `durationSeconds` vem do provedor e é a duração AUTORITATIVA do áudio: o
+    // container de nota de voz não traz duração confiável, e sem este campo o
+    // player depende do palpite do navegador (que erra e corta a reprodução).
+    attachment: att
+      ? {
+          id: att.id, mimeType: att.mimeType, sizeBytes: att.sizeBytes,
+          originalFileName: att.originalFileName, durationSeconds: att.durationSeconds ?? null,
+        }
+      : null,
   };
 }
 

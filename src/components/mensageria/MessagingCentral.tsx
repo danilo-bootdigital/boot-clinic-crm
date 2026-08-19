@@ -21,6 +21,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { Drawer } from '@/components/ui/drawer';
 import { clientValidateFile, formatBytes, CLIENT_ACCEPT_ATTR } from '@/lib/messaging/media-client';
 import { MessageMediaBubble } from '@/components/mensageria/MessageMediaBubble';
+import { AudioMessagePlayer } from '@/components/mensageria/AudioMessagePlayer';
 import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/mensageria/ChannelBadge';
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromConversation';
@@ -78,6 +79,8 @@ interface WhatsAppAttachment {
   mimeType: string;
   sizeBytes?: number | null;
   originalFileName?: string | null;
+  /** Duração declarada pelo provedor — a do container de áudio não é confiável. */
+  durationSeconds?: number | null;
 }
 
 interface WhatsAppMessage {
@@ -837,8 +840,16 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 )}
                 {recordedUrl && !recording && (
                   <div className="mb-2.5 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
-                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                    <audio controls src={recordedUrl} className="h-9 flex-1" />
+                    {/* Mesmo player da bolha: o WebM do MediaRecorder também chega
+                        sem duração no cabeçalho, então o `<audio>` nativo mostrava
+                        barra quebrada e cortava a prévia antes do fim. */}
+                    <AudioMessagePlayer
+                      src={recordedUrl}
+                      mimeType={recordedBlob?.type.split(';')[0] || 'audio/webm'}
+                      sizeBytes={recordedBlob?.size ?? null}
+                      fileName="nota-de-voz"
+                      className="mb-0 flex-1"
+                    />
                     <button onClick={sendRecording} disabled={sending} className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:opacity-90 disabled:opacity-50">
                       {sending ? 'Enviando…' : 'Enviar áudio'}
                     </button>

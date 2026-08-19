@@ -37,6 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       mimeType: att.mimeType,
       originalFileName: att.originalFileName,
       sizeBytes: att.sizeBytes,
+      durationSeconds: att.durationSeconds ?? null,
     });
   } catch (err) {
     console.error('Erro ao gerar acesso ao anexo WhatsApp:', err);

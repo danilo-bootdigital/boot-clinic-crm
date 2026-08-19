@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db/prisma';
 import { getMediaBase64 } from '@/lib/messaging/adapters/whatsapp/evolution';
+import { extractMediaMeta, type InboundMediaMeta } from '@/lib/messaging/adapters/whatsapp/classify';
 import { uploadMessagingMedia } from '@/lib/storage/messaging-storage';
 import { categoryForMime, extensionForMime, hasPathTraversal, normalizeMime } from '@/lib/messaging/media-config';
 
@@ -13,6 +14,23 @@ export type InboundMediaResult = 'available' | 'failed' | 'duplicate';
 function sanitizeErr(e: unknown): string {
   const m = e instanceof Error ? e.message : 'erro';
   return String(m).replace(/[A-Za-z0-9+/]{120,}={0,2}/g, '[base64]').slice(0, 200); // remove blobs base64
+}
+
+// Compara os bytes baixados com o que o WhatsApp declarou no payload. Divergência
+// significa download incompleto no provedor — e áudio incompleto é o sintoma de
+// "toca alguns segundos e para". Retorna a nota de diagnóstico ou null.
+// NUNCA loga conteúdo: só tamanhos e o id da mensagem.
+function integrityNote(meta: InboundMediaMeta, storedBytes: number, checksumHex: string | undefined): string | null {
+  if (!meta.declaredBytes) return null;
+  // Tolerância mínima: alguns provedores reempacotam o container e mudam poucos
+  // bytes de cabeçalho. Diferença acima disso é perda real de conteúdo.
+  const diff = meta.declaredBytes - storedBytes;
+  if (Math.abs(diff) <= 64) return null;
+  const pct = Math.round((storedBytes / meta.declaredBytes) * 100);
+  const sha = checksumHex && meta.sha256Base64
+    ? ` sha256Confere=${Buffer.from(meta.sha256Base64, 'base64').toString('hex') === checksumHex}`
+    : '';
+  return `mídia divergente do declarado: ${storedBytes} de ${meta.declaredBytes} bytes (${pct}%)${sha}`;
 }
 
 export async function downloadAndStoreInboundMedia(opts: {
@@ -56,6 +74,11 @@ export async function downloadAndStoreInboundMedia(opts: {
   }
   if (bytes.length === 0) return markFailed('mídia vazia');
 
+  // Metadados declarados pelo provedor. `seconds` é a duração AUTORITATIVA do
+  // áudio: o container Ogg/Opus de nota de voz costuma não trazer duração
+  // utilizável, e sem isto a interface fica à mercê do que o navegador adivinha.
+  const meta = extractMediaMeta(opts.rawMessage?.message ?? opts.rawMessage);
+
   try {
     const up = await uploadMessagingMedia({
       companyId: message.companyId,
@@ -74,9 +97,20 @@ export async function downloadAndStoreInboundMedia(opts: {
         sizeBytes: up.sizeBytes,
         checksum: up.checksum ?? null,
         originalFileName: up.originalFileName,
+        durationSeconds: meta.durationSeconds ?? null,
+        width: meta.width ?? null,
+        height: meta.height ?? null,
       },
     });
-    await prisma.message.update({ where: { id: message.id }, data: { mediaStatus: 'AVAILABLE' } });
+    // A mídia FICA disponível mesmo quando incompleta (áudio parcial vale mais
+    // para a clínica do que placeholder), mas a divergência é registrada para
+    // que truncamento do provedor seja diagnosticável em vez de adivinhado.
+    const note = integrityNote(meta, up.sizeBytes, up.checksum);
+    if (note) console.warn('[mensageria] mídia inbound incompleta', { messageId: message.id, mimeType: up.mimeType, note });
+    await prisma.message.update({
+      where: { id: message.id },
+      data: { mediaStatus: 'AVAILABLE', ...(note ? { errorMessage: note.slice(0, 200) } : {}) },
+    });
     return 'available';
   } catch (e) {
     return markFailed(sanitizeErr(e));
