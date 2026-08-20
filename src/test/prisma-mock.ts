@@ -21,6 +21,18 @@ function matches(rec: Rec, where: Rec): boolean {
       if (typeof rec[k] !== 'string' || !rec[k].endsWith(v.endsWith)) return false;
     } else if (typeof v === 'object' && 'not' in v) {
       if (v.not === null ? rec[k] === null || rec[k] === undefined : rec[k] === v.not) return false;
+    } else if (typeof v === 'object' && 'in' in v) {
+      if (!Array.isArray(v.in) || !v.in.includes(rec[k])) return false;
+    } else if (typeof v === 'object' && ('gte' in v || 'gt' in v || 'lte' in v || 'lt' in v)) {
+      // Comparação de faixa (usada na janela de idempotência do envio). Datas
+      // viram número para não comparar objetos Date por referência.
+      const n = (x: any) => (x instanceof Date ? x.getTime() : x);
+      const val = n(rec[k]);
+      if (val === undefined || val === null) return false;
+      if ('gte' in v && !(val >= n(v.gte))) return false;
+      if ('gt' in v && !(val > n(v.gt))) return false;
+      if ('lte' in v && !(val <= n(v.lte))) return false;
+      if ('lt' in v && !(val < n(v.lt))) return false;
     } else if (typeof v === 'object' && !Array.isArray(v)) {
       // where aninhado não suportado aqui — trata como igualdade de referência
       if (rec[k] !== v) return false;

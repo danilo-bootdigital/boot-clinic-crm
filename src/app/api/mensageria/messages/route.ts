@@ -73,6 +73,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Janela de idempotência do envio de texto (ms). Duas requisições com o MESMO
+// conteúdo na MESMA conversa dentro dela são o mesmo envio — não uma repetição
+// deliberada. Existe porque o clique/Enter repetido enquanto o provedor responde
+// (1-2s) fazia o paciente receber a mensagem 2-5x. A trava é aqui, no servidor,
+// porque a do cliente não protege contra duas abas, reenvio do navegador ou retry.
+const SEND_DEDUP_WINDOW_MS = 10_000;
+
 // POST /api/mensageria/messages - envia (via Evolution se configurada) ou grava como pendente.
 export async function POST(request: NextRequest) {
   try {
@@ -95,7 +102,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let sent: { configured: boolean; ok: boolean; messageId?: string | null; instanceId?: string | null; error?: string };
+    // Idempotência (1/2): envio idêntico recente → devolve o que já existe, sem
+    // chamar o provedor de novo. Não considera FAILED: depois de uma falha, repetir
+    // o mesmo texto é reenvio legítimo e precisa passar.
+    const recentTwin = await prisma.message.findFirst({
+      where: {
+        companyId: dbUser!.companyId, conversationId: conv.id,
+        direction: 'OUTGOING', source: MessageSource.CRM,
+        content: d.content,
+        status: { in: ['PENDING', 'SENT', 'DELIVERED', 'READ'] },
+        createdAt: { gte: new Date(Date.now() - SEND_DEDUP_WINDOW_MS) },
+      },
+      include: { attachments: { where: { deletedAt: null } }, account: { select: { label: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentTwin) {
+      return NextResponse.json({ ...serialize(recentTwin), deduplicated: true });
+    }
+
+    // Destino resolvido ANTES de gravar qualquer coisa: erro de configuração
+    // (sem conta, sem identidade, sem telefone) não deixa mensagem pendurada.
+    let igAccount: Awaited<ReturnType<typeof prisma.channelAccount.findFirst>> = null;
+    let igRecipient: string | null = null;
 
     if (conv.channel === Channel.INSTAGRAM) {
       // Janela de 24h da Meta: recusamos ANTES de chamar a API, para o atendente
@@ -113,10 +141,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const account = conv.accountId
+      igAccount = conv.accountId
         ? await prisma.channelAccount.findFirst({ where: { id: conv.accountId, companyId: dbUser!.companyId } })
         : null;
-      if (!account) {
+      if (!igAccount) {
         return NextResponse.json({ error: 'Conta do Instagram não encontrada para esta conversa' }, { status: 409 });
       }
 
@@ -128,28 +156,42 @@ export async function POST(request: NextRequest) {
       if (!identity) {
         return NextResponse.json({ error: 'Contato sem identidade no Instagram' }, { status: 400 });
       }
+      igRecipient = identity.externalId;
+    } else if (!conv.contact.phone) {
+      return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
+    }
 
-      const res = await sendInstagramText(account, identity.externalId, d.content);
-      sent = { configured: res.configured, ok: res.ok, messageId: res.messageId ?? null, instanceId: account.id, error: res.error };
+    // Idempotência (2/2): a âncora é gravada ANTES de falar com o provedor. Assim
+    // uma segunda requisição simultânea encontra a gêmea na checagem acima em vez
+    // de disparar um segundo envio — a janela perigosa é justamente o tempo de
+    // resposta do provedor. O status real é carimbado depois.
+    const anchor = await prisma.message.create({
+      data: {
+        companyId: dbUser!.companyId, conversationId: conv.id,
+        // Etiqueta de procedência (§4.3): saiu pela tela, por esta conta.
+        channel: conv.channel, accountId: igAccount?.id ?? conv.accountId, source: MessageSource.CRM,
+        content: d.content, messageType: 'TEXT', direction: 'OUTGOING', status: 'PENDING',
+        createdByUserId: dbUser!.id,
+      },
+    });
+
+    let sent: { configured: boolean; ok: boolean; messageId?: string | null; instanceId?: string | null; error?: string };
+
+    if (conv.channel === Channel.INSTAGRAM) {
+      const res = await sendInstagramText(igAccount!, igRecipient!, d.content);
+      sent = { configured: res.configured, ok: res.ok, messageId: res.messageId ?? null, instanceId: igAccount!.id, error: res.error };
     } else {
-      if (!conv.contact.phone) {
-        return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
-      }
-      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, conv.contact.phone, d.content);
+      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, conv.contact.phone!, d.content);
     }
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.accountId ?? null;
 
-    const msg = await prisma.message.create({
+    const msg = await prisma.message.update({
+      where: { id: anchor.id },
       // externalId = id retornado pela Evolution → o eco fromMe no MESSAGES_UPSERT casa
       // por essa chave e NÃO é gravado de novo. source=CRM distingue do envio pelo celular.
       data: {
-        companyId: dbUser!.companyId, conversationId: conv.id,
-        // Etiqueta de procedência (§4.3): saiu pela tela, por esta conta.
-        channel: conv.channel, accountId: usedInstanceId, source: MessageSource.CRM,
-        externalId: sent.messageId ?? null, content: d.content,
-        messageType: 'TEXT', direction: 'OUTGOING', status,
-        createdByUserId: dbUser!.id,
+        accountId: usedInstanceId, externalId: sent.messageId ?? null, status,
         sentAt: status === 'SENT' ? new Date() : null,
         failedAt: status === 'FAILED' ? new Date() : null,
       },

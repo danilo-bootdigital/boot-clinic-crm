@@ -70,6 +70,44 @@ describe('POST /messages — envio de texto', () => {
     expect(res.status).toBe(404);
   });
 
+  // Regressão: a clínica reclamou de mensagem chegando 2-5x no paciente. Cada
+  // Enter durante a resposta do provedor era um envio novo. O servidor precisa
+  // recusar o segundo envio idêntico, independente do que o cliente faça.
+  it('mesmo texto reenviado na sequência → não chama o provedor de novo', async () => {
+    vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: true, ok: true, messageId: 'ext1', instanceId: 'instA' } as any);
+    const primeiro = await (await POST(postReq({ conversationId: convA.id, content: 'oi' }))).json();
+
+    const res = await POST(postReq({ conversationId: convA.id, content: 'oi' }));
+    const segundo = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(segundo.deduplicated).toBe(true);
+    expect(segundo.id).toBe(primeiro.id);
+    expect(vi.mocked(sendWhatsappForConversation)).toHaveBeenCalledTimes(1);
+    expect(await db.message.count({ where: { conversationId: convA.id } })).toBe(1);
+  });
+
+  it('texto diferente na sequência → envia normalmente', async () => {
+    vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: true, ok: true, messageId: 'ext1', instanceId: 'instA' } as any);
+    await POST(postReq({ conversationId: convA.id, content: 'oi' }));
+    vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: true, ok: true, messageId: 'ext2', instanceId: 'instA' } as any);
+    const res = await POST(postReq({ conversationId: convA.id, content: 'tudo bem?' }));
+    expect(res.status).toBe(201);
+    expect(vi.mocked(sendWhatsappForConversation)).toHaveBeenCalledTimes(2);
+  });
+
+  // Depois de uma falha, repetir o mesmo texto é reenvio legítimo — a janela de
+  // idempotência não pode transformar erro do provedor em mensagem engolida.
+  it('envio anterior FAILED → mesmo texto é reenviado', async () => {
+    vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: true, ok: false, error: 'HTTP 500' } as any);
+    await POST(postReq({ conversationId: convA.id, content: 'oi' }));
+    vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: true, ok: true, messageId: 'ext9', instanceId: 'instA' } as any);
+    const res = await POST(postReq({ conversationId: convA.id, content: 'oi' }));
+    expect(res.status).toBe(201);
+    expect((await res.json()).status).toBe('SENT');
+    expect(vi.mocked(sendWhatsappForConversation)).toHaveBeenCalledTimes(2);
+  });
+
   it('conversa de OUTRA empresa → 404 (isolamento)', async () => {
     const convB = (await seedConversation(db, { companyId: 'B', name: 'Outro', phone: '5511000000000' })).conversation;
     vi.mocked(sendWhatsappForConversation).mockResolvedValue({ configured: false, ok: false } as any);

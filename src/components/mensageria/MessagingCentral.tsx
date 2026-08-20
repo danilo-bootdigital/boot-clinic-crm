@@ -160,6 +160,9 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   const [fileError, setFileError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // Espelho do `sending` em ref: dois Enter no mesmo frame leem o MESMO valor de
+  // estado e passariam os dois pela trava. A ref muda na hora e barra o segundo.
+  const sendingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Gravação de áudio (nota de voz)
   const [recording, setRecording] = useState(false);
@@ -313,8 +316,17 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   }
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+    const enviada = newMessage.trim();
+    // Trava de envio em curso: sem ela, cada Enter/clique durante os 1-2s de
+    // resposta do provedor era UMA mensagem a mais chegando no paciente.
+    if (!enviada || !selectedConversation || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
+    setSendError(null);
     nearBottomRef.current = true;
+    // Limpa o campo AGORA: sem retorno visual imediato o atendente aperta Enter
+    // de novo. Se o envio falhar, o texto volta — nada digitado se perde.
+    setNewMessage('');
 
     try {
       const response = await fetch('/api/mensageria/messages', {
@@ -325,18 +337,25 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
           // o cliente não escolhe por qual número a clínica responde.
           conversationId: selectedConversation.id,
           type: 'TEXT',
-          content: newMessage,
+          content: enviada,
         }),
       });
 
-      if (response.ok) {
-        const enviada = newMessage;
-        setNewMessage('');
-        await loadMessages(selectedConversation.id);
-        if (onMessageSend) onMessageSend(enviada, selectedConversation.id);
+      if (!response.ok) {
+        const er = await response.json().catch(() => ({}));
+        setSendError(er.error || 'Falha ao enviar a mensagem');
+        setNewMessage(enviada);
+        return;
       }
+      await loadMessages(selectedConversation.id);
+      if (onMessageSend) onMessageSend(enviada, selectedConversation.id);
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
+      setSendError('Falha de rede ao enviar a mensagem');
+      setNewMessage(enviada);
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
   };
 
@@ -364,7 +383,8 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   };
 
   const handleSendMedia = async () => {
-    if (!file || !selectedConversation || sending) return;
+    if (!file || !selectedConversation || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
     nearBottomRef.current = true;
@@ -385,6 +405,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     } catch {
       setSendError('Falha ao enviar o arquivo');
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -433,7 +454,8 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   };
 
   const sendRecording = async () => {
-    if (!recordedBlob || !selectedConversation || sending) return;
+    if (!recordedBlob || !selectedConversation || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true); setSendError(null);
     nearBottomRef.current = true;
     try {
@@ -452,6 +474,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     } catch {
       setSendError('Falha ao enviar o áudio');
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
