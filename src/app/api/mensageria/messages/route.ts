@@ -26,6 +26,8 @@ function serialize(m: any) {
     mediaStatus: m.mediaStatus ?? null,
     direction: m.direction, isFromPatient: m.direction === 'INCOMING',
     status: m.status, sentAt: m.sentAt ?? null, deliveredAt: m.deliveredAt ?? null,
+    // Motivo da falha (já sanitizado na origem) — a bolha precisa dizer o porquê.
+    errorMessage: m.errorMessage ?? null,
     readAt: m.readAt ?? null, createdAt: m.createdAt,
     // Nunca expõe storagePath — só metadados + o id p/ buscar a signed URL sob demanda.
     // `durationSeconds` vem do provedor e é a duração AUTORITATIVA do áudio: o
@@ -194,6 +196,9 @@ export async function POST(request: NextRequest) {
         accountId: usedInstanceId, externalId: sent.messageId ?? null, status,
         sentAt: status === 'SENT' ? new Date() : null,
         failedAt: status === 'FAILED' ? new Date() : null,
+        // Sem isto a bolha só dizia "falhou", sem o porquê — e "número
+        // desconectado" é acionável pelo atendente, HTTP 500 não é.
+        errorMessage: status === 'FAILED' ? sent.error ?? 'falha no envio pela Evolution' : null,
       },
     });
     await prisma.conversation.update({

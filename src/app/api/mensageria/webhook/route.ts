@@ -1,7 +1,7 @@
 import { looksLikeGroupId } from '@/lib/messaging/phone';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { Channel, MessageSource } from '@prisma/client';
+import { Channel, MessageSource, Prisma } from '@prisma/client';
 import { ingestMessage, ingestInboundMedia, upsertContactProfile } from '@/lib/messaging/ingest';
 import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
@@ -152,18 +152,51 @@ export async function POST(request: NextRequest) {
         };
         const status = statusMap[rawState];
         if (status) {
-          const data: Record<string, any> = { status };
+          // O STATUS é a informação crítica: dele depende o badge da tela e o
+          // diagnóstico do envio. Vai sozinho, primeiro. Antes, identidade e QR
+          // iam no MESMO update — e como `qrCode`/`phoneNumber`/`profileName` não
+          // são colunas de ChannelAccount (o QR vive em providerConfig, o número
+          // em externalId, o nome em displayName), todo evento de reconexão
+          // estourava e levava o "CONNECTED" com ele. A conta ficava parada em
+          // DISCONNECTED e o envio caía em PENDING silencioso.
+          // TIPADO de propósito: era `Record<string, any>`, e foi esse `any` que
+          // deixou passar a gravação de colunas inexistentes por 240 eventos. Com
+          // o tipo do Prisma, o mesmo erro não compila.
+          const data: Prisma.ChannelAccountUpdateInput = { status };
           if (status === 'CONNECTED') {
             data.lastConnectedAt = new Date();
-            data.qrCode = null; // já pareou — QR não é mais necessário
-            const jid: unknown = body?.data?.wuid || body?.data?.me?.id || body?.data?.instance?.owner;
-            const phoneNumber = typeof jid === 'string' ? jid.split('@')[0].split(':')[0] : null;
-            if (phoneNumber) data.phoneNumber = phoneNumber;
-            const profileName = body?.data?.profileName || body?.data?.instance?.profileName;
-            if (profileName) data.profileName = profileName;
+            data.disconnectedAt = null;
           }
           if (status === 'DISCONNECTED') data.disconnectedAt = new Date();
           await prisma.channelAccount.update({ where: { id: instanceId }, data });
+
+          // Identidade do número pareado + descarte do QR: best-effort, nas colunas
+          // reais. Falhar aqui (ex.: outra conta já usa esse número, @@unique
+          // channel+externalId) não pode desfazer o status gravado acima.
+          if (status === 'CONNECTED') {
+            const jid: unknown = body?.data?.wuid || body?.data?.me?.id || body?.data?.instance?.owner;
+            const phoneNumber = typeof jid === 'string' ? jid.split('@')[0].split(':')[0] : null;
+            const profileName = body?.data?.profileName || body?.data?.instance?.profileName;
+            try {
+              const account = await prisma.channelAccount.findUnique({
+                where: { id: instanceId },
+                select: { id: true, companyId: true, providerConfig: true },
+              });
+              if (account) {
+                await prisma.channelAccount.update({
+                  where: { id: instanceId },
+                  data: {
+                    ...(phoneNumber ? { externalId: phoneNumber } : {}),
+                    ...(profileName ? { displayName: String(profileName) } : {}),
+                    // Já pareou — o QR não serve mais e mora no providerConfig.
+                    providerConfig: waConfigPatch(account, { qrCode: null }),
+                  },
+                });
+              }
+            } catch (e) {
+              console.error('[mensageria] identidade da instância não atualizada:', e instanceof Error ? e.message : e);
+            }
+          }
         }
       }
       return logAndRespond('PROCESSED');

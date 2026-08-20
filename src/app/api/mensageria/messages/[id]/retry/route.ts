@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendMediaForConversation, sendAudioForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
+import { sendMediaForConversation, sendAudioForConversation, sendWhatsappForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { downloadWhatsappMediaBytes } from '@/lib/storage/messaging-storage';
 import { categoryForMime } from '@/lib/messaging/media-config';
 import { writeAudit, ActionType, EntityType } from '@/lib/api/audit';
@@ -11,9 +11,14 @@ import { writeAudit, ActionType, EntityType } from '@/lib/api/audit';
 export const runtime = 'nodejs';
 
 // POST /api/mensageria/messages/[id]/retry
-// Reenvia uma mensagem de MÍDIA FALHA reutilizando o anexo já armazenado (sem novo
-// upload). Idempotente: se já houver externalId (já foi enviada mas o registro local
-// falhou), apenas marca SENT — não reenvia (evita mídia duplicada ao paciente).
+// Reenvia uma mensagem de saída que não saiu — TEXTO (reaproveita o conteúdo) ou
+// MÍDIA (reaproveita o anexo já armazenado, sem novo upload).
+// Idempotente: se já houver externalId (já foi enviada mas o registro local
+// falhou), apenas marca SENT — não reenvia (evita duplicar no paciente).
+//
+// Aceita FAILED e também PENDING sem externalId: essa combinação significa que o
+// provedor nunca aceitou a mensagem, então ela está parada em "enviando…" e o
+// atendente precisa de uma saída.
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { dbUser, error } = await resolveModuleUser('whatsapp');
@@ -26,17 +31,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       include: { attachments: { where: { deletedAt: null } } },
     });
     if (!msg) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 });
-    if (msg.status !== 'FAILED') return NextResponse.json({ error: 'Só é possível reenviar mensagens com falha' }, { status: 409 });
-
-    const att = msg.attachments[0];
-    if (!att || msg.mediaStatus !== 'AVAILABLE') {
-      return NextResponse.json({ error: 'Mídia indisponível para reenvio' }, { status: 409 });
+    const reenviavel = msg.status === 'FAILED' || (msg.status === 'PENDING' && !msg.externalId);
+    if (!reenviavel) {
+      return NextResponse.json({ error: 'Só é possível reenviar mensagens que não saíram' }, { status: 409 });
     }
 
     // Idempotência: já enviada antes → apenas reconcilia o status local.
     if (msg.externalId) {
       const fixed = await prisma.message.update({ where: { id: msg.id }, data: { status: 'SENT', sentAt: msg.sentAt ?? new Date(), failedAt: null, errorMessage: null } });
       return NextResponse.json({ id: fixed.id, status: fixed.status, reconciled: true });
+    }
+
+    const att = msg.attachments[0];
+    const isMedia = msg.messageType !== 'TEXT' && msg.messageType !== null;
+    if (isMedia && (!att || msg.mediaStatus !== 'AVAILABLE')) {
+      return NextResponse.json({ error: 'Mídia indisponível para reenvio' }, { status: 409 });
     }
 
     const conv = await prisma.conversation.findFirst({
@@ -52,15 +61,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Contato sem telefone para reenvio' }, { status: 400 });
     }
 
-    const bytes = await downloadWhatsappMediaBytes(att.storagePath, dbUser!.companyId);
-    if (!bytes) return NextResponse.json({ error: 'Não foi possível ler a mídia armazenada' }, { status: 409 });
-
-    const category = categoryForMime(att.mimeType);
     const convRef = { companyId: dbUser!.companyId, instanceId: msg.accountId ?? conv.accountId };
-    const base64 = Buffer.from(bytes).toString('base64');
-    const sent = category === 'audio'
-      ? await sendAudioForConversation(convRef, contactPhone, base64)
-      : await sendMediaForConversation(convRef, contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: att.mimeType, base64, fileName: att.originalFileName || 'arquivo', caption: msg.caption ?? undefined });
+
+    let sent;
+    if (!isMedia) {
+      // Texto: o conteúdo já está na mensagem — reenvia o mesmo texto.
+      sent = await sendWhatsappForConversation(convRef, contactPhone, msg.content);
+    } else {
+      const bytes = await downloadWhatsappMediaBytes(att!.storagePath, dbUser!.companyId);
+      if (!bytes) return NextResponse.json({ error: 'Não foi possível ler a mídia armazenada' }, { status: 409 });
+      const category = categoryForMime(att!.mimeType);
+      const base64 = Buffer.from(bytes).toString('base64');
+      sent = category === 'audio'
+        ? await sendAudioForConversation(convRef, contactPhone, base64)
+        : await sendMediaForConversation(convRef, contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: att!.mimeType, base64, fileName: att!.originalFileName || 'arquivo', caption: msg.caption ?? undefined });
+    }
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
 
     const updated = await prisma.message.update({
@@ -69,7 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         status, externalId: sent.messageId ?? null, accountId: sent.instanceId ?? msg.accountId,
         sentAt: status === 'SENT' ? new Date() : null,
         failedAt: status === 'FAILED' ? new Date() : null,
-        errorMessage: status === 'FAILED' ? 'falha no reenvio pela Evolution' : null,
+        errorMessage: status === 'FAILED' ? sent.error ?? 'falha no reenvio pela Evolution' : null,
       },
     });
 

@@ -245,9 +245,40 @@ export async function sendMessage(
 
 // --- Conveniência para as rotas que só têm o companyId -------------------------
 
+// Instância de saída da conversa (ou a primária da clínica).
+//
+// O status em CACHE não veta mais o envio. Ele fica velho — o CONNECTION_UPDATE
+// de volta ao ar podia se perder e a conta seguia marcada DISCONNECTED por dias —
+// e o veto aqui virava `configured:false`, que a rota gravava como PENDING sem
+// erro: a mensagem "ficava enviando" para sempre e nunca saía. Quem decide se dá
+// para enviar é o provedor, na resposta HTTP. Se ele recusar, a mensagem vira
+// FAILED com motivo legível e o atendente pode reenviar.
+function resolveSendInstance(conv: { companyId: string; instanceId: string | null }) {
+  return conv.instanceId
+    ? prisma.channelAccount.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
+    : getPrimaryInstance(conv.companyId);
+}
+
+const NO_INSTANCE = 'clínica sem número de WhatsApp cadastrado';
+
+// Motivo da falha em linguagem de atendente, e reconciliação do cache: confere o
+// estado real da instância para separar "o número caiu" de "o provedor recusou".
+// Nunca lança — na dúvida, devolve o erro cru do provedor.
+async function sendFailureReason(instance: ChannelAccount, res: EvoResult): Promise<string> {
+  let status = instance.status;
+  try {
+    status = (await syncConnectionState(instance)).status;
+  } catch {
+    /* mantém o status em cache */
+  }
+  return status === 'CONNECTED'
+    ? `o WhatsApp recusou o envio (${res.error ?? 'erro do provedor'})`
+    : 'WhatsApp desconectado — reconecte o número em Configurações';
+}
+
 // Envia pela instância PRIMÁRIA da clínica (sem conversa específica — ex.: avisos
-// de telemedicina). Se a base não está configurada, a clínica não tem instância,
-// ou ela não está CONNECTED, devolve `configured:false` — a rota grava PENDING.
+// de telemedicina). `configured:false` só quando o SERVIDOR não está configurado
+// (sem env) — aí a rota grava PENDING. Instância caída é falha, não pendência.
 export async function sendWhatsappForCompany(
   companyId: string,
   phone: string,
@@ -255,8 +286,10 @@ export async function sendWhatsappForCompany(
 ): Promise<EvoResult> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
   const instance = await getPrimaryInstance(companyId);
-  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
-  return sendMessage(instance, phone, text);
+  if (!instance) return { configured: true, ok: false, error: NO_INSTANCE };
+  const res = await sendMessage(instance, phone, text);
+  if (!res.ok) return { ...res, error: await sendFailureReason(instance, res) };
+  return res;
 }
 
 // Envia pela instância vinculada à CONVERSA. Se `instanceId` é null, cai na
@@ -268,12 +301,11 @@ export async function sendWhatsappForConversation(
   text: string,
 ): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
-  const instance = conv.instanceId
-    ? await prisma.channelAccount.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
-    : await getPrimaryInstance(conv.companyId);
-  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
+  const instance = await resolveSendInstance(conv);
+  if (!instance) return { configured: true, ok: false, error: NO_INSTANCE };
   const res = await sendMessage(instance, phone, text);
-  return { ...res, instanceId: instance.id };
+  const error = res.ok ? undefined : await sendFailureReason(instance, res);
+  return { ...res, error, instanceId: instance.id };
 }
 
 // --- Mídia (imagem/documento) ---------------------------------------------------
@@ -311,12 +343,11 @@ export async function sendMediaForConversation(
   opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
 ): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
-  const instance = conv.instanceId
-    ? await prisma.channelAccount.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
-    : await getPrimaryInstance(conv.companyId);
-  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
+  const instance = await resolveSendInstance(conv);
+  if (!instance) return { configured: true, ok: false, error: NO_INSTANCE };
   const res = await sendMediaMessage(instance, phone, opts);
-  return { ...res, instanceId: instance.id };
+  const error = res.ok ? undefined : await sendFailureReason(instance, res);
+  return { ...res, error, instanceId: instance.id };
 }
 
 // Áudio como NOTA DE VOZ (PTT). Contrato v2: POST /message/sendWhatsAppAudio/{instance}
@@ -341,12 +372,11 @@ export async function sendAudioForConversation(
   base64: string,
 ): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
-  const instance = conv.instanceId
-    ? await prisma.channelAccount.findFirst({ where: { id: conv.instanceId, companyId: conv.companyId } })
-    : await getPrimaryInstance(conv.companyId);
-  if (!instance || instance.status !== 'CONNECTED') return { configured: false, ok: false };
+  const instance = await resolveSendInstance(conv);
+  if (!instance) return { configured: true, ok: false, error: NO_INSTANCE };
   const res = await sendWhatsappAudio(instance, phone, base64);
-  return { ...res, instanceId: instance.id };
+  const error = res.ok ? undefined : await sendFailureReason(instance, res);
+  return { ...res, error, instanceId: instance.id };
 }
 
 // Baixa a mídia de uma mensagem recebida (base64), SOB DEMANDA — não dependemos do

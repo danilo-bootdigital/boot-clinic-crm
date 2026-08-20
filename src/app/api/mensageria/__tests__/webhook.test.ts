@@ -155,3 +155,47 @@ describe('webhook — idempotência e casos', () => {
     expect(m.source).toBe('MOBILE');
   });
 });
+
+// Regressão: o handler de reconexão gravava `qrCode`/`phoneNumber`/`profileName`,
+// que NÃO são colunas de ChannelAccount. O update inteiro estourava, o
+// "CONNECTED" nunca era persistido e a conta ficava presa em DISCONNECTED —
+// então todo envio caía em PENDING silencioso ("fica enviando e não vai").
+describe('webhook — CONNECTION_UPDATE', () => {
+  const connEvent = (state: string, over: any = {}) => ({
+    event: 'connection.update',
+    data: { state, wuid: over.wuid, profileName: over.profileName },
+  });
+
+  it('state=open → conta volta para CONNECTED', async () => {
+    await db.channelAccount.update({ where: { id: instanceId }, data: { status: 'DISCONNECTED', disconnectedAt: new Date() } });
+
+    const res = await post(TOKEN, connEvent('open', { wuid: '5519971486011@s.whatsapp.net', profileName: 'Clínica' }));
+    expect(res.status).toBe(200);
+
+    const acc = await db.channelAccount.findUnique({ where: { id: instanceId } });
+    expect(acc!.status).toBe('CONNECTED');
+    expect(acc!.lastConnectedAt).toBeTruthy();
+    expect(acc!.disconnectedAt).toBeNull();
+    // Nenhum evento FAILED: o update não pode estourar mais.
+    const falhas = await db.channelWebhookEvent.findMany({ where: { status: 'FAILED' } });
+    expect(falhas).toHaveLength(0);
+  });
+
+  it('identidade do número vai para as colunas REAIS (externalId/displayName)', async () => {
+    await post(TOKEN, connEvent('open', { wuid: '5519971486011@s.whatsapp.net', profileName: 'Clínica' }));
+    const acc = await db.channelAccount.findUnique({ where: { id: instanceId } });
+    expect(acc!.externalId).toBe('5519971486011');
+    expect(acc!.displayName).toBe('Clínica');
+    // QR do pareamento sai do providerConfig, e o instanceName sobrevive.
+    expect((acc!.providerConfig as any).qrCode).toBeUndefined();
+    expect((acc!.providerConfig as any).instanceName).toBe('clinic_A');
+  });
+
+  it('state=close → DISCONNECTED com carimbo', async () => {
+    const res = await post(TOKEN, connEvent('close'));
+    expect(res.status).toBe(200);
+    const acc = await db.channelAccount.findUnique({ where: { id: instanceId } });
+    expect(acc!.status).toBe('DISCONNECTED');
+    expect(acc!.disconnectedAt).toBeTruthy();
+  });
+});

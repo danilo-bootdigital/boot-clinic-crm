@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         status, accountId: usedInstanceId, externalId: sent.messageId ?? null,
         sentAt: status === 'SENT' ? new Date() : null,
         failedAt: status === 'FAILED' ? new Date() : null,
-        errorMessage: status === 'FAILED' ? 'falha no envio pela Evolution' : null,
+        errorMessage: status === 'FAILED' ? sent.error ?? 'falha no envio pela Evolution' : null,
       },
     });
     await prisma.conversation.update({

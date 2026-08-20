@@ -99,6 +99,8 @@ interface WhatsAppMessage {
   direction?: 'INCOMING' | 'OUTGOING';
   isFromPatient: boolean;
   createdAt: string;
+  /** Motivo da falha, quando o provedor recusou o envio. */
+  errorMessage?: string | null;
   attachment?: WhatsAppAttachment | null;
 }
 
@@ -808,14 +810,33 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                               <span className="text-[11px] opacity-75">
                                 {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                               </span>
-                              {!isIn && message.status === 'PENDING' && <span className="text-[11px] opacity-75">· enviando…</span>}
+                              {/* PENDING recente é envio em curso. PENDING VELHO é
+                                  mensagem que não saiu: dizer "enviando…" para
+                                  sempre foi exatamente a reclamação da clínica. */}
+                              {!isIn && message.status === 'PENDING' && (
+                                Date.now() - new Date(message.createdAt).getTime() < 60_000 ? (
+                                  <span className="text-[11px] opacity-75">· enviando…</span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleRetry(message.id)}
+                                    title="A mensagem não chegou a sair. Clique para tentar de novo."
+                                    className="text-[11px] underline opacity-90 hover:opacity-100"
+                                  >
+                                    não enviada · reenviar
+                                  </button>
+                                )
+                              )}
                               {!isIn && message.status === 'SENT' && <span className="text-[11px] opacity-75" title="Enviado">✓</span>}
                               {!isIn && message.status === 'DELIVERED' && <span className="text-[11px] opacity-75" title="Entregue">✓✓</span>}
                               {/* Azul do "lido" precisa contrastar com a bolha CLARA
                                   de saída — o sky-300 anterior sumia no verde. */}
                               {!isIn && message.status === 'READ' && <span className="chat-tick-read text-[11px] font-semibold" title="Lido">✓✓</span>}
                               {!isIn && message.status === 'FAILED' && (
-                                <button onClick={() => handleRetry(message.id)} className="text-[11px] underline opacity-90 hover:opacity-100">
+                                <button
+                                  onClick={() => handleRetry(message.id)}
+                                  title={message.errorMessage || 'Falha no envio. Clique para tentar de novo.'}
+                                  className="text-[11px] underline opacity-90 hover:opacity-100"
+                                >
                                   falhou · reenviar
                                 </button>
                               )}
