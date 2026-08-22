@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Activity, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -12,7 +12,6 @@ function safeRedirect(value: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = safeRedirect(searchParams.get('redirect'))
 
@@ -20,10 +19,14 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // Navegação que demora não pode virar spinner eterno: sem isto o usuário fica
+  // preso numa tela sem saída e a única pista dele é ligar para o suporte.
+  const [stalled, setStalled] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setStalled(false)
     setLoading(true)
 
     const supabase = createClient()
@@ -35,9 +38,21 @@ function LoginForm() {
       return
     }
 
-    // Garante que o middleware enxergue a sessão recém-criada.
-    router.push(redirectTo)
-    router.refresh()
+    // Navegação DURA, de propósito — não `router.push`.
+    //
+    // Com push o Next faz navegação suave: busca o RSC do destino e, quando o
+    // destino é `/dashboard` (um server component que faz redirect para
+    // /dashboard/executive), a cadeia tem que ser resolvida pelo router do
+    // cliente. Com um `router.refresh()` concorrente invalidando o cache no meio
+    // do caminho, no PRIMEIRO login — sem chunk nem cache aquecido — essa
+    // corrida perde e a navegação morre com o botão travado em "Entrando…".
+    //
+    // O F5 que o usuário dava era exatamente isto: um request de documento
+    // completo levando o cookie novo pelo middleware, com o redirect resolvido
+    // no servidor. Agora o login faz esse request sozinho. Custa um
+    // carregamento de página, uma vez por sessão, e elimina a corrida.
+    setTimeout(() => setStalled(true), 8000)
+    window.location.assign(redirectTo)
   }
 
   return (
@@ -91,6 +106,16 @@ function LoginForm() {
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
               </p>
+            )}
+
+            {stalled && (
+              <div className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-foreground">
+                Sua senha foi aceita, mas a tela está demorando para abrir.{' '}
+                <a href={redirectTo} className="font-medium text-primary underline">
+                  Clique aqui para entrar
+                </a>
+                .
+              </div>
             )}
 
             <button
