@@ -1074,11 +1074,14 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             <Input
               id="nc-tel"
               className="w-full"
-              placeholder="11999998888"
+              placeholder="11 99999-8888"
               value={newConv.contactPhone}
               onChange={(e) => setNewConv({ ...newConv, contactPhone: e.target.value })}
               required
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              DDI 55 é assumido. Para número de fora do Brasil, escreva com +DDI (ex.: +1 305 555 0134).
+            </p>
           </div>
           {newConvError && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{newConvError}</p>

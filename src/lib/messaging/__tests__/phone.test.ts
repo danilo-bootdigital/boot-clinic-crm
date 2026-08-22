@@ -37,6 +37,48 @@ describe('looksLikePhone', () => {
   });
 });
 
+import { dialableNumber } from '@/lib/messaging/phone';
+
+describe('dialableNumber', () => {
+  it('prefixa 55 no celular BR digitado só com DDD', () => {
+    // O caso da clínica: salvo assim, o WhatsApp lia +1 193… e recusava (HTTP 400).
+    expect(dialableNumber('11937092490')).toBe('5511937092490');
+    expect(dialableNumber('11 93709-2490')).toBe('5511937092490');
+    expect(dialableNumber('(21) 99998-3227')).toBe('5521999983227');
+  });
+
+  it('prefixa 55 no fixo BR digitado só com DDD', () => {
+    expect(dialableNumber('1133334444')).toBe('551133334444');
+  });
+
+  it('é idempotente para número BR que já tem DDI', () => {
+    expect(dialableNumber('5511937092490')).toBe('5511937092490');
+    expect(dialableNumber('+55 (11) 98765-4321')).toBe('5511987654321');
+    expect(dialableNumber('551133334444')).toBe('551133334444');
+  });
+
+  it('não inventa DDI para número estrangeiro que já está completo', () => {
+    // Contatos reais da base: EUA, Portugal, Itália, Reino Unido, Chile.
+    expect(dialableNumber('13109134774')).toBe('13109134774');
+    expect(dialableNumber('19786019327')).toBe('19786019327');
+    expect(dialableNumber('351915089630')).toBe('351915089630');
+    expect(dialableNumber('393445126177')).toBe('393445126177');
+    expect(dialableNumber('447312148840')).toBe('447312148840');
+    expect(dialableNumber('56973808664')).toBe('56973808664');
+  });
+
+  it('respeita o + como afirmação de internacional', () => {
+    expect(dialableNumber('+1 305 555 0134')).toBe('13055550134');
+  });
+
+  it('recusa o que não tem forma de telefone', () => {
+    expect(dialableNumber('')).toBeUndefined();
+    expect(dialableNumber(null)).toBeUndefined();
+    expect(dialableNumber('12345')).toBeUndefined();
+    expect(dialableNumber('103736563204138')).toBeUndefined(); // @lid
+  });
+});
+
 import { looksLikeGroupId } from '@/lib/messaging/phone';
 
 describe('looksLikeGroupId', () => {

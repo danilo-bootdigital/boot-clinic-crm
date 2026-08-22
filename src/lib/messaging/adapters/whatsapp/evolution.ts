@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, type ChannelAccount, type ChannelAccountStatus } from '@prisma/client';
 import { instanceNameFor, waConfig, waConfigPatch, whatsappAccountWhere } from './account';
+import { dialableNumber } from '@/lib/messaging/phone';
 
 // Resultado padrão das chamadas: `configured` indica se a base está configurada.
 export type EvoResult<T = unknown> = { configured: boolean; ok: boolean; data?: T; error?: string };
@@ -39,6 +40,19 @@ function base() {
   return { url: process.env.WHATSAPP_API_URL!.replace(/\/$/, ''), key: process.env.WHATSAPP_API_KEY! };
 }
 
+// Motivo da recusa, tirado do CORPO da resposta. Sem isto o erro era só
+// "HTTP 400" — que não diz se o número não existe, se a sessão caiu ou se o
+// texto foi rejeitado, e obriga a abrir o banco para descobrir. Uma linha,
+// truncada: o texto vai para a bolha do atendente.
+function providerDetail(data: any): string | undefined {
+  const raw =
+    data?.response?.message ?? data?.message ?? data?.error ?? data?.response ?? undefined;
+  const flat = Array.isArray(raw) ? raw.join('; ') : raw;
+  const text = typeof flat === 'string' ? flat : flat ? JSON.stringify(flat) : '';
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean ? clean.slice(0, 160) : undefined;
+}
+
 // Wrapper genérico de chamada à Evolution. Já injeta a apikey e trata erros de rede.
 async function evo<T = any>(path: string, init: RequestInit): Promise<EvoResult<T>> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
@@ -49,11 +63,22 @@ async function evo<T = any>(path: string, init: RequestInit): Promise<EvoResult<
       headers: { 'Content-Type': 'application/json', apikey: key, ...(init.headers || {}) },
     });
     const data = (await res.json().catch(() => null)) as T;
-    return { configured: true, ok: res.ok, data, error: res.ok ? undefined : `HTTP ${res.status}` };
+    if (res.ok) return { configured: true, ok: true, data };
+    const detail = providerDetail(data);
+    return { configured: true, ok: false, data, error: `HTTP ${res.status}${detail ? `: ${detail}` : ''}` };
   } catch (e: any) {
     return { configured: true, ok: false, error: e?.message };
   }
 }
+
+// Número aceito pelo provedor: E.164 com DDI. A normalização mora AQUI, no único
+// caminho por onde todo envio passa — telemedicina, mensageria e reenvio mandavam
+// o telefone como estava no cadastro (muitos sem o 55) e o WhatsApp recusava.
+function waNumber(phone: string): string | undefined {
+  return dialableNumber(phone);
+}
+
+const INVALID_NUMBER = 'número inválido para WhatsApp — confira DDD e DDI';
 
 // Resolve a instância PRIMÁRIA da clínica (ou a mais antiga, se nenhuma marcada).
 // Usada quando não há instância específica vinculada (ex.: telemedicina, fallback).
@@ -236,9 +261,11 @@ export async function sendMessage(
   phone: string,
   text: string,
 ): Promise<EvoResult & { messageId?: string }> {
+  const number = waNumber(phone);
+  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
   const res = await evo<any>(`/message/sendText/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
-    body: JSON.stringify({ number: phone.replace(/\D/g, ''), text }),
+    body: JSON.stringify({ number, text }),
   });
   return { ...res, messageId: res.data?.key?.id ?? undefined };
 }
@@ -265,6 +292,15 @@ const NO_INSTANCE = 'clínica sem número de WhatsApp cadastrado';
 // estado real da instância para separar "o número caiu" de "o provedor recusou".
 // Nunca lança — na dúvida, devolve o erro cru do provedor.
 async function sendFailureReason(instance: ChannelAccount, res: EvoResult): Promise<string> {
+  // Recusa nossa (número sem forma de telefone) já vem em linguagem de atendente
+  // e não diz nada sobre a conexão — não vale uma ida à Evolution para confirmar.
+  if (res.error === INVALID_NUMBER) return INVALID_NUMBER;
+  // "exists is false" / "number not exists": o provedor está conectado e o número
+  // simplesmente não tem WhatsApp. Sem esta tradução, a bolha dizia "recusou o
+  // envio (HTTP 400)" e o atendente não tinha o que fazer com a informação.
+  if (/exists\s+is\s+false|not\s+exist|does\s+not\s+exist/i.test(res.error ?? '')) {
+    return 'este número não tem WhatsApp — confira DDD e DDI do contato';
+  }
   let status = instance.status;
   try {
     status = (await syncConnectionState(instance)).status;
@@ -322,10 +358,12 @@ export async function sendMediaMessage(
   phone: string,
   opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
 ): Promise<EvoResult & { messageId?: string }> {
+  const number = waNumber(phone);
+  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
   const res = await evo<any>(`/message/sendMedia/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
     body: JSON.stringify({
-      number: phone.replace(/\D/g, ''),
+      number,
       mediatype: opts.mediatype,
       mimetype: opts.mimetype,
       media: opts.base64,
@@ -358,9 +396,11 @@ export async function sendWhatsappAudio(
   phone: string,
   base64: string,
 ): Promise<EvoResult & { messageId?: string }> {
+  const number = waNumber(phone);
+  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
   const res = await evo<any>(`/message/sendWhatsAppAudio/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
-    body: JSON.stringify({ number: phone.replace(/\D/g, ''), audio: base64 }),
+    body: JSON.stringify({ number, audio: base64 }),
   });
   return { ...res, messageId: res.data?.key?.id ?? undefined };
 }

@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { resolveModuleUser, requireRole, STAFF_ROLES } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { ownsPatient } from '@/lib/api/ownership';
-import { Channel } from '@prisma/client';
+import { Channel, ContactNameSource } from '@prisma/client';
 import { resolveContact } from '@/lib/messaging/contacts';
+import { dialableNumber } from '@/lib/messaging/phone';
 
 const CreateSchema = z.object({
   // Canal é obrigatório: conversa sem canal não tem etiqueta de procedência
@@ -70,14 +71,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Paciente inválido' }, { status: 400 });
     }
 
+    // Telefone gravado em E.164, com DDI — não como foi digitado. Número salvo
+    // como "11 93709-2490" fazia o WhatsApp ler +1 193… (EUA) e recusar o envio
+    // com HTTP 400: a conversa abria, o atendente escrevia, nada saía. Recusar
+    // aqui é melhor que abrir uma thread que nunca vai enviar.
+    const dial = d.channel === Channel.WHATSAPP ? dialableNumber(d.contactPhone) : d.contactPhone;
+    if (!dial) {
+      return NextResponse.json(
+        { error: 'Telefone inválido para WhatsApp. Escreva com DDD (o DDI 55 é assumido) ou o número internacional com +.' },
+        { status: 400 }
+      );
+    }
+
     // Conversa criada pela tela: resolve/cria o contato (a identidade mora nele,
     // não na conversa) e abre a thread no canal informado.
     const { contact } = await resolveContact({
       companyId: dbUser!.companyId,
       channel: d.channel,
-      externalId: d.contactPhone,
+      externalId: dial,
       name: d.contactName,
-      phone: d.contactPhone,
+      phone: dial,
+      // Nome digitado por gente no CRM: é do contato e é soberano. Sem estes dois
+      // campos o nome era descartado e o contato nascia batizado com o próprio
+      // número — e o pushName do WhatsApp podia sobrescrever depois.
+      nameIsFromContact: true,
+      nameSource: ContactNameSource.MANUAL,
     });
     if (d.patientId && !contact.patientId) {
       await prisma.contact.update({ where: { id: contact.id }, data: { patientId: d.patientId } });

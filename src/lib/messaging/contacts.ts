@@ -50,6 +50,12 @@ export interface ResolveContactInput {
    * Default false: nome só é aceito quando o chamador afirma que é do contato.
    */
   nameIsFromContact?: boolean;
+  /**
+   * Procedência do nome. `MANUAL` quando quem digitou foi uma pessoa no CRM —
+   * e aí o canal nunca sobrescreve. Default `CHANNEL` (nome aprendido do
+   * WhatsApp/Instagram, que pode ser melhorado depois).
+   */
+  nameSource?: ContactNameSource;
 }
 
 /**
@@ -111,7 +117,9 @@ export async function resolveContact(input: ResolveContactInput) {
         // Sem nome confiável, o identificador do canal serve de nome até uma
         // mensagem RECEBIDA (ou alguém no CRM) trazer o nome de verdade.
         name: trustedName || input.handle?.trim() || externalId,
-        nameSource: ContactNameSource.CHANNEL,
+        // Nome só é MANUAL quando veio de fato do que uma pessoa digitou; caindo
+        // no handle ou no identificador do canal, continua aprendível.
+        nameSource: trustedName && input.nameSource ? input.nameSource : ContactNameSource.CHANNEL,
         phone: phone ?? null,
       },
     });
@@ -165,6 +173,9 @@ async function enrichContact(
   const canLearnName = contact.nameSource === ContactNameSource.CHANNEL;
   if (incomingName && incomingName !== identity.externalId && canLearnName && incomingName !== contact.name) {
     contactPatch.name = incomingName;
+    // Nome digitado no CRM sobre contato que só tinha nome do canal: passa a ser
+    // MANUAL, senão o próximo pushName apaga a correção que a pessoa fez.
+    if (input.nameSource === ContactNameSource.MANUAL) contactPatch.nameSource = ContactNameSource.MANUAL;
   }
   if (!contact.phone && phone) contactPatch.phone = phone;
   if (Object.keys(contactPatch).length) {
