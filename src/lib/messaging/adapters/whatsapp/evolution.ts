@@ -12,7 +12,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, type ChannelAccount, type ChannelAccountStatus } from '@prisma/client';
 import { instanceNameFor, waConfig, waConfigPatch, whatsappAccountWhere } from './account';
-import { dialableNumber } from '@/lib/messaging/phone';
+import { dialableCandidates } from '@/lib/messaging/phone';
 
 // Resultado padrão das chamadas: `configured` indica se a base está configurada.
 export type EvoResult<T = unknown> = { configured: boolean; ok: boolean; data?: T; error?: string };
@@ -71,14 +71,40 @@ async function evo<T = any>(path: string, init: RequestInit): Promise<EvoResult<
   }
 }
 
-// Número aceito pelo provedor: E.164 com DDI. A normalização mora AQUI, no único
-// caminho por onde todo envio passa — telemedicina, mensageria e reenvio mandavam
-// o telefone como estava no cadastro (muitos sem o 55) e o WhatsApp recusava.
-function waNumber(phone: string): string | undefined {
-  return dialableNumber(phone);
+const INVALID_NUMBER = 'número inválido para WhatsApp — confira DDD e DDI';
+const NO_WHATSAPP = 'este número não tem WhatsApp — confira DDD e DDI do contato';
+
+// Pergunta ao WhatsApp quais destes números existem. Contrato v2: POST
+// /chat/whatsappNumbers/{instance} { numbers } → [{ number, jid, exists }].
+// VALIDADO AO VIVO em 22/08/2026: 11937092490 → exists false;
+// 5511937092490 → exists true (o mesmo par que falhava no envio).
+async function existingNumbers(instance: InstanceRef, numbers: string[]): Promise<Set<string> | null> {
+  const res = await evo<any[]>(`/chat/whatsappNumbers/${encodeURIComponent(refName(instance))}`, {
+    method: 'POST',
+    body: JSON.stringify({ numbers }),
+  });
+  if (!res.ok || !Array.isArray(res.data)) return null;
+  return new Set(res.data.filter((r) => r?.exists).map((r) => String(r?.number ?? '').replace(/\D/g, '')));
 }
 
-const INVALID_NUMBER = 'número inválido para WhatsApp — confira DDD e DDI';
+// Número aceito pelo provedor: E.164 com DDI. A resolução mora AQUI, no único
+// caminho por onde todo envio passa — telemedicina, mensageria e reenvio mandavam
+// o telefone como estava no cadastro (muitos sem o 55) e o WhatsApp recusava.
+//
+// Quando a forma é ambígua (celular BR sem DDI × DDI estrangeiro de 2 dígitos), o
+// WhatsApp desempata antes do envio. Provedor mudo não bloqueia: segue no palpite.
+async function resolveNumber(
+  instance: InstanceRef,
+  phone: string,
+): Promise<{ number?: string; error?: string }> {
+  const candidates = dialableCandidates(phone);
+  if (!candidates.length) return { error: INVALID_NUMBER };
+  if (candidates.length === 1) return { number: candidates[0] };
+  const exists = await existingNumbers(instance, candidates);
+  if (!exists) return { number: candidates[0] };
+  const hit = candidates.find((c) => exists.has(c));
+  return hit ? { number: hit } : { error: NO_WHATSAPP };
+}
 
 // Resolve a instância PRIMÁRIA da clínica (ou a mais antiga, se nenhuma marcada).
 // Usada quando não há instância específica vinculada (ex.: telemedicina, fallback).
@@ -261,8 +287,9 @@ export async function sendMessage(
   phone: string,
   text: string,
 ): Promise<EvoResult & { messageId?: string }> {
-  const number = waNumber(phone);
-  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
+  const resolved = await resolveNumber(instance, phone);
+  if (!resolved.number) return { configured: true, ok: false, error: resolved.error };
+  const number = resolved.number;
   const res = await evo<any>(`/message/sendText/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
     body: JSON.stringify({ number, text }),
@@ -292,9 +319,10 @@ const NO_INSTANCE = 'clínica sem número de WhatsApp cadastrado';
 // estado real da instância para separar "o número caiu" de "o provedor recusou".
 // Nunca lança — na dúvida, devolve o erro cru do provedor.
 async function sendFailureReason(instance: ChannelAccount, res: EvoResult): Promise<string> {
-  // Recusa nossa (número sem forma de telefone) já vem em linguagem de atendente
-  // e não diz nada sobre a conexão — não vale uma ida à Evolution para confirmar.
-  if (res.error === INVALID_NUMBER) return INVALID_NUMBER;
+  // Recusa nossa (número sem forma de telefone, ou sem WhatsApp) já vem em
+  // linguagem de atendente e não diz nada sobre a conexão — não vale uma ida à
+  // Evolution para confirmar o estado da instância.
+  if (res.error === INVALID_NUMBER || res.error === NO_WHATSAPP) return res.error;
   // "exists is false" / "number not exists": o provedor está conectado e o número
   // simplesmente não tem WhatsApp. Sem esta tradução, a bolha dizia "recusou o
   // envio (HTTP 400)" e o atendente não tinha o que fazer com a informação.
@@ -358,8 +386,9 @@ export async function sendMediaMessage(
   phone: string,
   opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
 ): Promise<EvoResult & { messageId?: string }> {
-  const number = waNumber(phone);
-  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
+  const resolved = await resolveNumber(instance, phone);
+  if (!resolved.number) return { configured: true, ok: false, error: resolved.error };
+  const number = resolved.number;
   const res = await evo<any>(`/message/sendMedia/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
     body: JSON.stringify({
@@ -396,8 +425,9 @@ export async function sendWhatsappAudio(
   phone: string,
   base64: string,
 ): Promise<EvoResult & { messageId?: string }> {
-  const number = waNumber(phone);
-  if (!number) return { configured: true, ok: false, error: INVALID_NUMBER };
+  const resolved = await resolveNumber(instance, phone);
+  if (!resolved.number) return { configured: true, ok: false, error: resolved.error };
+  const number = resolved.number;
   const res = await evo<any>(`/message/sendWhatsAppAudio/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
     body: JSON.stringify({ number, audio: base64 }),

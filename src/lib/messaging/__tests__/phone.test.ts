@@ -37,7 +37,23 @@ describe('looksLikePhone', () => {
   });
 });
 
-import { dialableNumber } from '@/lib/messaging/phone';
+import { dialableCandidates, dialableNumber } from '@/lib/messaging/phone';
+
+describe('dialableCandidates', () => {
+  it('forma ambígua devolve os dois candidatos, BR primeiro', () => {
+    // 51 9xxxx-xxxx: celular de Porto Alegre sem DDI OU celular peruano (DDI 51).
+    // Na base real era o peruano — quem desempata é o WhatsApp, no envio.
+    expect(dialableCandidates('51955510797')).toEqual(['5551955510797', '51955510797']);
+  });
+
+  it('número BR já com DDI tem candidato único (não gasta consulta)', () => {
+    expect(dialableCandidates('5511937092490')).toEqual(['5511937092490']);
+  });
+
+  it('DDD que não existe no Brasil não gera candidato brasileiro', () => {
+    expect(dialableCandidates('56973808664')).toEqual(['56973808664']); // Chile
+  });
+});
 
 describe('dialableNumber', () => {
   it('prefixa 55 no celular BR digitado só com DDD', () => {

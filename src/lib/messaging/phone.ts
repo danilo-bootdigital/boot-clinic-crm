@@ -61,35 +61,53 @@ function hasBrDdd(d: string): boolean {
 }
 
 /**
- * Número no formato que o WhatsApp discou de verdade: E.164 COMPLETO, com DDI.
+ * Formas em que este número pode ser discado, da mais provável para a menos.
  *
  * Existe porque o provedor recebe o número cru e não adivinha o país. Um celular
  * paulistano digitado como `11 93709-2490` (11 dígitos, sem o 55) chega no
  * WhatsApp como se fosse número dos EUA (+1 193…) e a resposta é HTTP 400 — foi
  * exatamente isso que fez a mensagem "não ir" na clínica.
  *
- * Regras, na ordem:
- * - `+` na frente = a pessoa escreveu o internacional; respeita o que veio.
- * - já começa com 55 e tem 12–13 dígitos: é BR completo, passa direto (idempotente).
- * - 11 dígitos com DDD que existe e 3º dígito 9: celular BR sem DDI -> prefixa 55.
- *   Não colide com os EUA: código de área NANP nunca começa com 1, então
- *   `1[1-9]9…` só pode ser DDD brasileiro.
- * - 10 dígitos com DDD válido e 3º dígito 2–5: fixo BR sem DDI -> prefixa 55.
- * - resto: devolve como veio, se tiver forma de telefone. Não inventa DDI para
- *   número estrangeiro (a base tem contatos de EUA, Portugal, Itália, Chile).
+ * Devolve LISTA porque há forma genuinamente ambígua: `51 95551-0797` pode ser
+ * celular de Porto Alegre sem DDI ou celular peruano (DDI 51) completo — os dois
+ * têm 11 dígitos e 9 no terceiro. Na base real era o peruano. Quem desempata é o
+ * WhatsApp, consultado no envio; a ordem daqui é só o palpite de fallback.
  *
- * `undefined` quando não há forma de telefone discável — aí a rota recusa o
- * envio com motivo legível em vez de deixar o provedor devolver 400 opaco.
+ * Regras:
+ * - `+` na frente = a pessoa escreveu o internacional; respeita o que veio.
+ * - já começa com 55 e tem 12–13 dígitos: é BR completo (idempotente).
+ * - 11 dígitos com DDD que existe e 3º dígito 9: celular BR sem DDI. Não colide
+ *   com os EUA (código de área NANP nunca começa com 1), mas colide com DDI de
+ *   dois dígitos — por isso o número como veio entra como 2ª opção.
+ * - 10 dígitos com DDD que existe e 3º dígito 2–5: fixo BR sem DDI.
+ * - resto: como veio, se tiver forma de telefone. Não inventa DDI para número
+ *   estrangeiro (a base tem contatos de EUA, Portugal, Itália, Chile, Peru).
+ *
+ * Lista vazia quando não há forma de telefone discável — aí a rota recusa com
+ * motivo legível em vez de deixar o provedor devolver 400 opaco.
  */
-export function dialableNumber(value?: string | null): string | undefined {
+export function dialableCandidates(value?: string | null): string[] {
   const raw = (value ?? '').trim();
   const d = digitsOnly(raw);
-  if (!d) return undefined;
-  if (raw.startsWith('+')) return looksLikePhone(d) ? d : undefined;
-  if (d.startsWith(BR_DDI) && (d.length === 12 || d.length === 13)) return d;
-  if (d.length === 11 && hasBrDdd(d) && d[2] === '9') return BR_DDI + d;
-  if (d.length === 10 && hasBrDdd(d) && /[2-5]/.test(d[2])) return BR_DDI + d;
-  return looksLikePhone(d) ? d : undefined;
+  if (!d) return [];
+  if (raw.startsWith('+')) return looksLikePhone(d) ? [d] : [];
+  if (d.startsWith(BR_DDI) && (d.length === 12 || d.length === 13)) return [d];
+  if (d.length === 11 && hasBrDdd(d) && d[2] === '9') {
+    return looksLikePhone(d) ? [BR_DDI + d, d] : [BR_DDI + d];
+  }
+  if (d.length === 10 && hasBrDdd(d) && /[2-5]/.test(d[2])) {
+    return looksLikePhone(d) ? [BR_DDI + d, d] : [BR_DDI + d];
+  }
+  return looksLikePhone(d) ? [d] : [];
+}
+
+/**
+ * Melhor palpite único de número discável — usado onde se GRAVA o telefone
+ * (contato criado pela tela), não onde se envia. No envio use os candidatos:
+ * lá o WhatsApp pode desempatar a ambiguidade DDD-BR × DDI estrangeiro.
+ */
+export function dialableNumber(value?: string | null): string | undefined {
+  return dialableCandidates(value)[0];
 }
 
 /**
