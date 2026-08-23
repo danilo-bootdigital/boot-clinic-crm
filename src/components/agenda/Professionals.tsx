@@ -68,6 +68,17 @@ export function Professionals() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    // Especialidade é obrigatória: é ela que o agendamento usa. Médico sem
+    // especialidade não é agendável, e deixar salvar assim só empurra o erro
+    // para a recepção, no meio do atendimento.
+    if (specialtyIds.length === 0) {
+      setError(
+        specialties.length === 0
+          ? 'Cadastre as especialidades da clínica em Configurações → Especialidades antes de cadastrar o(a) médico(a).'
+          : 'Selecione ao menos uma especialidade — é ela que o agendamento usa.'
+      )
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -167,10 +178,17 @@ export function Professionals() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium">Especialidades</label>
+                <label className="text-sm font-medium">Especialidades *</label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Escolha uma ou mais entre as que a clínica atende. É o que aparece no agendamento.
+                </p>
                 {specialties.length === 0 ? (
                   <p className="text-sm text-muted-foreground mt-1">
-                    Nenhuma especialidade cadastrada — crie na aba <strong>Especialidades</strong>.
+                    Nenhuma especialidade cadastrada — cadastre em{' '}
+                    <a href="/configuracoes?tab=especialidades" className="underline">
+                      Configurações → Especialidades
+                    </a>
+                    .
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-2 mt-2">

@@ -29,6 +29,21 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     if (!existing) return NextResponse.json({ error: 'Profissional não encontrado' }, { status: 404 });
 
     const d = Schema.parse(await request.json());
+
+    // Edição que MEXE nas especialidades não pode zerá-las: médico sem
+    // especialidade deixa de ser agendável. Edição que não envia o campo (ex.:
+    // ativar/desativar) segue livre.
+    let validSpecialties: { id: string }[] | null = null;
+    if (d.specialtyIds !== undefined) {
+      validSpecialties = await prisma.specialty.findMany({
+        where: { id: { in: d.specialtyIds }, companyId: dbUser!.companyId, deletedAt: null },
+        select: { id: true },
+      });
+      if (validSpecialties.length === 0) {
+        return NextResponse.json({ error: 'Selecione ao menos uma especialidade — é ela que o agendamento usa.' }, { status: 400 });
+      }
+    }
+
     const item = await prisma.professional.update({
       where: { id: params.id },
       data: {
@@ -41,20 +56,12 @@ async function update(request: NextRequest, { params }: { params: { id: string }
     });
 
     // Sincroniza especialidades vinculadas (substitui a lista atual pela enviada).
-    if (d.specialtyIds !== undefined) {
-      const valid = d.specialtyIds.length
-        ? await prisma.specialty.findMany({
-            where: { id: { in: d.specialtyIds }, companyId: dbUser!.companyId, deletedAt: null },
-            select: { id: true },
-          })
-        : [];
+    if (validSpecialties) {
       await prisma.professionalSpecialty.deleteMany({ where: { professionalId: params.id } });
-      if (valid.length) {
-        await prisma.professionalSpecialty.createMany({
-          data: valid.map((s) => ({ professionalId: params.id, specialtyId: s.id, companyId: dbUser!.companyId })),
-          skipDuplicates: true,
-        });
-      }
+      await prisma.professionalSpecialty.createMany({
+        data: validSpecialties.map((s) => ({ professionalId: params.id, specialtyId: s.id, companyId: dbUser!.companyId })),
+        skipDuplicates: true,
+      });
     }
 
     return NextResponse.json(item);

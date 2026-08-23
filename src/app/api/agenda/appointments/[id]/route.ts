@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
-import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom } from '@/lib/api/ownership';
+import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom, professionalHasSpecialty } from '@/lib/api/ownership';
 
 const UpdateSchema = z.object({
   patientId: z.string().optional(),
@@ -65,6 +65,21 @@ async function update(request: NextRequest, { params }: { params: { id: string }
         !(await ownsSpecialty(dbUser!.companyId, d.specialtyId)) ||
         !(await ownsRoom(dbUser!.companyId, d.roomId))) {
       return NextResponse.json({ error: 'Paciente, profissional, especialidade ou sala inválidos' }, { status: 400 });
+    }
+
+    // Trocar médico OU especialidade revalida o par: o par que vale é o que fica
+    // gravado, não só o campo que veio no corpo da requisição.
+    if (d.professionalId || d.specialtyId) {
+      const par = {
+        professionalId: d.professionalId ?? existing.professionalId,
+        specialtyId: d.specialtyId ?? existing.specialtyId,
+      };
+      if (!(await professionalHasSpecialty(dbUser!.companyId, par.professionalId, par.specialtyId))) {
+        return NextResponse.json(
+          { error: 'Esta especialidade não está no cadastro deste(a) médico(a). Cadastre em Agenda → Médicos(as).' },
+          { status: 400 }
+        );
+      }
     }
 
     let startAt = existing.startAt;

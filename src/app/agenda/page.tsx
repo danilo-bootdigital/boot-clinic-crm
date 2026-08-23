@@ -8,7 +8,6 @@ import { ymd } from '@/components/agenda/agenda-utils'
 import { AppointmentForm } from '@/components/agenda/AppointmentForm'
 import { Rooms } from '@/components/agenda/Rooms'
 import { Professionals } from '@/components/agenda/Professionals'
-import { Specialties } from '@/components/agenda/Specialties'
 import { ScheduleBlocks } from '@/components/agenda/ScheduleBlocks'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
@@ -16,14 +15,13 @@ import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
 import { StatusPill } from '@/components/agenda/StatusPill'
 
-type Tab = 'agenda' | 'profissionais' | 'salas' | 'especialidades' | 'bloqueios'
+type Tab = 'agenda' | 'profissionais' | 'salas' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'agenda', label: 'Agenda' },
   { key: 'profissionais', label: 'Médicos(as)' },
   { key: 'salas', label: 'Salas' },
-  { key: 'especialidades', label: 'Especialidades' },
   { key: 'bloqueios', label: 'Bloqueios' },
 ]
 
@@ -147,7 +145,6 @@ export default function AgendaPage() {
 
       {tab === 'profissionais' && <Professionals />}
       {tab === 'salas' && <Rooms />}
-      {tab === 'especialidades' && <Specialties />}
       {tab === 'bloqueios' && <ScheduleBlocks />}
     </div>
   )

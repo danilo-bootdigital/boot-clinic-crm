@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict, provisionTeleconsultation } from '@/lib/api/appointments';
-import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom } from '@/lib/api/ownership';
+import { ownsPatient, ownsProfessional, ownsSpecialty, ownsRoom, professionalHasSpecialty } from '@/lib/api/ownership';
 import { runAutomations } from '@/lib/automations/engine';
 
 const CreateSchema = z.object({
@@ -100,6 +100,14 @@ export async function POST(request: NextRequest) {
         !(await ownsSpecialty(dbUser!.companyId, data.specialtyId)) ||
         !(await ownsRoom(dbUser!.companyId, roomId))) {
       return NextResponse.json({ error: 'Paciente, profissional, especialidade ou sala inválidos' }, { status: 400 });
+    }
+
+    // A especialidade tem que ser DAQUELE médico (cadastro em Agenda → Médicos).
+    if (!(await professionalHasSpecialty(dbUser!.companyId, data.professionalId, data.specialtyId))) {
+      return NextResponse.json(
+        { error: 'Esta especialidade não está no cadastro deste(a) médico(a). Cadastre em Agenda → Médicos(as).' },
+        { status: 400 }
+      );
     }
 
     const startAt = new Date(data.startAt);

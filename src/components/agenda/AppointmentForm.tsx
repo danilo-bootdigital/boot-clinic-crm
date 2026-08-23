@@ -7,6 +7,19 @@ import { FilterSelect } from '@/components/ui/filter-bar'
 
 interface Option { id: string; name: string }
 
+/**
+ * Médico com as especialidades DELE.
+ *
+ * A especialidade do agendamento vem do cadastro do médico, não de uma lista
+ * solta da clínica: antes o campo trazia todas as especialidades e já vinha na
+ * primeira da lista, então dava para marcar o ortopedista como "Cardiologia" e
+ * o relatório por especialidade virava ficção.
+ */
+interface Medico extends Option {
+  specialtyIds?: string[]
+  specialtyNames?: string[]
+}
+
 interface AppointmentFormProps {
   appointment?: any
   defaultProfessionalId?: string
@@ -30,7 +43,7 @@ function toTimeInput(iso?: string) {
 
 export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, onCancel }: AppointmentFormProps) {
   const [patients, setPatients] = useState<Option[]>([])
-  const [professionals, setProfessionals] = useState<Option[]>([])
+  const [professionals, setProfessionals] = useState<Medico[]>([])
   const [specialties, setSpecialties] = useState<Option[]>([])
   const [rooms, setRooms] = useState<Option[]>([])
   const [saving, setSaving] = useState(false)
@@ -58,23 +71,61 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
         fetch('/api/rooms').then((r) => (r.ok ? r.json() : [])),
       ])
       setPatients((p.patients ?? []).map((x: any) => ({ id: x.id, name: x.name })))
-      setProfessionals(pr)
-      setSpecialties(s)
+      setProfessionals(Array.isArray(pr) ? pr : [])
+      setSpecialties(Array.isArray(s) ? s : [])
       setRooms(Array.isArray(rm) ? rm.map((x: any) => ({ id: x.id, name: x.name })) : [])
-      setForm((f) => ({
-        ...f,
-        professionalId: f.professionalId || pr[0]?.id || '',
-        specialtyId: f.specialtyId || s[0]?.id || '',
-      }))
+      setForm((f) => {
+        const medicoId = f.professionalId || pr[0]?.id || ''
+        const medico = (Array.isArray(pr) ? pr : []).find((m: Medico) => m.id === medicoId)
+        const dele = medico?.specialtyIds ?? []
+        return {
+          ...f,
+          professionalId: medicoId,
+          // Especialidade sai do médico. Mantém a que já estava gravada quando
+          // ainda pertence a ele (agendamento antigo continua editável).
+          specialtyId: f.specialtyId && dele.includes(f.specialtyId) ? f.specialtyId : dele[0] ?? '',
+        }
+      })
     })()
   }, [])
 
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }))
 
+  const medico = professionals.find((m) => m.id === form.professionalId) ?? null
+  // Especialidades DO médico escolhido, resolvidas em nome para o select.
+  const especialidadesDoMedico = (medico?.specialtyIds ?? [])
+    .map((id) => specialties.find((s) => s.id === id) ?? { id, name: 'Especialidade removida' })
+  const semEspecialidade = !!medico && especialidadesDoMedico.length === 0
+  const especialidadeUnica = especialidadesDoMedico.length === 1
+
+  // Trocar de médico troca a especialidade — a do médico anterior não vale para
+  // o novo, e deixar a antiga selecionada era o jeito silencioso de errar.
+  function trocarMedico(id: string) {
+    const alvo = professionals.find((m) => m.id === id)
+    const dele = alvo?.specialtyIds ?? []
+    setForm((f) => ({
+      ...f,
+      professionalId: id,
+      specialtyId: f.specialtyId && dele.includes(f.specialtyId) ? f.specialtyId : dele[0] ?? '',
+    }))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
     if (!form.patientId) { setErr('Selecione um paciente'); return }
+    if (!form.professionalId) { setErr('Selecione o(a) médico(a)'); return }
+    // Trava dura: sem especialidade no cadastro do médico não há agendamento. É
+    // o que mantém o relatório por especialidade honesto — e a saída está na
+    // mensagem abaixo do campo, não numa escolha aleatória.
+    if (!form.specialtyId) {
+      setErr(
+        semEspecialidade
+          ? `${medico?.name ?? 'Este médico'} não tem especialidade cadastrada. Cadastre em Agenda → Médicos(as) e volte para agendar.`
+          : 'Selecione a especialidade'
+      )
+      return
+    }
     setSaving(true)
     try {
       const startAt = new Date(`${form.date}T${form.time}:00`).toISOString()
@@ -113,15 +164,45 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={label}>Médico(a) *</label>
-          <FilterSelect className={field} value={form.professionalId} onChange={(e) => set('professionalId', e.target.value)} required>
+          <FilterSelect className={field} value={form.professionalId} onChange={(e) => trocarMedico(e.target.value)} required>
+            <option value="">Selecione o(a) médico(a)</option>
             {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </FilterSelect>
+          {professionals.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Nenhum(a) médico(a) cadastrado(a) — cadastre em Agenda → Médicos(as).
+            </p>
+          )}
         </div>
         <div>
           <label className={label}>Especialidade *</label>
-          <FilterSelect className={field} value={form.specialtyId} onChange={(e) => set('specialtyId', e.target.value)} required>
-            {specialties.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </FilterSelect>
+          {especialidadeUnica ? (
+            // Uma só especialidade no cadastro: mostra qual é, sem select de uma
+            // opção. É o caso comum e não há nada para escolher.
+            <div className="flex h-10 items-center rounded-lg border border-border bg-muted/40 px-3 text-sm text-foreground">
+              {especialidadesDoMedico[0].name}
+            </div>
+          ) : (
+            <FilterSelect
+              className={field}
+              value={form.specialtyId}
+              onChange={(e) => set('specialtyId', e.target.value)}
+              disabled={!medico || semEspecialidade}
+              required
+            >
+              <option value="">
+                {semEspecialidade ? 'Médico(a) sem especialidade cadastrada' : 'Selecione a especialidade'}
+              </option>
+              {especialidadesDoMedico.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </FilterSelect>
+          )}
+          {semEspecialidade ? (
+            <p className="mt-1 text-xs text-destructive">
+              Cadastre a especialidade de {medico?.name} em <a href="/agenda?tab=profissionais" className="underline">Agenda → Médicos(as)</a>.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Vem do cadastro do(a) médico(a).</p>
+          )}
         </div>
       </div>
 

@@ -181,6 +181,13 @@ export interface PrismaMock {
   dealLossReason: Table;
   pipeline: Table;
   pipelineStage: Table;
+  // Agenda — usado pelos testes de especialidade do médico.
+  professional: Table;
+  professionalSpecialty: Table;
+  specialty: Table;
+  appointment: Table;
+  patient: Table;
+  room: Table;
   __reset(): void;
 }
 
@@ -206,6 +213,13 @@ export function makePrismaMock(): PrismaMock {
     dealLossReason: new Table('lr'),
     pipeline: new Table('pipe'),
     pipelineStage: new Table('stage'),
+    professional: new Table('prof'),
+    // Um vínculo por (médico, especialidade) — igual ao @@unique do schema.
+    professionalSpecialty: new Table('psp', { unique: ['professionalId', 'specialtyId'] }),
+    specialty: new Table('spec'),
+    appointment: new Table('appt'),
+    patient: new Table('pat'),
+    room: new Table('room'),
     __reset() {
       for (const t of [
         mock.channelAccount, mock.conversation, mock.message,
@@ -214,6 +228,8 @@ export function makePrismaMock(): PrismaMock {
         mock.examCatalogItem, mock.examTemplate, mock.examRequest,
         mock.user, mock.deal, mock.dealActivity, mock.dealLossReason,
         mock.pipeline, mock.pipelineStage,
+        mock.professional, mock.professionalSpecialty, mock.specialty,
+        mock.appointment, mock.patient, mock.room,
       ]) t.rows = [];
     },
   };

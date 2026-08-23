@@ -37,3 +37,24 @@ export async function ownsStage(companyId: string, id?: string | null) {
   if (!id) return true;
   return !!(await prisma.pipelineStage.findFirst({ where: { id, companyId }, select: { id: true } }));
 }
+
+/**
+ * A especialidade é DAQUELE médico?
+ *
+ * `ownsSpecialty` só garante que a especialidade é da clínica — com isso dava
+ * para marcar o ortopedista como cardiologista e o relatório por especialidade
+ * virava ficção. A especialidade do agendamento vem do cadastro do médico
+ * (ProfessionalSpecialty), então a regra tem que ser cobrada aqui: valer só na
+ * tela deixaria a API como porta aberta.
+ */
+export async function professionalHasSpecialty(
+  companyId: string,
+  professionalId?: string | null,
+  specialtyId?: string | null
+) {
+  if (!professionalId || !specialtyId) return true;
+  return !!(await prisma.professionalSpecialty.findFirst({
+    where: { companyId, professionalId, specialtyId },
+    select: { id: true },
+  }));
+}

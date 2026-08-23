@@ -63,6 +63,17 @@ export async function POST(request: NextRequest) {
     if (forbidden) return forbidden;
     const data = Schema.parse(await request.json());
 
+    // Especialidade obrigatória no cadastro: é o dado de onde o agendamento tira
+    // a especialidade. Médico salvo sem ela nasce não-agendável, e o erro só
+    // aparece depois, para a recepção.
+    const especialidades = await prisma.specialty.findMany({
+      where: { id: { in: data.specialtyIds ?? [] }, companyId: dbUser!.companyId, deletedAt: null },
+      select: { id: true },
+    });
+    if (especialidades.length === 0) {
+      return NextResponse.json({ error: 'Selecione ao menos uma especialidade — é ela que o agendamento usa.' }, { status: 400 });
+    }
+
     const item = await prisma.professional.create({
       data: {
         name: data.name,
@@ -73,19 +84,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (data.specialtyIds?.length) {
-      // Só vincula especialidades que pertencem à própria empresa.
-      const valid = await prisma.specialty.findMany({
-        where: { id: { in: data.specialtyIds }, companyId: dbUser!.companyId, deletedAt: null },
-        select: { id: true },
-      });
-      if (valid.length) {
-        await prisma.professionalSpecialty.createMany({
-          data: valid.map((s) => ({ professionalId: item.id, specialtyId: s.id, companyId: dbUser!.companyId })),
-          skipDuplicates: true,
-        });
-      }
-    }
+    // Vincula só o que é da própria empresa (já filtrado acima).
+    await prisma.professionalSpecialty.createMany({
+      data: especialidades.map((s) => ({ professionalId: item.id, specialtyId: s.id, companyId: dbUser!.companyId })),
+      skipDuplicates: true,
+    });
 
     return NextResponse.json(item, { status: 201 });
   } catch (err) {

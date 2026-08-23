@@ -12,10 +12,14 @@ import { FilterSelect } from '@/components/ui/filter-bar'
 import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy'
 import WhatsAppSettings from '@/components/configuracoes/WhatsAppSettings'
 import InstagramSettings from '@/components/configuracoes/InstagramSettings'
+import SpecialtiesSettings from '@/components/configuracoes/SpecialtiesSettings'
 
-type Tab = 'clinica' | 'usuarios' | 'notificacoes' | 'whatsapp' | 'instagram'
+type Tab = 'clinica' | 'especialidades' | 'usuarios' | 'notificacoes' | 'whatsapp' | 'instagram'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'clinica', label: 'Clínica' },
+  // Especialidades logo depois de Clínica: é cadastro-base, pré-requisito do
+  // cadastro do médico e, por consequência, do agendamento.
+  { key: 'especialidades', label: 'Especialidades' },
   { key: 'usuarios', label: 'Usuários e Permissões' },
   { key: 'notificacoes', label: 'Notificações' },
   { key: 'whatsapp', label: 'WhatsApp' },
@@ -49,6 +53,7 @@ export default function ConfiguracoesPage() {
         items={TABS.map((t) => ({ value: t.key, label: t.label }))}
       />
       {tab === 'clinica' && <ClinicaTab router={router} />}
+      {tab === 'especialidades' && <SpecialtiesSettings />}
       {tab === 'usuarios' && <UsuariosTab />}
       {tab === 'notificacoes' && <NotificacoesTab />}
       {tab === 'whatsapp' && <WhatsAppSettings />}
