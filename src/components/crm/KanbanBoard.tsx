@@ -66,6 +66,11 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedDeal, setDraggedDeal] = useState<Deal | null>(null);
+  // Perda pendente de motivo: guarda o que o servidor recusou até a escolha.
+  const [lossPrompt, setLossPrompt] = useState<{ deal: Deal; stageId: string; reasons: DealLossReason[] } | null>(null);
+  const [lossReasonId, setLossReasonId] = useState('');
+  const [lossBusy, setLossBusy] = useState(false);
+  const [lossError, setLossError] = useState<string | null>(null);
   const [funnelVariant, setFunnelVariant] = useState<FunnelVariant>('funnel');
   const [filters, setFilters] = useState({
     responsibleUserId: '',
@@ -161,33 +166,62 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
     },
   ];
 
-  // Mover deal entre etapas
-  const handleDrop = async (stageId: string) => {
-    if (!draggedDeal) return;
-
+  // Mover deal entre etapas.
+  //
+  // Etapa final de PERDA exige motivo: o servidor recusa com `needsLossReason` e
+  // manda os motivos cadastrados. A tela não precisa saber qual etapa é final —
+  // quem sabe é quem valida. Escolhido o motivo, repete o move com ele.
+  const moveDeal = async (deal: Deal, stageId: string, lossReasonId?: string) => {
     try {
-      const response = await fetch(`/api/crm/deals/${draggedDeal.id}/move`, {
+      const response = await fetch(`/api/crm/deals/${deal.id}/move`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dealId: draggedDeal.id,
-          newStageId: stageId,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId: deal.id, newStageId: stageId, lossReasonId }),
       });
+      const body = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        // Atualizar estado local
-        setDeals(prev => prev.map(deal =>
-          deal.id === draggedDeal.id
-            ? { ...deal, stageId }
-            : deal
+        // Status vem do servidor: sem ele o cartão troca de coluna mas o resumo
+        // (ganhos/perdidos/conversão) continua contando o desfecho antigo.
+        setDeals(prev => prev.map(d =>
+          d.id === deal.id ? { ...d, stageId, status: body?.status ?? d.status } : d
         ));
         setDraggedDeal(null);
+        setLossPrompt(null);
+        return true;
       }
+
+      if (body?.needsLossReason) {
+        const reasons: DealLossReason[] = body.reasons ?? [];
+        setLossPrompt({ deal, stageId, reasons });
+        setLossReasonId(reasons[0]?.id ?? '');
+        setLossError(reasons.length ? null : 'Nenhum motivo cadastrado. Cadastre em "Motivos de perda".');
+        return false;
+      }
+
+      setLossError(body?.error ?? 'Não foi possível mover a oportunidade.');
+      return false;
     } catch (error) {
       console.error('Erro ao mover deal:', error);
+      setLossError('Falha de rede ao mover a oportunidade.');
+      return false;
+    }
+  };
+
+  const handleDrop = async (stageId: string) => {
+    if (!draggedDeal) return;
+    setLossError(null);
+    await moveDeal(draggedDeal, stageId);
+  };
+
+  const confirmarPerda = async () => {
+    if (!lossPrompt || !lossReasonId) return;
+    setLossBusy(true);
+    setLossError(null);
+    try {
+      await moveDeal(lossPrompt.deal, lossPrompt.stageId, lossReasonId);
+    } finally {
+      setLossBusy(false);
     }
   };
 
@@ -451,6 +485,65 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
           );
         })}
       </div>
+
+      {/* Motivo da perda: o cartão só entra em Perdido depois da escolha. */}
+      {lossPrompt && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-motivo-perda"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-lg">
+            <h3 id="titulo-motivo-perda" className="text-base font-semibold text-foreground">
+              Por que perdeu?
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">{lossPrompt.deal.title}</p>
+
+            <div className="mt-4">
+              <label htmlFor="motivo-perda-kanban" className="mb-1 block text-sm font-medium text-foreground">
+                Motivo *
+              </label>
+              <FilterSelect
+                id="motivo-perda-kanban"
+                className="w-full"
+                value={lossReasonId}
+                onChange={(e) => setLossReasonId(e.target.value)}
+              >
+                {lossPrompt.reasons.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </div>
+
+            {lossError && <p className="mt-3 text-sm text-destructive">{lossError}</p>}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLossPrompt(null);
+                  setDraggedDeal(null);
+                  setLossError(null);
+                }}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarPerda}
+                disabled={lossBusy || !lossReasonId}
+                className="rounded-lg bg-destructive px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {lossBusy ? 'Registrando…' : 'Confirmar perdido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -259,12 +259,21 @@ model PipelineStage {
   @@map("pipeline_stages")
 }
 
+// Motivo de perda cadastrado pela clínica (Preço, Distância, …). É o que a
+// atendente escolhe ao dar o lead como perdido — obrigatório, para o funil dizer
+// POR QUE se perde e não só quanto.
+//
+// `deletedAt` em vez de apagar de verdade: negócio perdido guarda o `lossReasonId`
+// e, sem a linha, o histórico viraria um id órfão no relatório.
 model DealLossReason {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   companyId String
-  createdAt DateTime @default(now())
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
+  @@index([companyId, deletedAt])
   @@map("deal_loss_reasons")
 }
 
@@ -1211,6 +1220,8 @@ enum EntityType {
   COMPANY
   PROFESSIONAL
   EXAM_REQUEST
+  // CRM — cadastro dos motivos de perda do funil
+  DEAL_LOSS_REASON
 }
 
 enum ActionType {

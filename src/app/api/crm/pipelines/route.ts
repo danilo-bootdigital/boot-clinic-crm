@@ -5,8 +5,7 @@ import { getDefaultStages } from '@/lib/validations/crm';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
 import { requireModuleEnabled } from '@/lib/api/modules';
-
-const DEFAULT_LOSS_REASONS = ['Preço', 'Sem retorno', 'Escolheu concorrente', 'Sem interesse', 'Outro'];
+import { DEFAULT_LOSS_REASONS } from '@/lib/crm/loss-reasons';
 
 // Resolve o usuário do banco a partir da sessão Supabase.
 async function resolveDbUser() {
@@ -47,7 +46,9 @@ async function ensureDefaults(companyId: string) {
   const reasonsCount = await prisma.dealLossReason.count({ where: { companyId } });
   if (reasonsCount === 0) {
     await prisma.dealLossReason.createMany({
-      data: DEFAULT_LOSS_REASONS.map((name) => ({ name, companyId })),
+      // Lista e ORDEM vêm de lib/crm/loss-reasons — duas cópias divergiriam, e a
+      // divergência apareceria como motivo faltando na tela de uma clínica só.
+      data: DEFAULT_LOSS_REASONS.map((name, order) => ({ name, companyId, order })),
     });
   }
 }

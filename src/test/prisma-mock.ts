@@ -23,6 +23,18 @@ function matches(rec: Rec, where: Rec): boolean {
       if (v.not === null ? rec[k] === null || rec[k] === undefined : rec[k] === v.not) return false;
     } else if (typeof v === 'object' && 'in' in v) {
       if (!Array.isArray(v.in) || !v.in.includes(rec[k])) return false;
+    } else if (typeof v === 'object' && 'notIn' in v) {
+      // Usado para "negócio ainda em aberto" (status notIn [WON, LOST]).
+      if (Array.isArray(v.notIn) && v.notIn.includes(rec[k])) return false;
+    } else if (typeof v === 'object' && 'equals' in v) {
+      // `mode: 'insensitive'` do Postgres: comparação sem caixa.
+      const a = rec[k];
+      const b = v.equals;
+      if (v.mode === 'insensitive' && typeof a === 'string' && typeof b === 'string') {
+        if (a.toLowerCase() !== b.toLowerCase()) return false;
+      } else if (a !== b) {
+        return false;
+      }
     } else if (typeof v === 'object' && ('gte' in v || 'gt' in v || 'lte' in v || 'lt' in v)) {
       // Comparação de faixa (usada na janela de idempotência do envio). Datas
       // viram número para não comparar objetos Date por referência.
@@ -130,6 +142,10 @@ class Table {
     this.rows.push(rec);
     return rec;
   }
+  async createMany({ data }: { data: Rec[] }) {
+    for (const d of data) await this.create({ data: d });
+    return { count: data.length };
+  }
   async update({ where, data }: { where: Rec; data: Rec }) {
     const rec = this.rows.find((r) => matches(r, where));
     if (!rec) {
@@ -158,6 +174,13 @@ export interface PrismaMock {
   examCatalogItem: Table;
   examTemplate: Table;
   examRequest: Table;
+  // CRM — usado pelos testes do perdido com motivo.
+  user: Table;
+  deal: Table;
+  dealActivity: Table;
+  dealLossReason: Table;
+  pipeline: Table;
+  pipelineStage: Table;
   __reset(): void;
 }
 
@@ -177,12 +200,20 @@ export function makePrismaMock(): PrismaMock {
     examCatalogItem: new Table('exam'),
     examTemplate: new Table('tpl'),
     examRequest: new Table('req'),
+    user: new Table('user'),
+    deal: new Table('deal'),
+    dealActivity: new Table('dact'),
+    dealLossReason: new Table('lr'),
+    pipeline: new Table('pipe'),
+    pipelineStage: new Table('stage'),
     __reset() {
       for (const t of [
         mock.channelAccount, mock.conversation, mock.message,
         mock.messageAttachment, mock.channelWebhookEvent, mock.contact,
         mock.contactIdentity, mock.company, mock.auditLog,
         mock.examCatalogItem, mock.examTemplate, mock.examRequest,
+        mock.user, mock.deal, mock.dealActivity, mock.dealLossReason,
+        mock.pipeline, mock.pipelineStage,
       ]) t.rows = [];
     },
   };

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, ArrowLeft, Target } from 'lucide-react'
+import { Plus, ArrowLeft, Target, XCircle } from 'lucide-react'
 import KanbanBoard from '@/components/crm/KanbanBoard'
 import DealForm from '@/components/crm/DealForm'
+import { LossReasonsManager } from '@/components/crm/LossReasonsManager'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -20,6 +21,7 @@ export default function CRMPage() {
   const [mode, setMode] = useState<Mode>('board')
   const [selected, setSelected] = useState<any | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [motivosOpen, setMotivosOpen] = useState(false)
 
   const loadPipeline = useCallback(async () => {
     setLoading(true)
@@ -73,9 +75,15 @@ export default function CRMPage() {
         icon={<Target className="h-5 w-5" />}
         actions={
           mode === 'board' ? (
-            <ActionButton icon={<Plus />} onClick={() => { setSelected(null); setMode('create') }}>
-              Nova Oportunidade
-            </ActionButton>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Cadastro perto do uso: quem mexe no funil é quem sabe por que se perde. */}
+              <ActionButton variant="outline" icon={<XCircle />} onClick={() => setMotivosOpen(true)}>
+                Motivos de perda
+              </ActionButton>
+              <ActionButton icon={<Plus />} onClick={() => { setSelected(null); setMode('create') }}>
+                Nova Oportunidade
+              </ActionButton>
+            </div>
           ) : (
             <ActionButton variant="outline" icon={<ArrowLeft />} onClick={() => { setMode('board'); setSelected(null); setError(null) }}>
               Voltar
@@ -113,6 +121,8 @@ export default function CRMPage() {
           />
         </SectionCard>
       )}
+
+      <LossReasonsManager open={motivosOpen} onClose={() => setMotivosOpen(false)} />
     </div>
   )
 }

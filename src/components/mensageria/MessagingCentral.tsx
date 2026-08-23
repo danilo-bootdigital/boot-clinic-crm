@@ -25,6 +25,7 @@ import { AudioMessagePlayer } from '@/components/mensageria/AudioMessagePlayer';
 import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/mensageria/ChannelBadge';
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromConversation';
+import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
 // Procedência no `title` da bolha: a informação continua acessível (hover) sem
@@ -730,6 +731,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   }}
                 />
                 <SendToPipeline conversationId={selectedConversation.id} />
+                {/* Perdido também mora aqui: quem descobre o motivo é quem está
+                    conversando, e obrigar a abrir o CRM é o que faz a perda
+                    nunca ser registrada. */}
+                <MarkDealLost conversationId={selectedConversation.id} />
               </div>
             </div>
 

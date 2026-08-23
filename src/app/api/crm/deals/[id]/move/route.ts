@@ -6,11 +6,14 @@ import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
 import { requireModuleEnabled } from '@/lib/api/modules';
 import { runAutomations } from '@/lib/automations/engine';
+import { findLossReason, listLossReasons } from '@/lib/crm/loss-reasons';
 
 const MoveSchema = z.object({
   newStageId: z.string(),
   dealId: z.string().optional(),
   notes: z.string().optional(),
+  /** Obrigatório quando a etapa de destino é final de PERDA. */
+  lossReasonId: z.string().optional(),
 });
 
 // PATCH /api/crm/deals/[id]/move - move o deal para outra etapa (Kanban drag-and-drop).
@@ -28,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const forbidden = requirePermission(dbUser, 'crm', 'edit');
     if (forbidden) return forbidden;
 
-    const { newStageId } = MoveSchema.parse(await request.json());
+    const { newStageId, lossReasonId } = MoveSchema.parse(await request.json());
 
     const deal = await prisma.deal.findFirst({
       where: { id: params.id, companyId: dbUser.companyId, deletedAt: null },
@@ -40,14 +43,41 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     });
     if (!stage) return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 });
 
+    // Perdido exige motivo. Sem isto o funil registra a perda e não o porquê — e
+    // a resposta devolve a lista para a tela abrir o seletor em vez de só falhar.
+    let loss: { id: string; name: string } | null = null;
+    if (stage.finalType === 'LOST') {
+      loss = lossReasonId ? await findLossReason(dbUser.companyId, lossReasonId) : null;
+      if (!loss) {
+        return NextResponse.json(
+          {
+            error: lossReasonId ? 'Motivo de perda inválido' : 'Escolha o motivo da perda',
+            needsLossReason: true,
+            reasons: await listLossReasons(dbUser.companyId),
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const updated = await prisma.deal.update({
       where: { id: params.id },
       data: {
         stageId: stage.id,
         pipelineId: stage.pipelineId,
-        ...(stage.finalType === 'WON' && { status: 'WON', wonAt: new Date(), lostAt: null }),
-        ...(stage.finalType === 'LOST' && { status: 'LOST', lostAt: new Date(), wonAt: null }),
-        ...(stage.finalType === 'NONE' && { wonAt: null, lostAt: null }),
+        ...(stage.finalType === 'WON' && { status: 'WON', wonAt: new Date(), lostAt: null, lossReasonId: null }),
+        ...(stage.finalType === 'LOST' && { status: 'LOST', lostAt: new Date(), wonAt: null, lossReasonId: loss!.id }),
+        ...(stage.finalType === 'NONE' && {
+          wonAt: null,
+          lostAt: null,
+          // Voltar de um desfecho final tem que desfazer o desfecho: só limpar as
+          // datas deixava o negócio com status WON/LOST numa etapa em aberto —
+          // fora do funil e ainda contado como perda no relatório. Move comum
+          // entre etapas abertas não mexe no status.
+          ...(deal.status === 'WON' || deal.status === 'LOST'
+            ? { status: 'NEW' as const, lossReasonId: null }
+            : {}),
+        }),
       },
     });
 
@@ -55,7 +85,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       data: {
         type: 'MOVED_STAGE',
         title: 'Etapa alterada',
-        description: `Deal movido para "${stage.name}" por ${dbUser.name}`,
+        // O motivo entra na descrição: é o que a próxima pessoa a abrir o
+        // histórico precisa ler, sem ter que cruzar id com cadastro.
+        description: `Deal movido para "${stage.name}" por ${dbUser.name}${loss ? ` — motivo: ${loss.name}` : ''}`,
         companyId: dbUser.companyId,
         dealId: deal.id,
         authorId: dbUser.id,
