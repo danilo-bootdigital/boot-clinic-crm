@@ -233,6 +233,14 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       .catch(() => setEvolution(false));
   }, [loadConversations, loadQuickReplies]);
 
+  // Chegada pelo CRM: /mensageria?conversa=<id> abre a thread daquele lead.
+  // Sem isto o cartão do funil só conseguia jogar o atendente na lista, para ele
+  // procurar de novo a pessoa que acabou de clicar.
+  useEffect(() => {
+    const alvo = new URLSearchParams(window.location.search).get('conversa');
+    if (alvo) setSelectedId(alvo);
+  }, []);
+
   // Troca de conversa: carrega a thread e desce para a última mensagem.
   useEffect(() => {
     if (!selectedId) {

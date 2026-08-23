@@ -23,16 +23,52 @@ interface Deal {
   value?: number;
   valueEstimated?: number;
   stageId: string;
-  patientId?: string;
-  patient?: { id: string; name: string; phone?: string };
+  pipelineId?: string;
+  patientId?: string | null;
+  patient?: { id: string; name: string; phone?: string | null } | null;
   responsibleUserId: string;
-  responsibleUser?: { name: string };
+  responsibleUser?: { name: string } | null;
   source: string;
   priority: string;
   status: string;
   description?: string;
   lastContactAt?: string;
   nextFollowUpAt?: string;
+  // Rastro até o atendimento: contato da mensageria, conversa e motivo da perda.
+  contact?: { id: string; name: string; phone?: string | null } | null;
+  conversation?: { id: string; channel: string; unreadCount?: number } | null;
+  lossReason?: { id: string; name: string } | null;
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  WEBSITE: 'Website',
+  REFERRAL: 'Indicação',
+  PHONE: 'Telefone',
+  WHATSAPP: 'WhatsApp',
+  SOCIAL_MEDIA: 'Redes sociais',
+  WALK_IN: 'Passagem',
+  EMAIL: 'E-mail',
+  OTHER: 'Outro',
+};
+
+/** Telefone legível: 5511987654321 -> +55 (11) 98765-4321. */
+function formatPhone(raw?: string | null): string | null {
+  if (!raw) return null;
+  const d = raw.replace(/\D/g, '');
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+    const resto = d.slice(4);
+    const corte = resto.length === 9 ? 5 : 4;
+    return `+55 (${d.slice(2, 4)}) ${resto.slice(0, corte)}-${resto.slice(corte)}`;
+  }
+  return `+${d}`;
+}
+
+/** "há 3 dias" — o número que diz se o lead está esfriando. */
+function diasDesde(iso: string): string {
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'há 1 dia';
+  return `há ${dias} dias`;
 }
 
 interface PipelineStage {
@@ -426,52 +462,92 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                     draggable
                     onDragStart={() => handleDragStart(deal)}
                     onClick={() => onDealClick?.(deal)}
-                    className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                    className="group bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-sm text-foreground truncate">
-                        {deal.title}
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        {deal.contact?.name ?? deal.patient?.name ?? deal.title}
                       </h4>
-                      {deal.priority === 'URGENT' && (
-                        <span className="px-1 py-0.5 text-xs bg-destructive/15 text-destructive rounded">
-                          Urgente
-                        </span>
-                      )}
+                      <div className="flex shrink-0 items-center gap-1">
+                        {deal.priority === 'URGENT' && (
+                          <span className="rounded bg-destructive/15 px-1 py-0.5 text-xs text-destructive">
+                            Urgente
+                          </span>
+                        )}
+                        {/* Não lidas: o cartão avisa que tem gente esperando resposta. */}
+                        {!!deal.conversation?.unreadCount && (
+                          <span className="rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                            {deal.conversation.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {deal.valueEstimated && (
-                      <p className="text-xs text-muted-foreground mb-1">
-                        R$ {deal.valueEstimated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {/* Telefone no cartão: é o dado que a atendente usa para agir. */}
+                    {(deal.contact?.phone || deal.patient?.phone) && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {formatPhone(deal.contact?.phone ?? deal.patient?.phone)}
                       </p>
                     )}
 
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{deal.source}</span>
-                      {deal.lastContactAt && (
-                        <span>
-                          Último contato: {new Date(deal.lastContactAt).toLocaleDateString()}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5">{SOURCE_LABEL[deal.source] ?? deal.source}</span>
+                      {deal.valueEstimated ? (
+                        <span className="font-medium text-foreground">
+                          R$ {deal.valueEstimated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
-                      )}
+                      ) : null}
+                      {deal.responsibleUser?.name && <span>· {deal.responsibleUser.name}</span>}
                     </div>
 
-                    {deal.patient && (
-                      <div className="mt-2 pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground">
-                          {deal.patient.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {deal.patient.phone}
-                        </p>
-                      </div>
+                    {deal.lastContactAt && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Último contato: {new Date(deal.lastContactAt).toLocaleDateString('pt-BR')}
+                        {' · '}
+                        {diasDesde(deal.lastContactAt)}
+                      </p>
+                    )}
+
+                    {/* Motivo da perda no próprio cartão: a coluna Perdido sem o
+                        porquê não serve para decidir nada. */}
+                    {deal.status === DealStatus.LOST && deal.lossReason?.name && (
+                      <p className="mt-1 text-xs text-destructive">Perdido: {deal.lossReason.name}</p>
                     )}
 
                     {deal.nextFollowUpAt && (
                       <div className="mt-2">
-                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-accent text-accent-foreground">
-                          Follow-up: {new Date(deal.nextFollowUpAt).toLocaleDateString()}
+                        <span className="inline-flex items-center rounded-full bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">
+                          Follow-up: {new Date(deal.nextFollowUpAt).toLocaleDateString('pt-BR')}
                         </span>
                       </div>
                     )}
+
+                    {/* Caminhos de volta. `stopPropagation` porque o cartão inteiro
+                        abre a edição — sem isso o link abriria as duas coisas. */}
+                    <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border pt-2">
+                      {deal.conversation ? (
+                        <a
+                          href={`/mensageria?conversa=${deal.conversation.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                        >
+                          Conversa
+                        </a>
+                      ) : null}
+                      {deal.patientId ? (
+                        <a
+                          href={`/pacientes/${deal.patientId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                        >
+                          Paciente
+                        </a>
+                      ) : (
+                        <span className="rounded-md px-2 py-1 text-xs text-muted-foreground">
+                          Sem ficha de paciente
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
 

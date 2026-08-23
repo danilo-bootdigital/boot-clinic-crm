@@ -96,6 +96,10 @@ export const CreateDealSchema = z.object({
   patientId: z.string().optional().or(z.literal("")),
   source: z.nativeEnum(DealSource),
   responsibleUserId: z.string().min(1, "Responsável é obrigatório"),
+  // Obrigatório só quando a etapa escolhida é final de PERDA — quem cobra isso é
+  // a rota, que conhece o finalType da etapa. Aqui fica opcional para o mesmo
+  // schema servir aos outros casos.
+  lossReasonId: z.string().optional().or(z.literal("")),
   nextFollowUpAt: z.string().optional(),
   lastContactAt: z.string().optional(),
 });

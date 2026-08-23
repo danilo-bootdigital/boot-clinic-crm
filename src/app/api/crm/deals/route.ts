@@ -8,6 +8,7 @@ import { ownsPatient, ownsUser } from '@/lib/api/ownership';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
 import { requireModuleEnabled } from '@/lib/api/modules';
+import { findLossReason, listLossReasons } from '@/lib/crm/loss-reasons';
 
 async function resolveDbUser() {
   const user = await getCurrentUser();
@@ -45,25 +46,79 @@ export async function GET(request: NextRequest) {
 
     const deals = await prisma.deal.findMany({ where, orderBy: { updatedAt: 'desc' } });
 
-    // Enriquecimento manual (sem relações Prisma): paciente e responsável.
+    // Enriquecimento manual (sem relações Prisma). Tudo em lote, por id: o cartão
+    // do Kanban precisa de contato, conversa, paciente, responsável e motivo de
+    // perda, e uma consulta por cartão faria N+1 num funil de centenas de leads.
     const patientIds = Array.from(new Set(deals.map((d) => d.patientId).filter(Boolean) as string[]));
     const userIds = Array.from(new Set(deals.map((d) => d.responsibleUserId)));
-    const [patients, users] = await Promise.all([
-      patientIds.length
-        ? prisma.patient.findMany({ where: { id: { in: patientIds } }, select: { id: true, name: true, phone: true } })
-        : Promise.resolve([]),
+    const contactIds = Array.from(new Set(deals.map((d) => d.contactId).filter(Boolean) as string[]));
+    const reasonIds = Array.from(new Set(deals.map((d) => d.lossReasonId).filter(Boolean) as string[]));
+
+    const [users, contacts, conversations, reasons] = await Promise.all([
       userIds.length
         ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
         : Promise.resolve([]),
+      contactIds.length
+        ? prisma.contact.findMany({
+            where: { id: { in: contactIds }, companyId: dbUser!.companyId },
+            select: { id: true, name: true, phone: true, patientId: true },
+          })
+        : Promise.resolve([]),
+      // Conversa por contato: é o que liga o cartão de volta ao atendimento.
+      // Sem isto o CRM é um beco sem saída — o lead veio do WhatsApp e não há
+      // caminho de volta para ler o que foi conversado.
+      contactIds.length
+        ? prisma.conversation.findMany({
+            where: { companyId: dbUser!.companyId, contactId: { in: contactIds }, deletedAt: null },
+            orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+            select: { id: true, contactId: true, channel: true, lastMessageAt: true, unreadCount: true },
+          })
+        : Promise.resolve([]),
+      // Sem filtrar removidos: motivo aposentado depois da perda continua sendo o
+      // motivo daquela perda.
+      reasonIds.length
+        ? prisma.dealLossReason.findMany({
+            where: { id: { in: reasonIds }, companyId: dbUser!.companyId },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
     ]);
+
+    // Pacientes só depois dos contatos: o vínculo com paciente pode vir do deal
+    // OU do contato da mensageria, e buscar em paralelo perderia o segundo caso.
+    const contactPatientIds = contacts.map((c) => c.patientId).filter(Boolean) as string[];
+    const allPatientIds = Array.from(new Set([...patientIds, ...contactPatientIds]));
+    const patients = allPatientIds.length
+      ? await prisma.patient.findMany({
+          where: { id: { in: allPatientIds }, companyId: dbUser!.companyId },
+          select: { id: true, name: true, phone: true },
+        })
+      : [];
+
     const patientMap = new Map(patients.map((p) => [p.id, p]));
     const userMap = new Map(users.map((u) => [u.id, u]));
+    const contactMap = new Map(contacts.map((c) => [c.id, c]));
+    const reasonMap = new Map(reasons.map((r) => [r.id, r]));
+    // Primeira conversa de cada contato = a mais recente (a query já vem ordenada).
+    const convMap = new Map<string, (typeof conversations)[number]>();
+    for (const c of conversations) if (!convMap.has(c.contactId)) convMap.set(c.contactId, c);
 
-    const enriched = deals.map((d) => ({
-      ...d,
-      patient: d.patientId ? patientMap.get(d.patientId) ?? null : null,
-      responsibleUser: userMap.get(d.responsibleUserId) ?? null,
-    }));
+    const enriched = deals.map((d) => {
+      const contact = d.contactId ? contactMap.get(d.contactId) ?? null : null;
+      // Paciente pode estar ligado no deal OU só no contato da mensageria —
+      // o botão "Paciente" precisa funcionar nos dois casos.
+      const patientId = d.patientId ?? contact?.patientId ?? null;
+      const conversation = d.contactId ? convMap.get(d.contactId) ?? null : null;
+      return {
+        ...d,
+        patient: patientId ? patientMap.get(patientId) ?? null : null,
+        patientId,
+        responsibleUser: userMap.get(d.responsibleUserId) ?? null,
+        contact,
+        conversation,
+        lossReason: d.lossReasonId ? reasonMap.get(d.lossReasonId) ?? null : null,
+      };
+    });
 
     return NextResponse.json(enriched);
   } catch (err) {
@@ -90,6 +145,23 @@ export async function POST(request: NextRequest) {
     });
     if (!stage) return NextResponse.json({ error: 'Etapa/pipeline inválidos' }, { status: 400 });
 
+    // Nascer direto na etapa "Perdido" também é dar perdido: exige motivo, como
+    // em todos os outros caminhos.
+    let loss: { id: string; name: string } | null = null;
+    if (stage.finalType === 'LOST') {
+      loss = data.lossReasonId ? await findLossReason(dbUser!.companyId, data.lossReasonId) : null;
+      if (!loss) {
+        return NextResponse.json(
+          {
+            error: data.lossReasonId ? 'Motivo de perda inválido' : 'Escolha o motivo da perda',
+            needsLossReason: true,
+            reasons: await listLossReasons(dbUser!.companyId),
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Paciente (opcional) e responsável precisam pertencer à empresa.
     if (!(await ownsPatient(dbUser!.companyId, data.patientId || null)) ||
         !(await ownsUser(dbUser!.companyId, data.responsibleUserId))) {
@@ -112,6 +184,8 @@ export async function POST(request: NextRequest) {
         lastContactAt: data.lastContactAt ? new Date(data.lastContactAt) : null,
         // Reflete a etapa final no status, se aplicável.
         status: stage.finalType === 'WON' ? 'WON' : stage.finalType === 'LOST' ? 'LOST' : 'NEW',
+        ...(stage.finalType === 'WON' && { wonAt: new Date() }),
+        ...(stage.finalType === 'LOST' && { lostAt: new Date(), lossReasonId: loss!.id }),
       },
     });
 

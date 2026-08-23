@@ -7,6 +7,7 @@ import { ownsPatient, ownsUser, ownsStage } from '@/lib/api/ownership';
 import { requirePermission } from '@/lib/api/permissions';
 import { subscriptionBlock } from '@/lib/api/session';
 import { requireModuleEnabled } from '@/lib/api/modules';
+import { findLossReason, listLossReasons } from '@/lib/crm/loss-reasons';
 
 // Campos editáveis de um deal (todos opcionais).
 const UpdateDealInputSchema = z.object({
@@ -20,6 +21,11 @@ const UpdateDealInputSchema = z.object({
   responsibleUserId: z.string().optional(),
   nextFollowUpAt: z.string().optional().nullable(),
   lastContactAt: z.string().optional().nullable(),
+  // Só é lido quando a etapa de destino é final de PERDA.
+  lossReasonId: z.string().optional().nullable(),
+  // Ignorado: o pipeline é derivado da etapa, não aceito do cliente (etapa e
+  // pipeline divergentes deixariam o cartão fora de qualquer coluna).
+  pipelineId: z.string().optional().nullable(),
 });
 
 async function resolveDbUser() {
@@ -83,9 +89,46 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Etapa, responsável ou paciente inválidos' }, { status: 400 });
     }
 
+    // Etapa nova redefine o DESFECHO do negócio — e o formulário tem a etapa
+    // "Perdido" no select, então esta era a porta por onde se dava perdido sem
+    // motivo, driblando a trava do Kanban e da conversa.
+    let stage: { id: string; pipelineId: string; name: string; finalType: string } | null = null;
+    let loss: { id: string; name: string } | null = null;
+    if (d.stageId && d.stageId !== existing.stageId) {
+      stage = await prisma.pipelineStage.findFirst({
+        where: { id: d.stageId, companyId: dbUser!.companyId },
+        select: { id: true, pipelineId: true, name: true, finalType: true },
+      });
+      if (!stage) return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 });
+
+      if (stage.finalType === 'LOST') {
+        loss = d.lossReasonId ? await findLossReason(dbUser!.companyId, d.lossReasonId) : null;
+        if (!loss) {
+          return NextResponse.json(
+            {
+              error: d.lossReasonId ? 'Motivo de perda inválido' : 'Escolha o motivo da perda',
+              needsLossReason: true,
+              reasons: await listLossReasons(dbUser!.companyId),
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const deal = await prisma.deal.update({
       where: { id: params.id },
       data: {
+        ...(stage && {
+          // Pipeline vem da etapa: é a única combinação que existe de verdade.
+          pipelineId: stage.pipelineId,
+          ...(stage.finalType === 'WON' && { status: 'WON' as const, wonAt: new Date(), lostAt: null, lossReasonId: null }),
+          ...(stage.finalType === 'LOST' && { status: 'LOST' as const, lostAt: new Date(), wonAt: null, lossReasonId: loss!.id }),
+          ...(stage.finalType === 'NONE' &&
+            (existing.status === 'WON' || existing.status === 'LOST')
+            ? { status: 'NEW' as const, wonAt: null, lostAt: null, lossReasonId: null }
+            : {}),
+        }),
         ...(d.title !== undefined && { title: d.title }),
         ...(d.description !== undefined && { description: d.description || null }),
         ...(d.valueEstimated !== undefined && { valueEstimated: d.valueEstimated ?? null }),
@@ -98,6 +141,21 @@ async function updateHandler(request: NextRequest, { params }: { params: { id: s
         ...(d.lastContactAt !== undefined && { lastContactAt: d.lastContactAt ? new Date(d.lastContactAt) : null }),
       },
     });
+
+    // Rastro da mudança de etapa feita pelo formulário — antes só o Kanban
+    // registrava, e o histórico ficava com buracos.
+    if (stage) {
+      await prisma.dealActivity.create({
+        data: {
+          type: 'MOVED_STAGE',
+          title: 'Etapa alterada',
+          description: `Deal movido para "${stage.name}" por ${dbUser!.name}${loss ? ` — motivo: ${loss.name}` : ''}`,
+          companyId: dbUser!.companyId,
+          dealId: deal.id,
+          authorId: dbUser!.id,
+        },
+      });
+    }
 
     return NextResponse.json(deal);
   } catch (err) {

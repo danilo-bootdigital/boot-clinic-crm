@@ -6,6 +6,7 @@ import { Plus, ArrowLeft, Target, XCircle } from 'lucide-react'
 import KanbanBoard from '@/components/crm/KanbanBoard'
 import DealForm from '@/components/crm/DealForm'
 import { LossReasonsManager } from '@/components/crm/LossReasonsManager'
+import { DealTimeline } from '@/components/crm/DealTimeline'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
@@ -113,13 +114,20 @@ export default function CRMPage() {
       )}
 
       {(mode === 'create' || mode === 'edit') && (
-        <SectionCard>
-          <DealForm
-            deal={mode === 'edit' ? selected : undefined}
-            onSubmit={handleSave}
-            onCancel={() => { setMode('board'); setSelected(null) }}
-          />
-        </SectionCard>
+        <>
+          <SectionCard>
+            <DealForm
+              deal={mode === 'edit' ? selected : undefined}
+              onSubmit={handleSave}
+              onCancel={() => { setMode('board'); setSelected(null) }}
+            />
+          </SectionCard>
+          {mode === 'edit' && selected?.id && (
+            <SectionCard>
+              <DealTimeline dealId={selected.id} />
+            </SectionCard>
+          )}
+        </>
       )}
 
       <LossReasonsManager open={motivosOpen} onClose={() => setMotivosOpen(false)} />
