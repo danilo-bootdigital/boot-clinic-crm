@@ -41,6 +41,36 @@ export async function GET(request: NextRequest) {
       prisma.followUpTask.count({ where: { companyId, deletedAt: null, status: 'COMPLETED', completedAt: range } }),
     ]);
 
+    // Perdas POR MOTIVO. "Perdemos 12" não muda decisão nenhuma; "8 por preço e
+    // 4 por distância" muda — a primeira é contagem, a segunda é diagnóstico.
+    // groupBy devolve id; o nome vem numa segunda consulta em lote (sem N+1), e
+    // SEM filtrar motivo removido: motivo aposentado depois da perda continua
+    // sendo o motivo daquela perda.
+    const lossGroups = await prisma.deal.groupBy({
+      by: ['lossReasonId'],
+      _count: true,
+      _sum: { valueEstimated: true },
+      where: { companyId, deletedAt: null, status: 'LOST', lostAt: range },
+    });
+    const lossReasonIds = lossGroups.map((g) => g.lossReasonId).filter(Boolean) as string[];
+    const lossReasonRows = lossReasonIds.length
+      ? await prisma.dealLossReason.findMany({
+          where: { id: { in: lossReasonIds }, companyId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const lossNames = new Map(lossReasonRows.map((r) => [r.id, r.name]));
+    const lossByReason = lossGroups
+      .map((g) => ({
+        reasonId: g.lossReasonId,
+        // Perda antiga, de antes da regra do motivo obrigatório: aparece como
+        // "Sem motivo registrado" em vez de sumir da conta.
+        name: g.lossReasonId ? lossNames.get(g.lossReasonId) ?? 'Motivo removido' : 'Sem motivo registrado',
+        count: (g as any)._count as number,
+        value: g._sum.valueEstimated ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
     const byOrigin: Record<string, number> = {};
     for (const r of patientsByOrigin) byOrigin[r.origin] = (r as any)._count;
     const apptStatus: Record<string, number> = {};
@@ -54,6 +84,7 @@ export async function GET(request: NextRequest) {
         created: dealsCreated, won: dealsWon, lost: dealsLost,
         wonValue: dealsWonValue._sum.valueEstimated ?? 0,
         conversionRate: dealsWon + dealsLost > 0 ? Math.round((dealsWon / (dealsWon + dealsLost)) * 100) : 0,
+        lossByReason,
       },
       agenda: {
         total: apptTotal, attended: apptAttended, byStatus: apptStatus,

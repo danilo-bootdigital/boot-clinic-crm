@@ -50,6 +50,10 @@ export default function RelatoriosPage() {
       ['Taxa de comparecimento (%)', data.agenda.attendanceRate],
       ['Tarefas criadas', data.followup.created],
       ['Tarefas concluídas', data.followup.completed],
+      ...((data.crm.lossByReason ?? []).map((m: any) => [
+        `Perdas — ${m.name}`,
+        m.value > 0 ? `${m.count} (${brl(m.value)})` : m.count,
+      ]) as [string, string | number][]),
     ]
     const csv = ['Indicador;Valor', ...rows.map(([k, v]) => `${k};${v}`)].join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -111,6 +115,40 @@ export default function RelatoriosPage() {
                 </div>
               </SectionCard>
             </div>
+
+            <SectionCard
+              title="Por que perdemos"
+              description="Oportunidades perdidas no período, por motivo — do mais frequente ao menos"
+            >
+              {(data.crm.lossByReason ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma perda registrada no período.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {(data.crm.lossByReason ?? []).map((m: any) => {
+                    const total = (data.crm.lossByReason ?? []).reduce((acc: number, x: any) => acc + x.count, 0)
+                    const pct = total > 0 ? Math.round((m.count / total) * 100) : 0
+                    return (
+                      <div key={m.reasonId ?? 'sem-motivo'}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-sm text-foreground">{m.name}</span>
+                          <span className="shrink-0 text-sm text-muted-foreground">
+                            {m.count} ({pct}%)
+                            {m.value > 0 && <span className="ml-2">{brl(m.value)}</span>}
+                          </span>
+                        </div>
+                        {/* Barra proporcional: a leitura é comparativa, e coluna de
+                            números sozinha esconde qual motivo domina. */}
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-destructive/70" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </SectionCard>
 
             <SectionCard title="Follow-up" description="Tarefas no período">
               <div className="divide-y divide-border">

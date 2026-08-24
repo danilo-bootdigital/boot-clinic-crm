@@ -209,7 +209,10 @@ function UsuariosTab() {
   const [profileForm, setProfileForm] = useState<{ name: string; email: string }>({ name: '', email: '' })
   const [adding, setAdding] = useState(false)
   const [me, setMe] = useState<{ id: string; role: string } | null>(null)
-  const [form, setForm] = useState<any>({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms() })
+  const [form, setForm] = useState<any>({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms(), specialtyIds: [] as string[] })
+  // Catálogo da clínica: usuário com papel Médico também nasce agendável, e
+  // profissional sem especialidade não entra em agendamento nenhum.
+  const [specialties, setSpecialties] = useState<{ id: string; name: string }[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -220,6 +223,12 @@ function UsuariosTab() {
   useEffect(() => { load() }, [load])
   // Papel/id do ator — usados como defesa adicional (a regra obrigatória é no backend).
   useEffect(() => { fetch('/api/me').then((r) => r.json()).then((m) => m?.id && setMe({ id: m.id, role: m.role })).catch(() => {}) }, [])
+  useEffect(() => {
+    fetch('/api/specialties')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setSpecialties(Array.isArray(d) ? d : []))
+      .catch(() => setSpecialties([]))
+  }, [])
 
   // Papéis que o ator pode atribuir (para os selects). Vazio até /api/me carregar (fail-closed).
   const assignable = me ? ROLES.filter((r) => canAssignRole(me.role, r)) : []
@@ -262,11 +271,25 @@ function UsuariosTab() {
   }
   async function createUser(e: React.FormEvent) {
     e.preventDefault(); setMsg(null)
+    if (form.role === 'DOCTOR' && (form.specialtyIds ?? []).length === 0) {
+      setMsg(
+        specialties.length === 0
+          ? 'Cadastre as especialidades da clínica na aba Especialidades antes de criar um usuário médico.'
+          : 'Selecione ao menos uma especialidade do(a) médico(a) — é ela que o agendamento usa.'
+      )
+      return
+    }
     const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error || 'Falha ao criar usuário'); return }
-    setAdding(false); setForm({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms() })
+    setAdding(false); setForm({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms(), specialtyIds: [] })
     setMsg('Usuário criado.'); load()
   }
+
+  const toggleSpecialty = (id: string) =>
+    setForm((f: any) => {
+      const atuais: string[] = f.specialtyIds ?? []
+      return { ...f, specialtyIds: atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id] }
+    })
 
   if (loading) return <LoadingState rows={3} />
 
@@ -286,6 +309,40 @@ function UsuariosTab() {
                 <div><label className={label}>Senha inicial *</label><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} minLength={6} required /></div>
                 <div><label className={label}>Papel</label><FilterSelect className="w-full" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{assignable.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</FilterSelect></div>
               </div>
+              {form.role === 'DOCTOR' && (
+                <div>
+                  <label className={label}>Especialidades *</label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Médico(a) entra na agenda como profissional. Pode ter mais de uma especialidade.
+                  </p>
+                  {specialties.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma especialidade cadastrada — cadastre na aba <strong>Especialidades</strong>.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {specialties.map((sp) => {
+                        const ativo = (form.specialtyIds ?? []).includes(sp.id)
+                        return (
+                          <button
+                            key={sp.id}
+                            type="button"
+                            onClick={() => toggleSpecialty(sp.id)}
+                            className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                              ativo
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-border bg-background hover:bg-muted'
+                            }`}
+                          >
+                            {sp.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className={label}>Permissões por módulo</label>
                 {ADMIN_ROLE(form.role)

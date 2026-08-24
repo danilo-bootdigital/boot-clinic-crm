@@ -14,6 +14,8 @@ const CreateSchema = z.object({
   password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
   role: z.enum(['SUPER_ADMIN', 'OWNER', 'MANAGER', 'DOCTOR', 'RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE']),
   permissions: z.any().optional(),
+  /** Obrigatório para papel DOCTOR: o usuário médico também nasce agendável. */
+  specialtyIds: z.array(z.string()).optional(),
 });
 
 // GET /api/users - lista usuários da empresa (id, nome, e-mail, papel, permissões).
@@ -60,6 +62,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Você não pode atribuir um papel igual ou superior ao seu' }, { status: 403 });
     }
 
+    // Usuário médico nasce como profissional da agenda — e profissional sem
+    // especialidade não é agendável. Cobrar aqui evita criar o médico hoje e a
+    // recepção descobrir o problema amanhã, no meio do atendimento.
+    let especialidadesDoMedico: string[] = [];
+    if (d.role === 'DOCTOR') {
+      const validas = await prisma.specialty.findMany({
+        where: { id: { in: d.specialtyIds ?? [] }, companyId: dbUser!.companyId, deletedAt: null },
+        select: { id: true },
+      });
+      if (validas.length === 0) {
+        return NextResponse.json(
+          { error: 'Selecione ao menos uma especialidade para o(a) médico(a) — é ela que o agendamento usa.' },
+          { status: 400 }
+        );
+      }
+      especialidadesDoMedico = validas.map((sp) => sp.id);
+    }
+
     // Cria a conta no Supabase Auth (e-mail confirmado).
     const { data: created, error: authErr } = await admin.auth.admin.createUser({
       email: d.email,
@@ -86,8 +106,9 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, name: true, email: true, role: true, permissions: true, companyId: true },
       });
-      // Médico (DOCTOR) também vira profissional selecionável na agenda.
-      await syncProfessionalForUser(user);
+      // Médico (DOCTOR) também vira profissional selecionável na agenda, já com
+      // as especialidades — senão nasce fora dos agendamentos.
+      await syncProfessionalForUser(user, especialidadesDoMedico);
       const { companyId: _omit, ...payload } = user;
       return NextResponse.json(payload, { status: 201 });
     } catch (dbErr) {
