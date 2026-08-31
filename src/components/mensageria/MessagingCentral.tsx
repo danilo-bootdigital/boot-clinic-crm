@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { contactLabel } from '@/lib/messaging/contact-label';
+import { EditableContactPhone } from './EditableContactPhone';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
@@ -496,6 +497,13 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  /** Telefone informado à mão reflete na lista e no cabeçalho sem recarregar. */
+  const applyPhone = (contactId: string, fone: string | null) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.contact?.id === contactId ? { ...c, contact: { ...c.contact!, phone: fone } } : c))
+    );
   };
 
   /** Renomear reflete na lista e no cabeçalho sem recarregar tudo. */
@@ -1016,16 +1024,14 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Telefone</p>
-              {selectedConversation.contact?.phone ? (
-                <p className="text-foreground">{selectedConversation.contact.phone}</p>
+              {selectedConversation.contact?.id ? (
+                <EditableContactPhone
+                  contactId={selectedConversation.contact.id}
+                  value={selectedConversation.contact.phone}
+                  onSaved={(fone) => applyPhone(selectedConversation.contact!.id!, fone)}
+                />
               ) : (
-                <p className="text-muted-foreground">
-                  Não enviado pelo WhatsApp
-                  <span className="mt-0.5 block text-xs">
-                    A conversa responde normalmente. O número volta a aparecer quando o
-                    servidor de WhatsApp for atualizado.
-                  </span>
-                </p>
+                <p className="text-muted-foreground">não informado</p>
               )}
             </div>
             <div>
