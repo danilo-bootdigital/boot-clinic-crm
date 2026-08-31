@@ -699,7 +699,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   )}
                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground">
-                      {selectedConversation.contact?.phone || 'sem telefone'}
+                      {/* Sem telefone NÃO é defeito do cadastro: o WhatsApp esconde o
+                          número de quem escreve (@lid) e a resposta sai pela conversa
+                          do mesmo jeito. "sem telefone" fazia o atendente achar que
+                          estava travado. */}
+                      {selectedConversation.contact?.phone || 'número oculto pelo WhatsApp'}
                     </span>
                     <ChannelBadge channel={selectedConversation.channel} accountLabel={selectedConversation.account?.label} />
                     {statusMeta && (
@@ -1011,7 +1015,17 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Telefone</p>
-              <p className="text-foreground">{selectedConversation.contact?.phone || 'não informado'}</p>
+              {selectedConversation.contact?.phone ? (
+                <p className="text-foreground">{selectedConversation.contact.phone}</p>
+              ) : (
+                <p className="text-muted-foreground">
+                  Oculto pelo WhatsApp
+                  <span className="mt-0.5 block text-xs">
+                    Dá para responder normalmente por aqui. O número só aparece se a
+                    pessoa informar.
+                  </span>
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Canal de entrada</p>

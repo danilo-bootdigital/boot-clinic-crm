@@ -6,6 +6,7 @@ import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { sendWhatsappForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { sendInstagramText, replyWindow } from '@/lib/messaging/adapters/instagram/graph';
+import { whatsappDestination, NO_DESTINATION } from '@/lib/messaging/adapters/whatsapp/destination';
 
 const CreateSchema = z.object({
   conversationId: z.string().min(1),
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
     // (sem conta, sem identidade, sem telefone) não deixa mensagem pendurada.
     let igAccount: Awaited<ReturnType<typeof prisma.channelAccount.findFirst>> = null;
     let igRecipient: string | null = null;
+    let waDestination: string | null = null;
 
     if (conv.channel === Channel.INSTAGRAM) {
       // Janela de 24h da Meta: recusamos ANTES de chamar a API, para o atendente
@@ -159,8 +161,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Contato sem identidade no Instagram' }, { status: 400 });
       }
       igRecipient = identity.externalId;
-    } else if (!conv.contact.phone) {
-      return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
+    } else {
+      // Telefone quando existe; senão a identidade `@lid`. Exigir telefone aqui
+      // travava a resposta em 77% das conversas — o WhatsApp esconde o número de
+      // quem escreve e o atendente ficava olhando a mensagem sem poder responder.
+      waDestination = await whatsappDestination(dbUser!.companyId, conv.contactId, conv.contact.phone);
+      if (!waDestination) return NextResponse.json({ error: NO_DESTINATION }, { status: 400 });
     }
 
     // Idempotência (2/2): a âncora é gravada ANTES de falar com o provedor. Assim
@@ -183,7 +189,7 @@ export async function POST(request: NextRequest) {
       const res = await sendInstagramText(igAccount!, igRecipient!, d.content);
       sent = { configured: res.configured, ok: res.ok, messageId: res.messageId ?? null, instanceId: igAccount!.id, error: res.error };
     } else {
-      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, conv.contact.phone!, d.content);
+      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, waDestination!, d.content);
     }
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.accountId ?? null;

@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, type ChannelAccount, type ChannelAccountStatus } from '@prisma/client';
 import { instanceNameFor, waConfig, waConfigPatch, whatsappAccountWhere } from './account';
+import { isLidDestination } from './destination';
 import { dialableCandidates } from '@/lib/messaging/phone';
 
 // Resultado padrão das chamadas: `configured` indica se a base está configurada.
@@ -97,6 +98,12 @@ async function resolveNumber(
   instance: InstanceRef,
   phone: string,
 ): Promise<{ number?: string; error?: string }> {
+  // Destino `@lid` não é telefone e não passa por normalização de DDI/DDD: é a
+  // identidade que o próprio WhatsApp usa quando esconde o número. Vai como veio.
+  // VALIDADO AO VIVO em v2.3.7 (31/08/2026): a Evolution aceita o jid `@lid` no
+  // mesmo campo `number` — `fetchProfilePictureUrl` devolveu
+  // `{"wuid":"156061965279481@lid"}` sem converter para `@s.whatsapp.net`.
+  if (isLidDestination(phone)) return { number: phone };
   const candidates = dialableCandidates(phone);
   if (!candidates.length) return { error: INVALID_NUMBER };
   if (candidates.length === 1) return { number: candidates[0] };

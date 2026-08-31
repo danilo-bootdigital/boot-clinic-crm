@@ -8,6 +8,7 @@ import { uploadMessagingMedia, deleteWhatsappMedia } from '@/lib/storage/messagi
 import { categoryForMime, validateWhatsappMedia } from '@/lib/messaging/media-config';
 import { mediaPlaceholder } from '@/lib/messaging/ingest';
 import { writeAudit, ActionType, EntityType } from '@/lib/api/audit';
+import { whatsappDestination, NO_DESTINATION } from '@/lib/messaging/adapters/whatsapp/destination';
 
 export const runtime = 'nodejs';
 
@@ -51,9 +52,11 @@ export async function POST(request: NextRequest) {
         { status: 501 }
       );
     }
-    const contactPhone = conv.contact.phone;
+    // Telefone quando existe; senão a identidade `@lid` (o WhatsApp esconde o
+    // número de quem escreve). Ver adapters/whatsapp/destination.ts.
+    const contactPhone = await whatsappDestination(dbUser!.companyId, conv.contactId, conv.contact.phone);
     if (!contactPhone) {
-      return NextResponse.json({ error: 'Contato sem telefone para envio' }, { status: 400 });
+      return NextResponse.json({ error: NO_DESTINATION }, { status: 400 });
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());

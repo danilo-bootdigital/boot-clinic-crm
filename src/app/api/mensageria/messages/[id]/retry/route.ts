@@ -7,6 +7,7 @@ import { sendMediaForConversation, sendAudioForConversation, sendWhatsappForConv
 import { downloadWhatsappMediaBytes } from '@/lib/storage/messaging-storage';
 import { categoryForMime } from '@/lib/messaging/media-config';
 import { writeAudit, ActionType, EntityType } from '@/lib/api/audit';
+import { whatsappDestination, NO_DESTINATION } from '@/lib/messaging/adapters/whatsapp/destination';
 
 export const runtime = 'nodejs';
 
@@ -56,9 +57,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (conv.channel !== Channel.WHATSAPP) {
       return NextResponse.json({ error: `Reenvio não suportado no canal ${conv.channel}` }, { status: 501 });
     }
-    const contactPhone = conv.contact.phone;
+    // Mesmo destino do envio original: telefone, ou a identidade `@lid`.
+    const contactPhone = await whatsappDestination(dbUser!.companyId, conv.contactId, conv.contact.phone);
     if (!contactPhone) {
-      return NextResponse.json({ error: 'Contato sem telefone para reenvio' }, { status: 400 });
+      return NextResponse.json({ error: NO_DESTINATION }, { status: 400 });
     }
 
     const convRef = { companyId: dbUser!.companyId, instanceId: msg.accountId ?? conv.accountId };

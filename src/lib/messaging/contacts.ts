@@ -28,6 +28,23 @@ function phoneSuffix(digits: string): string {
   return digits.slice(-8);
 }
 
+/**
+ * Nome de exibição quando o canal não entregou nome de verdade.
+ *
+ * Telefone serve de nome: o atendente reconhece o número e pode ligar. Já o
+ * identificador OPACO não serve — o `@lid` do WhatsApp e o IGSID do Instagram
+ * são sequências de dígitos que não dizem nada e ainda SE PARECEM com telefone.
+ * Foi assim que "156061965279481" apareceu no lugar do nome da pessoa: o
+ * WhatsApp esconde o número de quem escreve e manda o lid até no `pushName`.
+ *
+ * Os 4 últimos dígitos ficam no rótulo só para distinguir uma linha da outra na
+ * lista de conversas — sem eles, todo contato novo viraria "Sem nome".
+ */
+function fallbackName(externalId: string): string {
+  if (looksLikePhone(externalId)) return externalId;
+  return `Sem nome · ${externalId.slice(-4)}`;
+}
+
 export interface ResolveContactInput {
   companyId: string;
   channel: Channel;
@@ -110,13 +127,16 @@ export async function resolveContact(input: ResolveContactInput) {
 
   // 3. Gente nova.
   if (!contact) {
-    const trustedName = input.nameIsFromContact ? input.name?.trim() : undefined;
+    const rawName = input.nameIsFromContact ? input.name?.trim() : undefined;
+    // O `pushName` às vezes vem sendo o PRÓPRIO identificador — quando o WhatsApp
+    // não tem nome para a pessoa, ele repete o lid nesse campo. Isso não é nome.
+    const trustedName = rawName && rawName !== externalId ? rawName : undefined;
     contact = await prisma.contact.create({
       data: {
         companyId,
-        // Sem nome confiável, o identificador do canal serve de nome até uma
-        // mensagem RECEBIDA (ou alguém no CRM) trazer o nome de verdade.
-        name: trustedName || input.handle?.trim() || externalId,
+        // Sem nome confiável, um rótulo legível até uma mensagem RECEBIDA (ou
+        // alguém no CRM) trazer o nome de verdade. Nunca o identificador cru.
+        name: trustedName || input.handle?.trim() || fallbackName(externalId),
         // Nome só é MANUAL quando veio de fato do que uma pessoa digitou; caindo
         // no handle ou no identificador do canal, continua aprendível.
         nameSource: trustedName && input.nameSource ? input.nameSource : ContactNameSource.CHANNEL,
