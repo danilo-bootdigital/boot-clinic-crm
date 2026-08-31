@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { contactLabel } from '@/lib/messaging/contact-label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
@@ -627,12 +628,12 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                         )}
                         aria-hidden
                       >
-                        {(conversation.contact?.name?.trim()?.[0] || '?').toUpperCase()}
+                        {(contactLabel(conversation.contact?.name, conversation.contact?.phone).trim()[0] || '?').toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
                           <span className={cn('truncate text-sm', conversation.unreadCount ? 'font-semibold text-foreground' : 'font-medium text-foreground')}>
-                            {conversation.contact?.name || conversation.contact?.phone || 'Sem nome'}
+                            {contactLabel(conversation.contact?.name, conversation.contact?.phone)}
                           </span>
                           <span className="shrink-0 text-[11px] text-muted-foreground">
                             {listTime(conversation.lastMessageAt)}
@@ -682,19 +683,19 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-sm font-semibold text-white" aria-hidden>
-                  {(selectedConversation.contact?.name?.trim()?.[0] || '?').toUpperCase()}
+                  {(contactLabel(selectedConversation.contact?.name, selectedConversation.contact?.phone).trim()[0] || '?').toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
                   {selectedConversation.contact?.id ? (
                     <EditableContactName
                       contactId={selectedConversation.contact.id}
-                      value={selectedConversation.contact.name || ''}
+                      value={contactLabel(selectedConversation.contact.name, selectedConversation.contact.phone)}
                       fallback={selectedConversation.contact.phone}
                       onSaved={(nome) => applyRename(selectedConversation.contact!.id!, nome)}
                     />
                   ) : (
                     <h3 className="truncate text-base font-semibold text-foreground">
-                      {selectedConversation.contact?.name || selectedConversation.contact?.phone}
+                      {contactLabel(selectedConversation.contact?.name, selectedConversation.contact?.phone)}
                     </h3>
                   )}
                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -703,7 +704,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                           número de quem escreve (@lid) e a resposta sai pela conversa
                           do mesmo jeito. "sem telefone" fazia o atendente achar que
                           estava travado. */}
-                      {selectedConversation.contact?.phone || 'número oculto pelo WhatsApp'}
+                      {selectedConversation.contact?.phone || 'número não enviado pelo WhatsApp'}
                     </span>
                     <ChannelBadge channel={selectedConversation.channel} accountLabel={selectedConversation.account?.label} />
                     {statusMeta && (
@@ -1010,7 +1011,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             <div>
               <p className="text-xs text-muted-foreground">Nome</p>
               <p className="font-medium text-foreground">
-                {selectedConversation.contact?.name || 'Sem nome'}
+                {contactLabel(selectedConversation.contact?.name, selectedConversation.contact?.phone)}
               </p>
             </div>
             <div>
@@ -1019,10 +1020,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 <p className="text-foreground">{selectedConversation.contact.phone}</p>
               ) : (
                 <p className="text-muted-foreground">
-                  Oculto pelo WhatsApp
+                  Não enviado pelo WhatsApp
                   <span className="mt-0.5 block text-xs">
-                    Dá para responder normalmente por aqui. O número só aparece se a
-                    pessoa informar.
+                    A conversa responde normalmente. O número volta a aparecer quando o
+                    servidor de WhatsApp for atualizado.
                   </span>
                 </p>
               )}
