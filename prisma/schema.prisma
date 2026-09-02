@@ -1892,10 +1892,19 @@ model Receivable {
   id                String           @id @default(cuid())
   companyId         String
   patientId         String // origem obrigatória (escalar)
+  // Origem da cobrança. `sourceType` é o discriminador explícito; as colunas
+  // abaixo guardam o vínculo escalar da origem correspondente.
+  sourceType        ReceivableSource
+  appointmentId     String? // Appointment ATTENDED (origem) — SEM unique: 1 atendimento pode gerar N cobranças
   quoteId           String? // ClinicalQuote APPROVED (origem)
   contractId        String? // PatientContract SIGNED (origem)
   dealId            String? // rastreio comercial (origem Fase 7)
   categoryId        String?
+  // Snapshot da origem no momento do faturamento (paciente, profissional,
+  // procedimento, data do atendimento). Congela o contexto: mudar o cadastro
+  // ou o preço depois NÃO reescreve a cobrança histórica. Valor e descrição já
+  // são snapshot por serem colunas próprias (originalAmount/description).
+  sourceSnapshot    Json?
   description       String
   originalAmount    Decimal          @db.Decimal(12, 2)
   discountAmount    Decimal          @default(0) @db.Decimal(12, 2)
@@ -1917,6 +1926,7 @@ model Receivable {
   @@index([companyId, status])
   @@index([companyId, patientId])
   @@index([companyId, issueDate])
+  @@index([companyId, appointmentId])
   @@map("financial_receivables")
 }
 
@@ -1965,6 +1975,16 @@ model InstallmentPayment {
   @@index([companyId, paidAt])
   @@index([installmentId])
   @@map("financial_payments")
+}
+
+// Origem de uma conta a receber. APPOINTMENT nasce direto da Agenda (atendimento
+// realizado sem orçamento); BUDGET e CONTRACT são as origens comerciais que já
+// existiam; MANUAL cobre lançamentos sem origem vinculada (registros legados).
+enum ReceivableSource {
+  APPOINTMENT
+  BUDGET
+  CONTRACT
+  MANUAL
 }
 
 enum ReceivableStatus {

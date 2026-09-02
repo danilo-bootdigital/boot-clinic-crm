@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { brl } from '@/lib/financial-format'
+import { financialCan } from '@/lib/financial-caps'
 
 interface Source {
   id: string
@@ -15,9 +16,20 @@ interface Source {
 }
 interface Category { id: string; name: string }
 
-// Formulário inline para criar um recebível a partir de um Orçamento APROVADO
-// ou Contrato ASSINADO (decisão aprovada: receita nasce dessas origens).
-export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+/**
+ * Formulário inline para criar um recebível a partir de um Orçamento APROVADO,
+ * um Contrato ASSINADO ou — para gestão/financeiro — uma cobrança MANUAL.
+ *
+ * Nas duas primeiras o valor é DERIVADO da origem (o campo fica travado, e o
+ * servidor ignora o que vier no payload). Na manual não há origem de onde
+ * derivar: o valor é digitado, e por isso a opção só aparece para quem tem
+ * `create_manual`. Atendimento se fatura pela Agenda, não por aqui.
+ */
+export function NewReceivableForm({ onCreated, onCancel, role = '' }: {
+  onCreated: () => void
+  onCancel: () => void
+  role?: string
+}) {
   const [quotes, setQuotes] = useState<Source[]>([])
   const [contracts, setContracts] = useState<Source[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -25,9 +37,12 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const [originKey, setOriginKey] = useState('') // "quote:<id>" | "contract:<id>"
+  const [originKey, setOriginKey] = useState('') // "quote:<id>" | "contract:<id>" | "manual"
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [patientId, setPatientId] = useState('')      // manual: paciente escolhido à mão
+  const [manualAmount, setManualAmount] = useState(0) // manual: valor digitado
+  const [patients, setPatients] = useState<{ id: string; name: string }[]>([])
   const [discount, setDiscount] = useState(0)
   const [installmentsCount, setInstallmentsCount] = useState(1)
   const [firstDueDate, setFirstDueDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -47,29 +62,62 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
       .finally(() => setLoading(false))
   }, [])
 
-  const selected =
-    originKey.startsWith('quote:')
+  const canCreateManual = financialCan(role, 'create_manual')
+
+  useEffect(() => {
+    if (!canCreateManual) return
+    fetch('/api/patients?limit=200')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const lista = Array.isArray(d) ? d : d?.patients
+        setPatients(Array.isArray(lista) ? lista.map((p: any) => ({ id: p.id, name: p.name })) : [])
+      })
+      .catch(() => {})
+  }, [canCreateManual])
+
+  const isManual = originKey === 'manual'
+  const selected = isManual
+    ? undefined
+    : originKey.startsWith('quote:')
       ? quotes.find((q) => `quote:${q.id}` === originKey)
       : contracts.find((c) => `contract:${c.id}` === originKey)
-  const original = selected?.amount ?? 0
+  const original = isManual ? manualAmount : selected?.amount ?? 0
   const finalAmount = Math.max(0, original - discount)
+  // Manual precisa de paciente + valor; as demais precisam da origem selecionada.
+  const pronto = isManual ? !!patientId && manualAmount > 0 : !!selected
 
   async function submit() {
-    if (!selected) { setError('Selecione uma origem (orçamento ou contrato)'); return }
+    if (!pronto) {
+      setError(isManual ? 'Informe paciente e valor' : 'Selecione uma origem (orçamento ou contrato)')
+      return
+    }
     setSubmitting(true); setError(null)
     const isQuote = originKey.startsWith('quote:')
-    const body = {
-      patientId: selected.patientId,
-      quoteId: isQuote ? selected.id : undefined,
-      contractId: isQuote ? undefined : selected.id,
-      categoryId: categoryId || undefined,
-      description: description || selected.title,
-      originalAmount: original,
-      discountAmount: discount,
-      installmentsCount,
-      firstDueDate,
-      intervalDays,
-    }
+    const body = isManual
+      ? {
+          patientId,
+          sourceType: 'MANUAL',
+          categoryId: categoryId || undefined,
+          description: description || 'Cobrança manual',
+          originalAmount: manualAmount,
+          discountAmount: discount,
+          installmentsCount,
+          firstDueDate,
+          intervalDays,
+        }
+      : {
+          patientId: selected!.patientId,
+          sourceType: isQuote ? 'BUDGET' : 'CONTRACT',
+          quoteId: isQuote ? selected!.id : undefined,
+          contractId: isQuote ? undefined : selected!.id,
+          categoryId: categoryId || undefined,
+          description: description || selected!.title,
+          originalAmount: original,
+          discountAmount: discount,
+          installmentsCount,
+          firstDueDate,
+          intervalDays,
+        }
     const res = await fetch('/api/financeiro/receivables', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -89,9 +137,10 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-card space-y-4">
       <h3 className="text-base font-semibold">Novo recebível</h3>
-      {quotes.length === 0 && contracts.length === 0 ? (
+      {quotes.length === 0 && contracts.length === 0 && !canCreateManual ? (
         <p className="text-sm text-muted-foreground">
-          Nenhum orçamento aprovado ou contrato assinado disponível. A receita nasce de uma dessas origens.
+          Nenhum orçamento aprovado ou contrato assinado disponível. A receita nasce de uma dessas origens
+          — ou do faturamento de um atendimento, pela Agenda.
         </p>
       ) : (
         <>
@@ -122,6 +171,11 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
                     ))}
                   </optgroup>
                 )}
+                {canCreateManual && (
+                  <optgroup label="Sem origem vinculada">
+                    <option value="manual">Cobrança manual</option>
+                  </optgroup>
+                )}
               </select>
             </label>
             <label className="space-y-1">
@@ -139,6 +193,22 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
             </label>
           </div>
 
+          {isManual && (
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Paciente</span>
+              <select
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <label className="block space-y-1">
             <span className="text-sm font-medium">Descrição</span>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={selected?.title || 'Descrição da receita'} />
@@ -147,7 +217,15 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
           <div className="grid gap-4 sm:grid-cols-4">
             <label className="space-y-1">
               <span className="text-sm font-medium">Valor original</span>
-              <Input value={brl(original)} disabled />
+              {isManual ? (
+                <Input
+                  type="number" min={0.01} step="0.01" value={manualAmount || ''}
+                  onChange={(e) => setManualAmount(Math.max(0, Number(e.target.value)))}
+                />
+              ) : (
+                // Travado de propósito: o servidor deriva o valor da origem.
+                <Input value={brl(original)} disabled />
+              )}
             </label>
             <label className="space-y-1">
               <span className="text-sm font-medium">Desconto (R$)</span>
@@ -176,7 +254,7 @@ export function NewReceivableForm({ onCreated, onCancel }: { onCreated: () => vo
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button onClick={submit} disabled={submitting || !selected}>{submitting ? 'Salvando…' : 'Criar recebível'}</Button>
+        <Button onClick={submit} disabled={submitting || !pronto}>{submitting ? 'Salvando…' : 'Criar recebível'}</Button>
         <Button variant="outline" onClick={onCancel}>Cancelar</Button>
       </div>
     </div>

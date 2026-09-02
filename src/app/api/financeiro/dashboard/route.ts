@@ -16,7 +16,7 @@ export async function GET() {
     const payOk = { deletedAt: null, status: { not: PayableStatus.CANCELADO } };
 
     const d = await withFinanceTenant(companyId, async (tx) => {
-      const [rec, open, overdue, recebidoAgg, pay, pagoAgg] = await Promise.all([
+      const [rec, open, overdue, recebidoAgg, pay, pagoAgg, porOrigem, recebidoPorOrigem] = await Promise.all([
         // Receita: bruta (original), descontos, líquida (final) + nº de recebíveis.
         tx.receivable.aggregate({ where: { companyId, ...recOk }, _sum: { originalAmount: true, discountAmount: true, finalAmount: true }, _count: { _all: true } }),
         // Em aberto: saldo de parcelas não canceladas.
@@ -29,8 +29,29 @@ export async function GET() {
         tx.payable.aggregate({ where: { companyId, ...payOk }, _sum: { finalAmount: true } }),
         // Pago (caixa): pagamentos de saída não estornados de contas não canceladas.
         tx.payablePayment.aggregate({ where: { companyId, reversedAt: null, payable: payOk }, _sum: { amount: true } }),
+        // Faturado por ORIGEM (competência) — de onde a receita nasce.
+        tx.receivable.groupBy({
+          by: ['sourceType'],
+          where: { companyId, ...recOk },
+          _sum: { finalAmount: true },
+          _count: { _all: true },
+        }),
+        // Recebido por origem (caixa). GROUP BY atravessa 2 níveis (pagamento →
+        // parcela → recebível), então vai em SQL — o groupBy do Prisma não cruza
+        // relações. Mesmos filtros dos agregados acima (não estornado, não cancelado).
+        tx.$queryRaw<{ sourceType: string; total: string }[]>`
+          SELECT r."sourceType"::text AS "sourceType", COALESCE(SUM(p.amount), 0)::text AS total
+            FROM financial_payments p
+            JOIN financial_installments i ON i.id = p."installmentId"
+            JOIN financial_receivables  r ON r.id = i."receivableId"
+           WHERE p."companyId" = ${companyId}
+             AND p."reversedAt" IS NULL
+             AND r."deletedAt" IS NULL
+             AND r.status <> 'CANCELADO'
+           GROUP BY r."sourceType"
+        `,
       ]);
-      return { rec, open, overdue, recebidoAgg, pay, pagoAgg };
+      return { rec, open, overdue, recebidoAgg, pay, pagoAgg, porOrigem, recebidoPorOrigem };
     });
 
     const round = (n: number) => Number(n.toFixed(2));
@@ -44,7 +65,18 @@ export async function GET() {
     const despesas = decToNumber(d.pay._sum.finalAmount);
     const pago = decToNumber(d.pagoAgg._sum.amount);
 
+    // Faturado x recebido POR ORIGEM. A separação competência/caixa vale aqui
+    // também: faturar um atendimento não move a coluna "recebido".
+    const recebidoMap = new Map(d.recebidoPorOrigem.map((r) => [r.sourceType, Number(r.total)]));
+    const bySource = d.porOrigem.map((g) => ({
+      sourceType: g.sourceType,
+      faturado: round(decToNumber(g._sum.finalAmount)),
+      recebido: round(recebidoMap.get(g.sourceType) ?? 0),
+      count: g._count._all,
+    }));
+
     return NextResponse.json({
+      bySource,
       receitaBruta: round(receitaBruta),
       descontos: round(descontos),
       receitaLiquida: round(receitaLiquida),

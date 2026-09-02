@@ -6,13 +6,14 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatCard } from '@/components/ui/stat-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FinanceTabs } from '@/components/financial/FinanceTabs'
-import { brl } from '@/lib/financial-format'
+import { brl, RECEIVABLE_SOURCE_LABELS } from '@/lib/financial-format'
 
 interface Dash {
   receitaBruta: number; descontos: number; receitaLiquida: number
   recebido: number; emAberto: number; inadimplencia: number; inadimplenciaPct: number
   ticketMedio: number; despesas: number; pago: number
   resultadoOperacional: number; resultadoCaixa: number; qtdRecebiveis: number
+  bySource: { sourceType: string; faturado: number; recebido: number; count: number }[]
 }
 
 export default function DashboardFinanceiroPage() {
@@ -57,6 +58,8 @@ export default function DashboardFinanceiroPage() {
             <StatCard label="Ticket médio" value={brl(d.ticketMedio)} icon={<Scale className="h-4 w-4" />} tone="muted" />
           </div>
 
+          <ReceitaPorOrigem linhas={d.bySource} total={d.receitaLiquida} />
+
           <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">Aberto & inadimplência</h2>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard label="Em aberto" value={brl(d.emAberto)} icon={<Wallet className="h-4 w-4" />} tone="warning" />
@@ -74,5 +77,65 @@ export default function DashboardFinanceiroPage() {
         </>
       )}
     </div>
+  )
+}
+
+
+/**
+ * De onde a receita nasce: atendimento faturado na Agenda, orçamento aprovado,
+ * contrato assinado ou cobrança manual.
+ *
+ * Faturado e recebido ficam em colunas separadas de propósito — faturar não é
+ * receber. A barra mostra a participação de cada origem no FATURADO.
+ */
+function ReceitaPorOrigem({ linhas, total }: {
+  linhas: { sourceType: string; faturado: number; recebido: number; count: number }[]
+  total: number
+}) {
+  if (!linhas?.length) return null
+  const ordenadas = [...linhas].sort((a, b) => b.faturado - a.faturado)
+
+  return (
+    <>
+      <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">Receita por origem</h2>
+      <div className="mb-6 overflow-hidden rounded-xl border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 font-medium">Origem</th>
+              <th className="px-4 py-3 font-medium text-right">Cobranças</th>
+              <th className="px-4 py-3 font-medium text-right">Faturado</th>
+              <th className="px-4 py-3 font-medium text-right">Recebido</th>
+              <th className="px-4 py-3 font-medium text-right">Participação</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {ordenadas.map((l) => {
+              const pct = total > 0 ? (l.faturado / total) * 100 : 0
+              return (
+                <tr key={l.sourceType}>
+                  <td className="px-4 py-3 font-medium">
+                    {RECEIVABLE_SOURCE_LABELS[l.sourceType] || l.sourceType}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{l.count}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{brl(l.faturado)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-success">{brl(l.recebido)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, pct)}%` }} />
+                      </div>
+                      <span className="w-11 text-right tabular-nums text-xs text-muted-foreground">
+                        {pct.toFixed(0)}%
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }

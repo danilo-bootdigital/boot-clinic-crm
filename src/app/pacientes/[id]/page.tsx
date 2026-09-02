@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { User, ArrowLeft, Pencil, UserMinus } from 'lucide-react'
 import PatientForm from '@/components/patients/PatientForm'
 import Timeline from '@/components/patients/Timeline'
@@ -13,11 +13,13 @@ import { ExamRequests } from '@/components/clinical/ExamRequests'
 import Contracts from '@/components/clinical/Contracts'
 import Quotes from '@/components/clinical/Quotes'
 import ClinicalImages from '@/components/clinical/ClinicalImages'
+import PatientFinance from '@/components/patients/PatientFinance'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
+import { financialCan } from '@/lib/financial-caps'
 
 const ORIGIN_LABELS: Record<string, string> = {
   GOOGLE: 'Google', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', REFERRAL: 'Indicação',
@@ -30,7 +32,7 @@ const GENDER_LABELS: Record<string, string> = {
 
 // Abas do paciente. As clínicas são liberadas conforme o acesso por área
 // (GET /api/clinico/access). 'area' mapeia a aba para a permissão clínica.
-const TABS: { key: string; label: string; area?: string }[] = [
+const TABS: { key: string; label: string; area?: string; cap?: 'finance' }[] = [
   { key: 'dados', label: 'Dados' },
   { key: 'timeline', label: 'Timeline' },
   { key: 'tags', label: 'Tags' },
@@ -43,6 +45,9 @@ const TABS: { key: string; label: string; area?: string }[] = [
   // Pedido de exames é ato clínico do atendimento: usa a mesma permissão do
   // prontuário em vez de criar uma área nova (que ninguém teria configurada).
   { key: 'exames', label: 'Pedido de exames', area: 'prontuario' },
+  // Financeiro não usa permissão clínica: é o RBAC do módulo Financeiro
+  // (financialCan), resolvido pelo papel do usuário.
+  { key: 'financeiro', label: 'Financeiro', cap: 'finance' },
 ]
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
@@ -50,7 +55,10 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
   const id = params.id
   const [patient, setPatient] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('dados')
+  const searchParams = useSearchParams()
+  // Aba inicial pela URL: a Agenda manda o usuário direto p/ "Gerar orçamento".
+  const [tab, setTab] = useState(() => searchParams.get('tab') || 'dados')
+  const [role, setRole] = useState('')
   const [editing, setEditing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Níveis de acesso por área clínica ('none' | 'view' | 'edit').
@@ -75,10 +83,14 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
 
   useEffect(() => {
     fetch('/api/clinico/access').then((r) => r.ok ? r.json() : {}).then(setAccess).catch(() => setAccess({}))
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((me) => setRole(me?.role || '')).catch(() => {})
   }, [])
 
   // Uma aba clínica aparece quando o usuário tem ao menos 'view' na área.
-  const tabEnabled = (t: { area?: string }) => !t.area || access[t.area] === 'view' || access[t.area] === 'edit'
+  const tabEnabled = (t: { area?: string; cap?: 'finance' }) => {
+    if (t.cap === 'finance') return financialCan(role, 'view')
+    return !t.area || access[t.area] === 'view' || access[t.area] === 'edit'
+  }
   const visibleTabs = TABS.filter(tabEnabled)
 
   async function handleUpdate(formData: any) {
@@ -172,11 +184,22 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {tab === 'anamnese' && <Anamneses patientId={id} canEdit={access.anamnese === 'edit'} />}
       {tab === 'prontuario' && <MedicalRecords patientId={id} canEdit={access.prontuario === 'edit'} />}
       {tab === 'contratos' && <Contracts patient={patient} canEdit={access.contratos === 'edit'} />}
-      {tab === 'orcamentos' && <Quotes patientId={id} canEdit={access.orcamentos === 'edit'} />}
+      {tab === 'orcamentos' && (
+        <Quotes
+          patientId={id}
+          canEdit={access.orcamentos === 'edit'}
+          prefill={
+            searchParams.get('novo') === '1'
+              ? { title: searchParams.get('titulo') || '', itemDescription: searchParams.get('item') || '' }
+              : undefined
+          }
+        />
+      )}
       {tab === 'imagens' && <ClinicalImages patientId={id} canEdit={access.imagens === 'edit'} />}
       {tab === 'exames' && (
         <ExamRequests patientId={id} canEdit={access.prontuario === 'edit'} />
       )}
+      {tab === 'financeiro' && <PatientFinance patientId={id} />}
     </div>
   )
 }

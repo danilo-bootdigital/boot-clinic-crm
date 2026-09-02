@@ -12,7 +12,7 @@ import { financialCan } from '@/lib/financial-caps'
 import { printReceipt } from '@/components/financial/receipt'
 import {
   brl, formatDate, RECEIVABLE_STATUS_LABELS, INSTALLMENT_STATUS_LABELS,
-  STATUS_TONE, PAYMENT_METHOD_LABELS,
+  RECEIVABLE_SOURCE_LABELS, STATUS_TONE, PAYMENT_METHOD_LABELS,
 } from '@/lib/financial-format'
 import { PAYMENT_METHODS } from '@/lib/validations/financial'
 
@@ -107,6 +107,8 @@ export default function ReceivableDetailPage() {
           )}
         </div>
       </div>
+
+      <OriginCard data={data} />
 
       <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">Parcelas</h2>
       <div className="space-y-3">
@@ -211,6 +213,57 @@ function PaymentForm({ installmentId, maxAmount, onDone, onCancel }: {
         <Button size="sm" variant="ghost" onClick={onCancel}>Cancelar</Button>
       </div>
       {err && <p className="text-sm text-destructive sm:col-span-4">{err}</p>}
+    </div>
+  )
+}
+
+/**
+ * Origem da cobrança. Para atendimento, os dados vêm do SNAPSHOT gravado no
+ * faturamento (profissional, procedimento, data) — não de um join com a Agenda:
+ * mudar o cadastro depois não pode reescrever a cobrança histórica.
+ */
+function OriginCard({ data }: { data: any }) {
+  const snap = data.sourceSnapshot || {}
+  const origem = RECEIVABLE_SOURCE_LABELS[data.sourceType || ''] || '—'
+
+  return (
+    <div className="mb-6 rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">Origem</h2>
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+        <Info label="Origem" value={origem} />
+        <Info label="Paciente" value={data.patientName || snap.patientName || '—'} />
+        {data.sourceType === 'APPOINTMENT' && (
+          <>
+            <Info label="Data do atendimento" value={formatDate(snap.attendedAt)} />
+            <Info label="Profissional" value={snap.professionalName || '—'} />
+            <Info label="Procedimento" value={snap.procedure || '—'} />
+            {data.appointmentId && (
+              <Info
+                label="Agendamento"
+                value={
+                  <Link
+                    href={`/agenda?date=${String(snap.attendedAt || '').slice(0, 10)}`}
+                    className="text-primary hover:underline"
+                  >
+                    Ver na Agenda
+                  </Link>
+                }
+              />
+            )}
+          </>
+        )}
+        <Info label="Descrição" value={data.description} />
+        <Info label="Valor" value={brl(data.finalAmount)} />
+      </dl>
+    </div>
+  )
+}
+
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-foreground">{value}</dd>
     </div>
   )
 }
