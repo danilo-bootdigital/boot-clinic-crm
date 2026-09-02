@@ -14,6 +14,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
 import { StatusPill } from '@/components/agenda/StatusPill'
+import { AppointmentBilling } from '@/components/agenda/AppointmentBilling'
 
 type Tab = 'agenda' | 'profissionais' | 'salas' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
@@ -34,6 +35,8 @@ export default function AgendaPage() {
   const [selected, setSelected] = useState<any | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  // Papel do usuário: decide quais ações financeiras aparecem no detalhe.
+  const [role, setRole] = useState('')
 
   const loadProfessionals = useCallback(async () => {
     const res = await fetch('/api/professionals?activeOnly=1', { cache: 'no-store' })
@@ -42,6 +45,10 @@ export default function AgendaPage() {
   }, [router])
 
   useEffect(() => { loadProfessionals() }, [loadProfessionals])
+
+  useEffect(() => {
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then((me) => setRole(me?.role || '')).catch(() => {})
+  }, [])
 
   async function handleCreate(data: any) {
     setError(null)
@@ -65,6 +72,12 @@ export default function AgendaPage() {
     if (!res.ok) {
       const e = await res.json().catch(() => ({}))
       setError(e.error || 'Falha na operação')
+      return
+    }
+    // "Compareceu" continua no detalhe: é dali que se fatura o atendimento.
+    if (action === 'attend') {
+      setSelected((s: any) => (s ? { ...s, status: 'ATTENDED' } : s))
+      setRefreshKey((k) => k + 1)
       return
     }
     setMode('grid'); setSelected(null); setRefreshKey((k) => k + 1)
@@ -133,6 +146,10 @@ export default function AgendaPage() {
             <div><dt className="text-muted-foreground">Status</dt><dd className="mt-0.5"><StatusPill status={selected.status} /></dd></div>
           </dl>
           {selected.notes && <p className="mt-3 text-sm text-muted-foreground">{selected.notes}</p>}
+
+          {/* Agenda → Financeiro: faturar o atendimento realizado sem passar por orçamento. */}
+          <AppointmentBilling appointment={selected} role={role} />
+
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
             <ActionButton onClick={() => operation('confirm')}>Confirmar</ActionButton>
             <ActionButton variant="outline" onClick={() => operation('attend')}>Compareceu</ActionButton>

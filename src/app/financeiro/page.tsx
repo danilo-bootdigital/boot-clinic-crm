@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { NewReceivableForm } from '@/components/financial/NewReceivableForm'
 import { FinanceTabs } from '@/components/financial/FinanceTabs'
 import { financialCan } from '@/lib/financial-caps'
-import { brl, formatDate, RECEIVABLE_STATUS_LABELS, STATUS_TONE } from '@/lib/financial-format'
+import { brl, formatDate, RECEIVABLE_SOURCE_LABELS, RECEIVABLE_STATUS_LABELS, STATUS_TONE } from '@/lib/financial-format'
 import { downloadCsv, csvMoney, dateStamp } from '@/lib/csv'
 
 interface Summary {
@@ -23,6 +23,7 @@ interface Receivable {
   id: string; patientName: string | null; description: string
   finalAmount: number; paidAmount: number; balance: number
   installmentsCount: number; status: string; displayStatus: string; issueDate: string
+  sourceType: string | null
 }
 
 export default function FinanceiroPage() {
@@ -56,9 +57,10 @@ export default function FinanceiroPage() {
   const exportCsv = () => {
     downloadCsv(
       `contas-a-receber-${dateStamp()}`,
-      ['Paciente', 'Descrição', 'Emissão', 'Valor', 'Saldo', 'Parcelas', 'Status'],
+      ['Paciente', 'Origem', 'Descrição', 'Emissão', 'Valor', 'Saldo', 'Parcelas', 'Status'],
       rows.map((r) => [
         r.patientName || 'Paciente',
+        RECEIVABLE_SOURCE_LABELS[r.sourceType || ''] || '—',
         r.description,
         formatDate(r.issueDate),
         csvMoney(r.finalAmount),
@@ -91,7 +93,7 @@ export default function FinanceiroPage() {
 
       {showNew && (
         <div className="mb-6">
-          <NewReceivableForm onCreated={() => { setShowNew(false); load() }} onCancel={() => setShowNew(false)} />
+          <NewReceivableForm role={role} onCreated={() => { setShowNew(false); load() }} onCancel={() => setShowNew(false)} />
         </div>
       )}
 
@@ -115,13 +117,14 @@ export default function FinanceiroPage() {
       {loading ? (
         <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Carregando…</div>
       ) : rows.length === 0 ? (
-        <EmptyState title="Nenhum recebível" description="Crie um recebível a partir de um orçamento aprovado ou contrato assinado." />
+        <EmptyState title="Nenhum recebível" description="Fature um atendimento realizado pela Agenda ou crie um recebível a partir de um orçamento aprovado ou contrato assinado." />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Paciente</th>
+                <th className="px-4 py-3 font-medium">Origem</th>
                 <th className="px-4 py-3 font-medium">Descrição</th>
                 <th className="px-4 py-3 font-medium">Emissão</th>
                 <th className="px-4 py-3 font-medium text-right">Valor</th>
@@ -137,6 +140,11 @@ export default function FinanceiroPage() {
                     <Link href={`/financeiro/${r.id}`} className="font-medium text-primary hover:underline">
                       {r.patientName || 'Paciente'}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone="neutral">
+                      {RECEIVABLE_SOURCE_LABELS[r.sourceType || ''] || '—'}
+                    </StatusBadge>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{r.description}</td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(r.issueDate)}</td>

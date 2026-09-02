@@ -14,15 +14,26 @@ const brl = (n: number) => `R$ ${Number(n || 0).toFixed(2)}`
 
 type Item = { description: string; quantity: number; unitPrice: number }
 
-export default function Quotes({ patientId, canEdit = true }: { patientId: string; canEdit?: boolean }) {
+/**
+ * `prefill` chega da Agenda ("Gerar orçamento" num atendimento): abre o
+ * formulário já com título e primeiro item preenchidos. O fluxo comercial
+ * continua o mesmo — só economiza digitação; o valor segue em branco.
+ */
+export default function Quotes({ patientId, canEdit = true, prefill }: {
+  patientId: string
+  canEdit?: boolean
+  prefill?: { title?: string; itemDescription?: string }
+}) {
   const [rows, setRows] = useState<any[] | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState(!!prefill)
   const [error, setError] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(prefill?.title ?? '')
   const [discount, setDiscount] = useState('0')
   const [validUntil, setValidUntil] = useState('')
   const [notes, setNotes] = useState('')
-  const [items, setItems] = useState<Item[]>([{ description: '', quantity: 1, unitPrice: 0 }])
+  const [items, setItems] = useState<Item[]>([
+    { description: prefill?.itemDescription ?? '', quantity: 1, unitPrice: 0 },
+  ])
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/patients/${patientId}/quotes`, { cache: 'no-store' })

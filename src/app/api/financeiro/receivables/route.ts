@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveFinanceUser } from '@/lib/api/financial-access';
+import { resolveFinanceUser, requireFinanceCap } from '@/lib/api/financial-access';
 import { withFinanceTenant } from '@/lib/db/financeTenant';
 import { createReceivable, serializeReceivable, FinancialError } from '@/lib/api/financial-service';
 import { attachPatientNames } from '@/lib/api/clinical-list';
@@ -63,6 +63,12 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Dados inválidos', details: parsed.error.flatten() }, { status: 400 });
     }
+    // Cobrança manual é a única de valor arbitrário sem origem: exige capacidade
+    // própria (gestão/financeiro), acima do `create` que a recepção tem.
+    if (parsed.data.sourceType === 'MANUAL') {
+      const denied = requireFinanceCap(dbUser!, 'create_manual');
+      if (denied) return denied;
+    }
     const created = await withFinanceTenant(dbUser!.companyId, (tx) =>
       createReceivable(tx, dbUser!.companyId, dbUser!.id, parsed.data),
     );
@@ -71,7 +77,12 @@ export async function POST(request: NextRequest) {
       action: 'CREATE',
       entityType: 'RECEIVABLE',
       entityId: created.id,
-      newValues: { id: created.id, finalAmount: created.finalAmount, installments: created.installments.length },
+      newValues: {
+        id: created.id,
+        sourceType: created.sourceType,
+        finalAmount: created.finalAmount,
+        installments: created.installments.length,
+      },
       request,
     });
     return NextResponse.json(serializeReceivable(created), { status: 201 });

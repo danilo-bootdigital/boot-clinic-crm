@@ -1,6 +1,6 @@
-import { Prisma, ReceivableStatus, InstallmentStatus } from '@prisma/client';
+import { Prisma, ReceivableStatus, InstallmentStatus, ReceivableSource } from '@prisma/client';
 import type { TxClient } from '@/lib/db/financeTenant';
-import type { CreateReceivableInput, RegisterPaymentInput } from '@/lib/validations/financial';
+import type { BillAppointmentInput, CreateReceivableInput, RegisterPaymentInput } from '@/lib/validations/financial';
 
 // =====================================================================
 // Serviço do Módulo Financeiro — Fase 1 (Contas a Receber).
@@ -63,6 +63,56 @@ export class FinancialError extends Error {
 }
 
 // ---- criar recebível + parcelas ----
+// Elege a origem da cobrança. `sourceType` explícito manda; sem ele, infere a
+// partir do vínculo presente no payload (compatibilidade com chamadas antigas,
+// que só mandavam quoteId ou contractId). Orçamento tem precedência sobre
+// contrato — mesma regra de antes.
+export function resolveSourceType(input: {
+  sourceType?: string;
+  appointmentId?: string;
+  quoteId?: string;
+  contractId?: string;
+}): ReceivableSource {
+  // MANUAL explícito é honrado mesmo com vínculo no payload — a incoerência é
+  // rejeitada adiante, com mensagem clara, em vez de virar outra origem calada.
+  if (input.sourceType === ReceivableSource.MANUAL) return ReceivableSource.MANUAL;
+  if (input.sourceType === ReceivableSource.APPOINTMENT && input.appointmentId) return ReceivableSource.APPOINTMENT;
+  if (input.sourceType === ReceivableSource.BUDGET && input.quoteId) return ReceivableSource.BUDGET;
+  if (input.sourceType === ReceivableSource.CONTRACT && input.contractId) return ReceivableSource.CONTRACT;
+  if (input.quoteId) return ReceivableSource.BUDGET;
+  if (input.contractId) return ReceivableSource.CONTRACT;
+  if (input.appointmentId) return ReceivableSource.APPOINTMENT;
+  return ReceivableSource.MANUAL;
+}
+
+// Congela o contexto do atendimento no momento do faturamento. Renomear o
+// médico ou mudar o tipo de consulta depois não reescreve a cobrança histórica.
+async function buildAppointmentSnapshot(
+  tx: TxClient,
+  companyId: string,
+  appointment: {
+    id: string; patientId: string; professionalId: string; specialtyId: string;
+    type: string; startAt: Date;
+  },
+): Promise<Prisma.InputJsonValue> {
+  const [patient, professional, specialty] = await Promise.all([
+    tx.patient.findFirst({ where: { id: appointment.patientId, companyId }, select: { name: true } }),
+    tx.professional.findFirst({ where: { id: appointment.professionalId, companyId }, select: { name: true } }),
+    tx.specialty.findFirst({ where: { id: appointment.specialtyId, companyId }, select: { name: true } }),
+  ]);
+  return {
+    kind: 'APPOINTMENT',
+    appointmentId: appointment.id,
+    attendedAt: appointment.startAt.toISOString(),
+    patientName: patient?.name ?? null,
+    professionalId: appointment.professionalId,
+    professionalName: professional?.name ?? null,
+    specialtyName: specialty?.name ?? null,
+    procedure: appointment.type,
+    snapshotAt: new Date().toISOString(),
+  };
+}
+
 export async function createReceivable(
   tx: TxClient,
   companyId: string,
@@ -76,13 +126,75 @@ export async function createReceivable(
   });
   if (!patient) throw new FinancialError('Paciente não encontrado', 404);
 
-  // 2) Origem obrigatória: Orçamento APPROVED e/ou Contrato SIGNED (decisão aprovada).
-  // O VALOR ORIGINAL é DERIVADO da origem no servidor (nunca confiado no payload do
-  // cliente) — evita "mintar" recebível de valor arbitrário desvinculado do orçamento.
-  if (!input.quoteId && !input.contractId) {
-    throw new FinancialError('A receita deve nascer de um orçamento aprovado ou contrato assinado');
+  // 2) Origem obrigatória. Três vínculos aceitos hoje:
+  //      ATENDIMENTO  → Appointment ATTENDED (consulta realizada, sem orçamento)
+  //      ORÇAMENTO    → ClinicalQuote APPROVED
+  //      CONTRATO     → PatientContract SIGNED
+  // Para orçamento/contrato o VALOR é DERIVADO da origem no servidor (nunca do
+  // payload) — a regra anti-fraude original, preservada intacta.
+  //      MANUAL       → sem vínculo, valor do payload. Exige `sourceType: 'MANUAL'`
+  //                      EXPLÍCITO e a capacidade `create_manual` (checada na rota):
+  //                      é o único caminho de valor arbitrário, então não pode ser
+  //                      alcançado por omissão — só por escolha deliberada.
+  const sourceType = resolveSourceType(input);
+  if (sourceType === ReceivableSource.MANUAL && input.sourceType !== ReceivableSource.MANUAL) {
+    throw new FinancialError(
+      'A receita deve nascer de um atendimento realizado, orçamento aprovado ou contrato assinado',
+    );
   }
   let originCents: number | null = null;
+  let sourceSnapshot: Prisma.InputJsonValue | undefined;
+
+  if (sourceType === ReceivableSource.MANUAL) {
+    // Sem origem de onde derivar: o valor É o do payload. A defesa aqui não é
+    // o vínculo (não há), é o RBAC estreito + a auditoria da rota.
+    if (input.appointmentId || input.quoteId || input.contractId) {
+      throw new FinancialError('Cobrança manual não pode ter origem vinculada');
+    }
+    originCents = toCents(input.originalAmount ?? 0);
+  }
+
+  if (sourceType === ReceivableSource.APPOINTMENT) {
+    // O Appointment não tem preço cadastrado, então aqui — e SÓ aqui — o valor
+    // vem do payload. O que amarra a cobrança é a origem: precisa existir um
+    // atendimento REALIZADO, da mesma empresa e do mesmo paciente.
+    const appointment = await tx.appointment.findFirst({
+      where: { id: input.appointmentId!, companyId, deletedAt: null },
+      select: {
+        id: true, patientId: true, professionalId: true, specialtyId: true,
+        type: true, status: true, startAt: true,
+      },
+    });
+    if (!appointment) throw new FinancialError('Atendimento não encontrado', 404);
+    if (appointment.status !== 'ATTENDED') {
+      throw new FinancialError('Só é possível faturar um atendimento marcado como realizado');
+    }
+    if (appointment.patientId !== input.patientId) {
+      throw new FinancialError('Atendimento pertence a outro paciente');
+    }
+    // Anti-duplicidade de aplicação (não há unique no banco — um atendimento
+    // PODE gerar várias cobranças, desde que o usuário peça explicitamente).
+    if (!input.allowDuplicate) {
+      const dup = await tx.receivable.findFirst({
+        where: {
+          companyId,
+          appointmentId: appointment.id,
+          deletedAt: null,
+          status: { not: ReceivableStatus.CANCELADO },
+        },
+        select: { id: true },
+      });
+      if (dup) {
+        throw new FinancialError('Este atendimento já possui uma cobrança', 409);
+      }
+    }
+    originCents = toCents(input.originalAmount ?? 0);
+    sourceSnapshot = await buildAppointmentSnapshot(tx, companyId, appointment);
+  }
+
+  // Simétrico ao contrato: validado sempre que vier no payload, para nunca
+  // gravar um quoteId que não passou pelas regras (nem "ocupar" um orçamento
+  // com uma cobrança cuja origem eleita é outra).
   if (input.quoteId) {
     const quote = await tx.clinicalQuote.findFirst({
       where: { id: input.quoteId, companyId, deletedAt: null },
@@ -94,8 +206,11 @@ export async function createReceivable(
     // dup-check exclui CANCELADO — permite refaturar um orçamento após cancelamento.
     const dup = await tx.receivable.findFirst({ where: { quoteId: input.quoteId, deletedAt: null, status: { not: ReceivableStatus.CANCELADO } }, select: { id: true } });
     if (dup) throw new FinancialError('Este orçamento já possui uma receita ativa', 409);
-    originCents = toCents(quote.total);
+    if (sourceType === ReceivableSource.BUDGET) originCents = toCents(quote.total);
   }
+
+  // Validado sempre que vier no payload — mesmo quando o orçamento é a origem
+  // eleita — para nunca gravar um contractId que não passou pelas regras.
   if (input.contractId) {
     const contract = await tx.patientContract.findFirst({
       where: { id: input.contractId, companyId, deletedAt: null },
@@ -106,8 +221,7 @@ export async function createReceivable(
     if (contract.patientId !== input.patientId) throw new FinancialError('Contrato pertence a outro paciente');
     const dup = await tx.receivable.findFirst({ where: { contractId: input.contractId, deletedAt: null, status: { not: ReceivableStatus.CANCELADO } }, select: { id: true } });
     if (dup) throw new FinancialError('Este contrato já possui uma receita ativa', 409);
-    // Se houver as duas origens, o orçamento manda; senão usa o contrato.
-    if (originCents == null) originCents = toCents(contract.value ?? 0);
+    if (sourceType === ReceivableSource.CONTRACT) originCents = toCents(contract.value ?? 0);
   }
 
   // 3) Categoria (se informada) precisa ser da empresa.
@@ -118,7 +232,15 @@ export async function createReceivable(
 
   // 4) Valores em centavos — original DERIVADO da origem; desconto vindo do input.
   const originalCents = originCents ?? 0;
-  if (originalCents <= 0) throw new FinancialError('Origem sem valor definido para gerar receita');
+  if (originalCents <= 0) {
+    throw new FinancialError(
+      sourceType === ReceivableSource.APPOINTMENT
+        ? 'Informe o valor da cobrança do atendimento'
+        : sourceType === ReceivableSource.MANUAL
+          ? 'Informe o valor da cobrança manual'
+          : 'Origem sem valor definido para gerar receita',
+    );
+  }
   const discountCents = toCents(input.discountAmount ?? 0);
   if (discountCents > originalCents) throw new FinancialError('Desconto não pode exceder o valor da origem');
   const finalCents = originalCents - discountCents;
@@ -151,6 +273,9 @@ export async function createReceivable(
     data: {
       companyId,
       patientId: input.patientId,
+      sourceType,
+      appointmentId: input.appointmentId,
+      sourceSnapshot,
       quoteId: input.quoteId,
       contractId: input.contractId,
       dealId: input.dealId,
@@ -224,6 +349,52 @@ export async function registerPayment(
   await recomputeInstallment(tx, companyId, installmentId);
   await recomputeReceivable(tx, companyId, installment.receivableId);
   return payment;
+}
+
+// ---- faturar um atendimento (Agenda → Financeiro) ----
+// Orquestra as peças que já existem: createReceivable (com origem APPOINTMENT)
+// e, quando o usuário escolhe "Faturar e receber", registerPayment na 1ª parcela.
+// Nenhuma regra financeira nova mora aqui — só a composição das duas, na MESMA
+// transação, para não deixar cobrança órfã se a baixa falhar.
+export async function billAppointment(
+  tx: TxClient,
+  companyId: string,
+  createdById: string,
+  appointment: { id: string; patientId: string },
+  input: BillAppointmentInput,
+) {
+  const receivable = await createReceivable(tx, companyId, createdById, {
+    patientId: appointment.patientId,
+    sourceType: 'APPOINTMENT',
+    appointmentId: appointment.id,
+    description: input.description,
+    originalAmount: input.amount,
+    discountAmount: 0,
+    installmentsCount: 1, // atendimento avulso é cobrança única (à vista)
+    firstDueDate: input.dueDate,
+    intervalDays: 30,
+    categoryId: input.categoryId,
+    notes: input.notes,
+    allowDuplicate: input.allowDuplicate,
+  });
+
+  // Cobrança e pagamento são entidades separadas: sem `payment`, nasce EM ABERTO
+  // (PENDENTE) e NADA entra em "recebido".
+  if (!input.payment) return { receivable, payment: null };
+
+  const first = receivable.installments[0];
+  const payment = await registerPayment(tx, companyId, createdById, first.id, {
+    amount: input.payment.amount,
+    method: input.payment.method,
+    paidAt: input.payment.paidAt,
+  });
+
+  // Recarrega para devolver o estado já recomputado (PARCIAL/PAGO).
+  const refreshed = await tx.receivable.findFirst({
+    where: { id: receivable.id, companyId },
+    include: { installments: { orderBy: { number: 'asc' }, include: { payments: { orderBy: { paidAt: 'asc' } } } } },
+  });
+  return { receivable: refreshed ?? receivable, payment };
 }
 
 // ---- estornar pagamento ----
@@ -369,6 +540,9 @@ export function serializeReceivable(r: any, now = new Date()) {
   return {
     id: r.id,
     patientId: r.patientId,
+    sourceType: r.sourceType ?? null,
+    sourceSnapshot: r.sourceSnapshot ?? null,
+    appointmentId: r.appointmentId ?? null,
     quoteId: r.quoteId ?? null,
     contractId: r.contractId ?? null,
     dealId: r.dealId ?? null,

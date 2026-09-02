@@ -5,11 +5,14 @@
 // Regra aprovada (Danilo, 2026-06-18):
 //  OWNER/MANAGER/FINANCE/SUPER_ADMIN → tudo.
 //  RECEPTION → view, create, settle, receipt (sem reverse/cancel/delete/edit_paid).
+//  `create_manual` (cobrança sem origem vinculada, de valor arbitrário) é mais
+//  estrita que `create`: fica só com gestão/financeiro, NÃO com a recepção.
 //  DOCTOR → somente view.  MARKETING/ATTENDANCE → nada.
 
 export type FinanceCapability =
   | 'view'
   | 'create'
+  | 'create_manual'
   | 'settle'
   | 'receipt'
   | 'reverse'

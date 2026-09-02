@@ -21,6 +21,15 @@ export const STATUS_TONE: Record<string, 'success' | 'warning' | 'destructive' |
   VENCIDO: 'destructive',
 };
 
+// Origem da cobrança (Receivable.sourceType). MANUAL cobre lançamentos legados
+// sem vínculo de origem — nenhuma tela cria cobrança manual hoje.
+export const RECEIVABLE_SOURCE_LABELS: Record<string, string> = {
+  APPOINTMENT: 'Atendimento',
+  BUDGET: 'Orçamento',
+  CONTRACT: 'Contrato',
+  MANUAL: 'Manual',
+};
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   DINHEIRO: 'Dinheiro',
   PIX: 'PIX',

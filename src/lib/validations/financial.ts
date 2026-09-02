@@ -21,19 +21,31 @@ export const PAYMENT_METHODS = [
   'OUTRO',
 ] as const;
 
-// Origem do recebível: exige paciente e, opcionalmente, orçamento/contrato/deal.
-// A regra "nascer de Orçamento APPROVED / Contrato SIGNED" é validada no serviço.
+export const RECEIVABLE_SOURCES = ['APPOINTMENT', 'BUDGET', 'CONTRACT', 'MANUAL'] as const;
+
+// Origem do recebível: exige paciente e um vínculo de origem (atendimento,
+// orçamento ou contrato). A regra de cada origem — "Orçamento APPROVED",
+// "Contrato SIGNED", "Atendimento ATTENDED" — é validada no serviço.
 export const CreateReceivableSchema = z
   .object({
     patientId: z.string().min(1),
+    // Origem explícita. Opcional p/ compatibilidade: quando ausente, o serviço
+    // infere a partir de quoteId/contractId/appointmentId (payloads antigos).
+    sourceType: z.enum(RECEIVABLE_SOURCES).optional(),
+    appointmentId: z.string().min(1).optional(),
     quoteId: z.string().min(1).optional(),
     contractId: z.string().min(1).optional(),
     dealId: z.string().min(1).optional(),
     categoryId: z.string().min(1).optional(),
     description: z.string().min(1, 'Descrição obrigatória').max(500),
-    // originalAmount é IGNORADO no servidor: o valor é DERIVADO do orçamento/contrato
-    // de origem (anti-fraude). Mantido opcional só p/ compat. do payload do form.
+    // Origem ORÇAMENTO/CONTRATO: `originalAmount` é IGNORADO — o valor é DERIVADO
+    // da origem no servidor (anti-fraude). Origem ATENDIMENTO: o Appointment não
+    // tem preço, então aqui o valor É o do payload (exigido, auditado e restrito
+    // a quem tem a capacidade `create`).
     originalAmount: moneyPositive.optional(),
+    // Segunda cobrança para o MESMO atendimento exige opt-in explícito do usuário
+    // (o clique repetido em "Faturar atendimento" nunca duplica sozinho).
+    allowDuplicate: z.boolean().default(false),
     discountAmount: money.default(0),
     // Parcelamento: contagem + 1ª data + intervalo (parcelas iguais com ajuste
     // de centavos na última) OU lista explícita (parcelas irregulares).
@@ -47,9 +59,21 @@ export const CreateReceivableSchema = z
       .optional(),
     issueDate: z.coerce.date().optional(),
     notes: z.string().max(2000).optional(),
-  });
-// Obs.: desconto ≤ valor é validado no SERVIÇO contra o valor derivado da origem
-// (o originalAmount do cliente é ignorado), evitando confiar no payload.
+  })
+  // Cobrança MANUAL não tem origem de onde derivar valor: o valor passa a ser
+  // obrigatório no payload e nenhum vínculo de origem pode vir junto (senão não
+  // é manual — é uma cobrança de orçamento/contrato/atendimento mal rotulada).
+  .refine(
+    (d) => d.sourceType !== 'MANUAL' || (d.originalAmount != null && d.originalAmount > 0),
+    { message: 'Cobrança manual exige valor', path: ['originalAmount'] },
+  )
+  .refine(
+    (d) => d.sourceType !== 'MANUAL' || (!d.quoteId && !d.contractId && !d.appointmentId),
+    { message: 'Cobrança manual não pode ter origem vinculada', path: ['sourceType'] },
+  );
+// Obs.: nas origens ORÇAMENTO/CONTRATO o desconto ≤ valor é validado no SERVIÇO
+// contra o valor derivado da origem (o originalAmount do cliente é ignorado),
+// evitando confiar no payload.
 
 export type CreateReceivableInput = z.infer<typeof CreateReceivableSchema>;
 
@@ -60,6 +84,26 @@ export const RegisterPaymentSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 export type RegisterPaymentInput = z.infer<typeof RegisterPaymentSchema>;
+
+// Faturamento a partir da Agenda. Descrição e valor chegam editados pela tela
+// (o atendimento não tem preço cadastrado). `payment` presente = "Faturar e
+// receber": cria a cobrança e já registra a baixa na mesma transação.
+export const BillAppointmentSchema = z.object({
+  description: z.string().trim().min(1, 'Descrição obrigatória').max(500),
+  amount: moneyPositive,
+  dueDate: z.coerce.date(),
+  categoryId: z.string().min(1).optional(),
+  notes: z.string().max(2000).optional(),
+  allowDuplicate: z.boolean().default(false),
+  payment: z
+    .object({
+      amount: moneyPositive,
+      method: z.enum(PAYMENT_METHODS),
+      paidAt: z.coerce.date().optional(),
+    })
+    .optional(),
+});
+export type BillAppointmentInput = z.infer<typeof BillAppointmentSchema>;
 
 export const ReversePaymentSchema = z.object({
   reason: z.string().trim().min(1, 'Motivo do estorno é obrigatório').max(1000),
