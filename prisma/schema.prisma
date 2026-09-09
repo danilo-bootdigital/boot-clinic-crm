@@ -788,12 +788,22 @@ model QuickReply {
   id        String    @id @default(cuid())
   companyId String
   title     String
-  content   String
+  // Nulável: mensagem pode ser só o anexo (imagem/PDF), sem legenda. A regra
+  // "precisa ter texto OU anexo" é da API, não do banco.
+  content   String?
   // Digitada como "/palavra" no campo de envio — troca o botão de clique por
   // um atalho de teclado (padrão WhatsApp Business). Nulável só por causa de
   // linhas antigas; toda mensagem criada pela página exige preencher.
   keyword   String?
   isActive  Boolean   @default(true)
+  // Anexo opcional (imagem ou PDF) — reaproveita o bucket privado
+  // whatsapp-media (lib/storage/messaging-storage.ts), path próprio em
+  // "{companyId}/quick-replies/...". Path nunca sai pro cliente; a página só
+  // vê nome/tipo/tamanho — o disparo baixa os bytes por id (rota dedicada).
+  attachmentPath      String?
+  attachmentMimeType  String?
+  attachmentFileName  String?
+  attachmentSizeBytes Int?
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 

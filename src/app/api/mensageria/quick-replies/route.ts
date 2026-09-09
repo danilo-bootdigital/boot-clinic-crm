@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { normalizeKeyword } from '@/lib/messaging/quick-replies';
+import { pathBelongsToCompany } from '@/lib/storage/messaging-storage';
 
 const DEFAULTS = [
   { title: 'Saudação', content: 'Olá! Aqui é da clínica. Como podemos ajudar?', keyword: 'saudacao' },
@@ -11,7 +12,22 @@ const DEFAULTS = [
   { title: 'Lembrete', content: 'Lembrete: sua consulta está agendada. Até breve!', keyword: 'lembrete' },
 ];
 
-const Schema = z.object({ title: z.string().min(1), content: z.string().min(1), keyword: z.string().min(1, 'Palavra-chave é obrigatória') });
+// `content` é opcional no schema: mensagem pode ser só o anexo. O `.refine`
+// abaixo é quem garante que não sobra uma mensagem sem texto E sem anexo.
+const Schema = z
+  .object({
+    title: z.string().min(1),
+    content: z.string().optional(),
+    keyword: z.string().min(1, 'Palavra-chave é obrigatória'),
+    attachmentPath: z.string().optional(),
+    attachmentMimeType: z.string().optional(),
+    attachmentFileName: z.string().optional(),
+    attachmentSizeBytes: z.number().int().positive().optional(),
+  })
+  .refine((d) => !!(d.content?.trim() || d.attachmentPath), {
+    message: 'Preencha o texto ou anexe uma imagem/PDF',
+    path: ['content'],
+  });
 
 // GET /api/mensageria/quick-replies (cria padrões na 1ª vez)
 // ?all=1 traz também as inativas — usado pela página de cadastro; o composer
@@ -33,8 +49,15 @@ export async function GET(request: NextRequest) {
       where: { companyId: dbUser!.companyId, deletedAt: null, ...(all ? {} : { isActive: true }) },
       orderBy: { title: 'asc' },
     });
-    // Compat: o componente usa `message` e/ou `content`.
-    return NextResponse.json(items.map((q) => ({ id: q.id, title: q.title, content: q.content, message: q.content, keyword: q.keyword, isActive: q.isActive })));
+    // Compat: o componente usa `message` e/ou `content`. `attachmentPath`
+    // nunca sai daqui — só nome/tipo/tamanho; os bytes vêm pela rota dedicada.
+    return NextResponse.json(items.map((q) => ({
+      id: q.id, title: q.title, content: q.content, message: q.content, keyword: q.keyword, isActive: q.isActive,
+      hasAttachment: !!q.attachmentPath,
+      attachmentFileName: q.attachmentFileName,
+      attachmentMimeType: q.attachmentMimeType,
+      attachmentSizeBytes: q.attachmentSizeBytes,
+    })));
   } catch (err) {
     console.error('Erro ao listar respostas rápidas:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -59,7 +82,22 @@ export async function POST(request: NextRequest) {
     });
     if (dup) return NextResponse.json({ error: `Já existe uma mensagem com a palavra-chave "/${keyword}"` }, { status: 400 });
 
-    const item = await prisma.quickReply.create({ data: { title: d.title, content: d.content, keyword, companyId: dbUser!.companyId } });
+    if (d.attachmentPath && !pathBelongsToCompany(d.attachmentPath, dbUser!.companyId)) {
+      return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
+    }
+
+    const item = await prisma.quickReply.create({
+      data: {
+        title: d.title,
+        content: d.content?.trim() || null,
+        keyword,
+        companyId: dbUser!.companyId,
+        attachmentPath: d.attachmentPath || null,
+        attachmentMimeType: d.attachmentPath ? d.attachmentMimeType || null : null,
+        attachmentFileName: d.attachmentPath ? d.attachmentFileName || null : null,
+        attachmentSizeBytes: d.attachmentPath ? d.attachmentSizeBytes || null : null,
+      },
+    });
     return NextResponse.json(item, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });

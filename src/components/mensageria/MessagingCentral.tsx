@@ -121,6 +121,9 @@ interface WhatsAppQuickReply {
   content?: string;
   keyword?: string | null;
   isActive?: boolean;
+  hasAttachment?: boolean;
+  attachmentFileName?: string | null;
+  attachmentMimeType?: string | null;
 }
 
 interface MessagingCentralProps {
@@ -325,11 +328,6 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
 
   useEffect(() => { setSlashActiveIndex(0); }, [slashQuery]);
 
-  function pickQuickReply(qr: WhatsAppQuickReply) {
-    setNewMessage(qr.content || qr.message);
-    composerRef.current?.focus();
-  }
-
   async function createConversation(e: React.FormEvent) {
     e.preventDefault();
     setNewConvError(null);
@@ -400,20 +398,48 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     }
   };
 
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Compartilhada entre o seletor manual (onPickFile) e a mensagem pronta com
+  // anexo (pickQuickReply): as duas acabam num File, que segue pro MESMO
+  // handleSendMedia — sem isso o disparo por "/palavra" duplicaria a lógica
+  // de upload → Message → MessageAttachment → Evolution.
+  const applyPickedFile = (f: File) => {
     setFileError(null);
     setSendError(null);
-    const f = e.target.files?.[0];
-    if (!f) return;
     const v = clientValidateFile({ type: f.type, name: f.name, size: f.size });
     if (!v.ok) {
       setFileError(v.error || 'Arquivo inválido');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
+      return false;
     }
     setFile(f);
     setFilePreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+    return true;
   };
+
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!applyPickedFile(f) && fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  /**
+   * Escolher uma mensagem pronta: preenche o texto e, se ela tiver anexo,
+   * baixa o arquivo já salvo e aplica no MESMO composer de mídia — o
+   * atendente ainda revisa e clica em enviar, igual a qualquer anexo manual.
+   */
+  async function pickQuickReply(qr: WhatsAppQuickReply) {
+    setNewMessage(qr.content || qr.message || '');
+    composerRef.current?.focus();
+    if (!qr.hasAttachment) return;
+    try {
+      const res = await fetch(`/api/mensageria/quick-replies/${qr.id}/attachment`);
+      if (!res.ok) { setFileError('Não foi possível carregar o anexo desta mensagem.'); return; }
+      const blob = await res.blob();
+      const f = new File([blob], qr.attachmentFileName || 'arquivo', { type: qr.attachmentMimeType || blob.type });
+      applyPickedFile(f);
+    } catch {
+      setFileError('Falha de rede ao carregar o anexo desta mensagem.');
+    }
+  }
 
   const clearFile = () => {
     if (filePreview) URL.revokeObjectURL(filePreview);
@@ -1041,6 +1067,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                           >
                             <code className="shrink-0 text-xs text-primary">/{qr.keyword}</code>
                             <span className="truncate text-muted-foreground">{qr.title}</span>
+                            {qr.hasAttachment && <Paperclip className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" />}
                           </button>
                         ))}
                       </div>

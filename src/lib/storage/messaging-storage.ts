@@ -91,6 +91,49 @@ export async function uploadMessagingMedia(input: MessagingUploadInput): Promise
   };
 }
 
+export interface QuickReplyUploadInput {
+  companyId: string;
+  /** Só serve para separar pastas no bucket — não precisa ser um id que já exista. */
+  ownerId: string;
+  fileName: string;
+  contentType: string;
+  bytes: Uint8Array;
+}
+
+// Anexo de mensagem pronta (imagem/PDF cadastrado uma vez, reenviado depois).
+// Mesmo bucket privado, mesma validação — path próprio pra não colidir com o
+// de mensagem ({companyId}/{conversationId}/{messageId}/...), que exige os
+// dois ids e a mensagem pronta não tem nenhum dos dois até o disparo.
+export async function uploadQuickReplyMedia(input: QuickReplyUploadInput): Promise<MessagingUploadResult> {
+  const check: MediaValidationResult = validateWhatsappMedia({
+    declaredMime: input.contentType,
+    fileName: input.fileName,
+    sizeBytes: input.bytes.length,
+    bytes: input.bytes,
+  });
+  if (!check.ok) throw new Error(check.error || 'Mídia inválida');
+
+  const admin = createAdminClient();
+  if (!admin) throw new Error('Storage indisponível (configure SUPABASE_SERVICE_ROLE_KEY).');
+  await ensureBucket(admin);
+
+  const path = `${input.companyId}/quick-replies/${input.ownerId}/${randomUUID()}-${check.sanitizedFileName}`;
+
+  const { error } = await admin.storage.from(BUCKET).upload(path, input.bytes, {
+    contentType: input.contentType,
+    upsert: false,
+  });
+  if (error) throw new Error(`Falha no upload: ${error.message}`);
+
+  return {
+    path,
+    mimeType: input.contentType,
+    sizeBytes: input.bytes.length,
+    checksum: check.checksum,
+    originalFileName: check.sanitizedFileName!,
+  };
+}
+
 // URL assinada de curta duração — SOMENTE se o path pertence à empresa do chamador.
 // Retorna null quando cross-company (bloqueio) ou storage indisponível.
 export async function createWhatsappMediaSignedUrl(
