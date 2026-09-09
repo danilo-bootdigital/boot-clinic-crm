@@ -91,6 +91,7 @@ export const CreateFollowUpTaskSchema = z.object({
   patientId: z.string().cuid().optional(),
   dealId: z.string().cuid().optional(),
   appointmentId: z.string().cuid().optional(),
+  conversationId: z.string().cuid().optional(),
 });
 
 export const UpdateFollowUpTaskSchema = CreateFollowUpTaskSchema.partial().extend({

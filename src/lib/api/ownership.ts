@@ -33,6 +33,11 @@ export async function ownsDeal(companyId: string, id?: string | null) {
   return !!(await prisma.deal.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } }));
 }
 
+export async function ownsConversation(companyId: string, id?: string | null) {
+  if (!id) return true;
+  return !!(await prisma.conversation.findFirst({ where: { id, companyId, deletedAt: null }, select: { id: true } }));
+}
+
 export async function ownsStage(companyId: string, id?: string | null) {
   if (!id) return true;
   return !!(await prisma.pipelineStage.findFirst({ where: { id, companyId }, select: { id: true } }));

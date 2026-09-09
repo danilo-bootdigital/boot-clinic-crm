@@ -36,22 +36,46 @@ export async function GET() {
         account: { select: { id: true, label: true, channel: true } },
       },
     });
+
+    // Tarefa mais próxima do vencimento por conversa, em uma única consulta —
+    // alimenta o badge da lista (radar de tarefa sem abrir cada conversa).
+    const openTasks = await prisma.followUpTask.findMany({
+      where: {
+        companyId: dbUser!.companyId,
+        deletedAt: null,
+        conversationId: { in: convs.map((c) => c.id) },
+        status: { in: ['PENDING', 'IN_PROGRESS'] },
+      },
+      orderBy: { dueDate: 'asc' },
+      select: { conversationId: true, dueDate: true },
+    });
+    const nextTaskByConv = new Map<string, Date>();
+    for (const t of openTasks) {
+      if (!t.conversationId || nextTaskByConv.has(t.conversationId)) continue; // já ordenado por dueDate: o primeiro é o mais próximo
+      nextTaskByConv.set(t.conversationId, t.dueDate);
+    }
+
     // Formato consumido pela tela da mensageria. Cada item carrega a etiqueta de
     // procedência (canal + conta de entrada) — a tela não deduz nada (§4.3).
-    return NextResponse.json(convs.map((c) => ({
-      id: c.id,
-      channel: c.channel,
-      account: c.account ? { id: c.account.id, label: c.account.label } : null,
-      entryPoint: c.entryPoint,
-      contactId: c.contactId,
-      patientId: c.contact.patientId,
-      patientName: c.contact.name,
-      lastMessage: c.lastMessage,
-      lastMessageAt: c.lastMessageAt,
-      unreadCount: c.unreadCount,
-      status: c.status,
-      contact: { id: c.contact.id, name: c.contact.name, phone: c.contact.phone },
-    })));
+    return NextResponse.json(convs.map((c) => {
+      const nextTaskDueAt = nextTaskByConv.get(c.id) ?? null;
+      return {
+        id: c.id,
+        channel: c.channel,
+        account: c.account ? { id: c.account.id, label: c.account.label } : null,
+        entryPoint: c.entryPoint,
+        contactId: c.contactId,
+        patientId: c.contact.patientId,
+        patientName: c.contact.name,
+        lastMessage: c.lastMessage,
+        lastMessageAt: c.lastMessageAt,
+        unreadCount: c.unreadCount,
+        status: c.status,
+        contact: { id: c.contact.id, name: c.contact.name, phone: c.contact.phone },
+        nextTaskDueAt,
+        nextTaskOverdue: nextTaskDueAt ? nextTaskDueAt.getTime() < Date.now() : false,
+      };
+    }));
   } catch (err) {
     console.error('Erro ao listar conversas:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });

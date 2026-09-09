@@ -412,10 +412,14 @@ model FollowUpTask {
   patientId      String?
   dealId         String?
   appointmentId  String?
+  // Tarefa criada a partir de uma conversa da mensageria (botão "Nova tarefa").
+  // Aditivo e nulável: tarefa criada em /followup não tem conversa de origem.
+  conversationId String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   deletedAt      DateTime?
 
+  @@index([companyId, conversationId])
   @@map("follow_up_tasks")
 }
 

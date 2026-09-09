@@ -12,6 +12,7 @@ import {
   MessageCircle,
   User,
   CalendarDays,
+  Bell,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromConversation';
 import { NewQuoteFromConversation } from '@/components/mensageria/NewQuoteFromConversation';
+import { ConversationTasks } from '@/components/mensageria/ConversationTasks';
 import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
@@ -76,6 +78,8 @@ interface WhatsAppConversation {
   status: string;
   contact?: { id?: string; name: string; phone: string | null };
   messages?: WhatsAppMessage[];
+  nextTaskDueAt?: string | null;
+  nextTaskOverdue?: boolean;
 }
 
 interface WhatsAppAttachment {
@@ -665,6 +669,17 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                               Paciente
                             </span>
                           )}
+                          {conversation.nextTaskDueAt && (
+                            <span
+                              title={`Tarefa ${conversation.nextTaskOverdue ? 'vencida' : 'pendente'} · ${new Date(conversation.nextTaskDueAt).toLocaleDateString('pt-BR')}`}
+                              className={cn(
+                                'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                                conversation.nextTaskOverdue ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'
+                              )}
+                            >
+                              <Bell className="h-2.5 w-2.5" /> Tarefa
+                            </span>
+                          )}
                         </span>
                       </span>
                     </button>
@@ -755,6 +770,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 <NewQuoteFromConversation
                   patientId={selectedConversation.patientId}
                   contactName={selectedConversation.contact?.name}
+                />
+                <ConversationTasks
+                  conversationId={selectedConversation.id}
+                  patientId={selectedConversation.patientId}
                 />
                 <SendToPipeline conversationId={selectedConversation.id} />
                 {/* Perdido também mora aqui: quem descobre o motivo é quem está

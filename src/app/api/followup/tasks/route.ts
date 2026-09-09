@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { ownsPatient, ownsDeal } from '@/lib/api/ownership';
+import { ownsPatient, ownsDeal, ownsConversation } from '@/lib/api/ownership';
 
 // Datas "YYYY-MM-DD" são interpretadas ao meio-dia LOCAL (evita que a meia-noite
 // UTC caia no dia anterior em fusos negativos, jogando a tarefa para "atrasada").
@@ -19,9 +19,10 @@ const CreateSchema = z.object({
   type: z.enum(['FOLLOW_UP', 'REMINDER', 'ALERT', 'TASK']).optional(),
   patientId: z.string().optional().or(z.literal('')),
   dealId: z.string().optional().or(z.literal('')),
+  conversationId: z.string().optional().or(z.literal('')),
 });
 
-// GET /api/followup/tasks?status= — lista (enriquecida com paciente)
+// GET /api/followup/tasks?status=&conversationId= — lista (enriquecida com paciente)
 export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveModuleUser('followup');
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
     const where: any = { companyId: dbUser!.companyId, deletedAt: null };
     const status = request.nextUrl.searchParams.get('status');
     if (status) where.status = status;
+    // Tarefas de uma conversa específica (drawer da mensageria).
+    const conversationId = request.nextUrl.searchParams.get('conversationId');
+    if (conversationId) where.conversationId = conversationId;
 
     const tasks = await prisma.followUpTask.findMany({ where, orderBy: [{ status: 'asc' }, { dueDate: 'asc' }] });
 
@@ -59,10 +63,11 @@ export async function POST(request: NextRequest) {
 
     const d = CreateSchema.parse(await request.json());
 
-    // Paciente/deal vinculados precisam pertencer à empresa.
+    // Paciente/deal/conversa vinculados precisam pertencer à empresa.
     if (!(await ownsPatient(dbUser!.companyId, d.patientId || null)) ||
-        !(await ownsDeal(dbUser!.companyId, d.dealId || null))) {
-      return NextResponse.json({ error: 'Paciente ou oportunidade inválidos' }, { status: 400 });
+        !(await ownsDeal(dbUser!.companyId, d.dealId || null)) ||
+        !(await ownsConversation(dbUser!.companyId, d.conversationId || null))) {
+      return NextResponse.json({ error: 'Paciente, oportunidade ou conversa inválidos' }, { status: 400 });
     }
 
     const task = await prisma.followUpTask.create({
@@ -75,6 +80,7 @@ export async function POST(request: NextRequest) {
         type: d.type || 'FOLLOW_UP',
         patientId: d.patientId || null,
         dealId: d.dealId || null,
+        conversationId: d.conversationId || null,
         createdById: dbUser!.id,
         companyId: dbUser!.companyId,
       },
