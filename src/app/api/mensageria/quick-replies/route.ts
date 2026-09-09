@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
+import { normalizeKeyword } from '@/lib/messaging/quick-replies';
 
 const DEFAULTS = [
   { title: 'Saudação', content: 'Olá! Aqui é da clínica. Como podemos ajudar?', keyword: 'saudacao' },
@@ -11,12 +12,6 @@ const DEFAULTS = [
 ];
 
 const Schema = z.object({ title: z.string().min(1), content: z.string().min(1), keyword: z.string().min(1, 'Palavra-chave é obrigatória') });
-
-// Só [a-z0-9_-]: é o que dá para digitar sem espaço depois de "/" no composer.
-// Aceita colar o "/" também (ex.: usuário copiou "/saudacao" de outro lugar).
-export function normalizeKeyword(raw: string): string {
-  return raw.trim().replace(/^\/+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
-}
 
 // GET /api/mensageria/quick-replies (cria padrões na 1ª vez)
 // ?all=1 traz também as inativas — usado pela página de cadastro; o composer

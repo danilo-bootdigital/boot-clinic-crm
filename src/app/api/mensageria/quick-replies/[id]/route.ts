@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { normalizeKeyword } from '../route';
+import { normalizeKeyword } from '@/lib/messaging/quick-replies';
 
 const UpdateSchema = z.object({
   title: z.string().min(1).optional(),
