@@ -119,6 +119,7 @@ interface WhatsAppQuickReply {
   title: string;
   message: string;
   content?: string;
+  keyword?: string | null;
   isActive?: boolean;
 }
 
@@ -155,6 +156,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [quickReplies, setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
+  // Atalho "/palavra" no composer (padrão WhatsApp Business) — substituiu os
+  // botões de clique: menos poluição visual, mais rápido pra quem já sabe a
+  // palavra-chave de cor.
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [evolution, setEvolution] = useState<boolean | null>(null);
   // Lista: busca + filtro de não lidas
   const [query, setQuery] = useState('');
@@ -308,6 +313,22 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     () => conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0),
     [conversations]
   );
+
+  // "/" no INÍCIO do campo, sem espaço ainda: modo comando. Some assim que o
+  // texto deixa de bater nesse formato (ex.: depois de escolher e editar).
+  const slashQuery = /^\/[a-z0-9_-]*$/i.test(newMessage) ? newMessage.slice(1).toLowerCase() : null;
+  const slashMatches = useMemo(() => {
+    if (slashQuery === null) return [];
+    return quickReplies.filter((qr) => qr.keyword && qr.keyword.toLowerCase().startsWith(slashQuery));
+  }, [quickReplies, slashQuery]);
+  const slashOpen = slashQuery !== null && slashMatches.length > 0;
+
+  useEffect(() => { setSlashActiveIndex(0); }, [slashQuery]);
+
+  function pickQuickReply(qr: WhatsAppQuickReply) {
+    setNewMessage(qr.content || qr.message);
+    composerRef.current?.focus();
+  }
 
   async function createConversation(e: React.FormEvent) {
     e.preventDefault();
@@ -500,6 +521,15 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (slashOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSlashActiveIndex((i) => Math.min(i + 1, slashMatches.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSlashActiveIndex((i) => Math.max(i - 1, 0)); return; }
+      if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+        e.preventDefault();
+        pickQuickReply(slashMatches[slashActiveIndex]);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -957,31 +987,6 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 {fileError && <p className="mb-2 text-sm text-destructive">{fileError}</p>}
                 {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
 
-                {/* Mensagens rápidas — linha compacta, rolando na horizontal. Fica
-                    visível mesmo sem nenhuma cadastrada, só com o link de
-                    gerenciar: é como alguém descobre a página pela 1ª vez. */}
-                {!file && !recordedUrl && (
-                  <div className="scrollbar-thin mb-2 flex items-center gap-1.5 overflow-x-auto pb-1">
-                    {quickReplies.map((quickReply) => (
-                      <button
-                        key={quickReply.id}
-                        type="button"
-                        onClick={() => setNewMessage(quickReply.content || quickReply.message)}
-                        className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      >
-                        {quickReply.title}
-                      </button>
-                    ))}
-                    <Link
-                      href="/mensageria/mensagens-prontas"
-                      title="Gerenciar mensagens prontas"
-                      className="ml-auto flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <Settings className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                )}
-
                 <div className="flex items-end gap-2">
                   <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} className="hidden" onChange={onPickFile} />
                   <button
@@ -1009,15 +1014,47 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   >
                     <Mic className="h-4 w-4" />
                   </button>
-                  <Textarea
-                    ref={composerRef}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={file ? undefined : handleKeyDown}
-                    placeholder={file ? 'Legenda (opcional)…' : 'Escreva uma mensagem…  (Enter envia, Shift+Enter quebra a linha)'}
-                    className="max-h-40 min-h-[40px] flex-1 resize-none py-2.5"
-                    rows={1}
-                  />
+                  <Link
+                    href="/mensageria/mensagens-prontas"
+                    title="Mensagens prontas"
+                    aria-label="Mensagens prontas"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Link>
+
+                  {/* Atalho "/palavra": digitar "/" no início do campo abre a
+                      lista de mensagens prontas cujo keyword bate com o que já
+                      foi digitado — mesmo padrão do WhatsApp Business. */}
+                  <div className="relative min-w-0 flex-1">
+                    {slashOpen && (
+                      <div className="absolute bottom-full left-0 z-10 mb-2 w-full max-w-sm overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-popover">
+                        {slashMatches.map((qr, i) => (
+                          <button
+                            key={qr.id}
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); pickQuickReply(qr); }}
+                            className={cn(
+                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+                              i === slashActiveIndex ? 'bg-muted' : 'hover:bg-muted'
+                            )}
+                          >
+                            <code className="shrink-0 text-xs text-primary">/{qr.keyword}</code>
+                            <span className="truncate text-muted-foreground">{qr.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <Textarea
+                      ref={composerRef}
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={file ? undefined : handleKeyDown}
+                      placeholder={file ? 'Legenda (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta)'}
+                      className="max-h-40 min-h-[40px] w-full resize-none py-2.5"
+                      rows={1}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={file ? handleSendMedia : handleSendMessage}

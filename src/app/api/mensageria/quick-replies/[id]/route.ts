@@ -3,10 +3,12 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
+import { normalizeKeyword } from '../route';
 
 const UpdateSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().min(1).optional(),
+  keyword: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -24,11 +26,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!existing) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 });
 
     const d = UpdateSchema.parse(await request.json());
+
+    let keyword: string | undefined;
+    if (d.keyword !== undefined) {
+      keyword = normalizeKeyword(d.keyword);
+      if (!keyword) return NextResponse.json({ error: 'Palavra-chave inválida — use letras, números, - ou _' }, { status: 400 });
+      if (keyword !== existing.keyword) {
+        const dup = await prisma.quickReply.findFirst({
+          where: { companyId: dbUser!.companyId, keyword, deletedAt: null, NOT: { id: params.id } },
+          select: { id: true },
+        });
+        if (dup) return NextResponse.json({ error: `Já existe uma mensagem com a palavra-chave "/${keyword}"` }, { status: 400 });
+      }
+    }
+
     const item = await prisma.quickReply.update({
       where: { id: params.id },
       data: {
         ...(d.title !== undefined && { title: d.title }),
         ...(d.content !== undefined && { content: d.content }),
+        ...(keyword !== undefined && { keyword }),
         ...(d.isActive !== undefined && { isActive: d.isActive }),
       },
     });

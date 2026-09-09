@@ -5,12 +5,18 @@ import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 
 const DEFAULTS = [
-  { title: 'Saudação', content: 'Olá! Aqui é da clínica. Como podemos ajudar?' },
-  { title: 'Confirmação', content: 'Confirmando sua consulta. Podemos manter o horário?' },
-  { title: 'Lembrete', content: 'Lembrete: sua consulta está agendada. Até breve!' },
+  { title: 'Saudação', content: 'Olá! Aqui é da clínica. Como podemos ajudar?', keyword: 'saudacao' },
+  { title: 'Confirmação', content: 'Confirmando sua consulta. Podemos manter o horário?', keyword: 'confirmacao' },
+  { title: 'Lembrete', content: 'Lembrete: sua consulta está agendada. Até breve!', keyword: 'lembrete' },
 ];
 
-const Schema = z.object({ title: z.string().min(1), content: z.string().min(1) });
+const Schema = z.object({ title: z.string().min(1), content: z.string().min(1), keyword: z.string().min(1, 'Palavra-chave é obrigatória') });
+
+// Só [a-z0-9_-]: é o que dá para digitar sem espaço depois de "/" no composer.
+// Aceita colar o "/" também (ex.: usuário copiou "/saudacao" de outro lugar).
+export function normalizeKeyword(raw: string): string {
+  return raw.trim().replace(/^\/+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
 
 // GET /api/mensageria/quick-replies (cria padrões na 1ª vez)
 // ?all=1 traz também as inativas — usado pela página de cadastro; o composer
@@ -33,7 +39,7 @@ export async function GET(request: NextRequest) {
       orderBy: { title: 'asc' },
     });
     // Compat: o componente usa `message` e/ou `content`.
-    return NextResponse.json(items.map((q) => ({ id: q.id, title: q.title, content: q.content, message: q.content, isActive: q.isActive })));
+    return NextResponse.json(items.map((q) => ({ id: q.id, title: q.title, content: q.content, message: q.content, keyword: q.keyword, isActive: q.isActive })));
   } catch (err) {
     console.error('Erro ao listar respostas rápidas:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -49,7 +55,16 @@ export async function POST(request: NextRequest) {
     if (forbidden) return forbidden;
 
     const d = Schema.parse(await request.json());
-    const item = await prisma.quickReply.create({ data: { title: d.title, content: d.content, companyId: dbUser!.companyId } });
+    const keyword = normalizeKeyword(d.keyword);
+    if (!keyword) return NextResponse.json({ error: 'Palavra-chave inválida — use letras, números, - ou _' }, { status: 400 });
+
+    const dup = await prisma.quickReply.findFirst({
+      where: { companyId: dbUser!.companyId, keyword, deletedAt: null },
+      select: { id: true },
+    });
+    if (dup) return NextResponse.json({ error: `Já existe uma mensagem com a palavra-chave "/${keyword}"` }, { status: 400 });
+
+    const item = await prisma.quickReply.create({ data: { title: d.title, content: d.content, keyword, companyId: dbUser!.companyId } });
     return NextResponse.json(item, { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError) return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });

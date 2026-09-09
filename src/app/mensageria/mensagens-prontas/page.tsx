@@ -11,7 +11,15 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
-const emptyForm = { title: '', content: '' }
+const emptyForm = { title: '', content: '', keyword: '' }
+
+/** Slug simples (sem acento, só a-z0-9) — usado para sugerir a palavra-chave a partir do título. */
+// Faixa Unicode "Combining Diacritical Marks" (0x0300-0x036f), construída por
+// código para não depender de digitar caracteres combinantes no fonte.
+const DIACRITICS = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g')
+function slug(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(DIACRITICS, '').replace(/[^a-z0-9]+/g, '')
+}
 
 export default function QuickRepliesPage() {
   const router = useRouter()
@@ -21,6 +29,9 @@ export default function QuickRepliesPage() {
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm)
+  // Enquanto o usuário não mexe na palavra-chave à mão, ela segue o título —
+  // para de acompanhar assim que ele a edita (não sobrescreve o que já escolheu).
+  const [keywordTouched, setKeywordTouched] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -36,15 +47,26 @@ export default function QuickRepliesPage() {
   function abrirNova() {
     setForm(emptyForm)
     setEditingId(null)
+    setKeywordTouched(false)
     setError(null)
     setCreating(true)
   }
 
   function abrirEdicao(item: any) {
-    setForm({ title: item.title, content: item.content })
+    setForm({ title: item.title, content: item.content, keyword: item.keyword || '' })
     setEditingId(item.id)
+    setKeywordTouched(true) // já tem palavra-chave própria — título não deve mais sobrescrever
     setError(null)
     setCreating(true)
+  }
+
+  function onTitleChange(title: string) {
+    setForm((f) => ({ ...f, title, keyword: keywordTouched ? f.keyword : slug(title) }))
+  }
+
+  function onKeywordChange(keyword: string) {
+    setKeywordTouched(true)
+    setForm((f) => ({ ...f, keyword }))
   }
 
   async function salvar(e: React.FormEvent) {
@@ -98,8 +120,21 @@ export default function QuickRepliesPage() {
           <form onSubmit={salvar} className="max-w-2xl space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">Título *</label>
-              <p className="mb-1 text-xs text-muted-foreground">Aparece no botão da conversa — curto, o suficiente para reconhecer de relance.</p>
-              <Input className="w-full" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+              <p className="mb-1 text-xs text-muted-foreground">Só para identificar na lista — não aparece mais na conversa.</p>
+              <Input className="w-full" value={form.title} onChange={(e) => onTitleChange(e.target.value)} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">Palavra-chave *</label>
+              <p className="mb-1 text-xs text-muted-foreground">
+                Digite <code className="rounded bg-muted px-1 py-0.5">/{form.keyword || 'palavra'}</code> no
+                campo de envio da conversa para inserir esta mensagem. Só letras, números, - e _.
+              </p>
+              <Input
+                className="w-full font-mono"
+                value={form.keyword}
+                onChange={(e) => onKeywordChange(e.target.value)}
+                required
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">Mensagem *</label>
@@ -125,6 +160,9 @@ export default function QuickRepliesPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground">{item.title}</span>
+                    {item.keyword && (
+                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">/{item.keyword}</code>
+                    )}
                     <StatusBadge tone={item.isActive ? 'success' : 'neutral'}>{item.isActive ? 'Ativa' : 'Inativa'}</StatusBadge>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.content}</p>

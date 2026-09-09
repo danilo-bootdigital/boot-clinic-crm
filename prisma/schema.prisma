@@ -789,11 +789,16 @@ model QuickReply {
   companyId String
   title     String
   content   String
+  // Digitada como "/palavra" no campo de envio — troca o botão de clique por
+  // um atalho de teclado (padrão WhatsApp Business). Nulável só por causa de
+  // linhas antigas; toda mensagem criada pela página exige preencher.
+  keyword   String?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
   @@index([companyId])
+  @@index([companyId, keyword])
   @@map("quick_replies")
 }
 
