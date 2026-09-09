@@ -20,6 +20,10 @@ const BARE_ROUTES = ["/login", "/tele"];
  */
 const FULL_ROUTES = ["/mensageria"];
 
+// Sub-rotas de /mensageria que são página comum (rolam inteiras), não a caixa
+// de entrada — o match por prefixo acima as pegaria por engano.
+const FULL_ROUTE_EXCEPTIONS = ["/mensageria/mensagens-prontas"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -43,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     routes.some((r) => pathname === r || pathname.startsWith(r + "/"));
 
   const bare = matches(BARE_ROUTES);
-  const full = matches(FULL_ROUTES);
+  const full = matches(FULL_ROUTES) && !matches(FULL_ROUTE_EXCEPTIONS);
 
   if (bare) return <>{children}</>;
 

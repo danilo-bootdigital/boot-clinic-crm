@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Paperclip,
@@ -13,6 +14,7 @@ import {
   User,
   CalendarDays,
   Bell,
+  Settings,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -955,9 +957,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 {fileError && <p className="mb-2 text-sm text-destructive">{fileError}</p>}
                 {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
 
-                {/* Mensagens rápidas — linha compacta, rolando na horizontal. */}
-                {quickReplies.length > 0 && !file && !recordedUrl && (
-                  <div className="scrollbar-thin mb-2 flex gap-1.5 overflow-x-auto pb-1">
+                {/* Mensagens rápidas — linha compacta, rolando na horizontal. Fica
+                    visível mesmo sem nenhuma cadastrada, só com o link de
+                    gerenciar: é como alguém descobre a página pela 1ª vez. */}
+                {!file && !recordedUrl && (
+                  <div className="scrollbar-thin mb-2 flex items-center gap-1.5 overflow-x-auto pb-1">
                     {quickReplies.map((quickReply) => (
                       <button
                         key={quickReply.id}
@@ -968,6 +972,13 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                         {quickReply.title}
                       </button>
                     ))}
+                    <Link
+                      href="/mensageria/mensagens-prontas"
+                      title="Gerenciar mensagens prontas"
+                      className="ml-auto flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <Settings className="h-3.5 w-3.5" />
+                    </Link>
                   </div>
                 )}
 

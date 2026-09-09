@@ -13,7 +13,9 @@ const DEFAULTS = [
 const Schema = z.object({ title: z.string().min(1), content: z.string().min(1) });
 
 // GET /api/mensageria/quick-replies (cria padrões na 1ª vez)
-export async function GET() {
+// ?all=1 traz também as inativas — usado pela página de cadastro; o composer
+// da conversa (sem o parâmetro) só quer as que pode oferecer para envio.
+export async function GET(request: NextRequest) {
   try {
     const { dbUser, error } = await resolveModuleUser('whatsapp');
     if (error) return error;
@@ -25,8 +27,9 @@ export async function GET() {
       await prisma.quickReply.createMany({ data: DEFAULTS.map((q) => ({ ...q, companyId: dbUser!.companyId })) });
     }
 
+    const all = request.nextUrl.searchParams.get('all') === '1';
     const items = await prisma.quickReply.findMany({
-      where: { companyId: dbUser!.companyId, deletedAt: null, isActive: true },
+      where: { companyId: dbUser!.companyId, deletedAt: null, ...(all ? {} : { isActive: true }) },
       orderBy: { title: 'asc' },
     });
     // Compat: o componente usa `message` e/ou `content`.

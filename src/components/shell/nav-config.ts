@@ -69,6 +69,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   commercial: "Comercial",
   agenda: "Agenda",
   whatsapp: "Mensageria",
+  "mensagens-prontas": "Mensagens Prontas",
   followup: "Follow-up",
   reception: "Recepção",
   pacientes: "Pacientes",
