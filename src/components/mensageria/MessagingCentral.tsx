@@ -27,6 +27,7 @@ import { AudioMessagePlayer } from '@/components/mensageria/AudioMessagePlayer';
 import { ChannelBadge, type ChannelValue, type SourceValue } from '@/components/mensageria/ChannelBadge';
 import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromConversation';
+import { NewQuoteFromConversation } from '@/components/mensageria/NewQuoteFromConversation';
 import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
@@ -750,6 +751,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                     );
                     loadConversations(true);
                   }}
+                />
+                <NewQuoteFromConversation
+                  patientId={selectedConversation.patientId}
+                  contactName={selectedConversation.contact?.name}
                 />
                 <SendToPipeline conversationId={selectedConversation.id} />
                 {/* Perdido também mora aqui: quem descobre o motivo é quem está
