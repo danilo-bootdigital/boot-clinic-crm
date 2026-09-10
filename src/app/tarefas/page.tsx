@@ -42,7 +42,7 @@ export default function FollowUpPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch('/api/followup/tasks', { cache: 'no-store' })
-    if (res.status === 401) { router.push('/login?redirect=/followup'); return }
+    if (res.status === 401) { router.push('/login?redirect=/tarefas'); return }
     if (res.ok) setTasks(await res.json())
     setLoading(false)
   }, [router])
@@ -114,7 +114,7 @@ export default function FollowUpPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Follow-up"
+        title="Tarefas"
         description="Tarefas e acompanhamentos de relacionamento"
         icon={<Repeat className="h-5 w-5" />}
         actions={

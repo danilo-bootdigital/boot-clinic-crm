@@ -33,8 +33,8 @@ const emptyForm = { title: '', dueDate: hoje(), priority: 'MEDIUM', type: 'FOLLO
 
 /**
  * Tarefas da conversa: dois botões irmãos que falam com o MESMO módulo de
- * Follow-up usado na página central `/followup` (mesma API, mesmo model —
- * `/followup` ainda não foi componentizado como `components/clinical/Quotes`,
+ * Follow-up (nome interno; a tela chama "Tarefas") usado na página central
+ * `/tarefas` (mesma API, mesmo model — `/tarefas` ainda não foi componentizado como `components/clinical/Quotes`,
  * então este componente conversa direto com `/api/followup/tasks`).
  *
  * - "Nova tarefa": abre o drawer já no formulário de criação.
@@ -116,7 +116,7 @@ export function ConversationTasks({
     setBusy(false);
     if (!res.ok) {
       const er = await res.json().catch(() => ({}));
-      setError(res.status === 403 ? 'Sem permissão no módulo Follow-up — peça para habilitar em Configurações.' : (er.error || 'Falha ao salvar tarefa'));
+      setError(res.status === 403 ? 'Sem permissão no módulo Tarefas — peça para habilitar em Configurações.' : (er.error || 'Falha ao salvar tarefa'));
       return;
     }
     setFormOpen(false);
@@ -190,7 +190,7 @@ export function ConversationTasks({
       >
         {permError && (
           <p className="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
-            Sem permissão no módulo Follow-up. Peça para habilitar em Configurações › Usuários.
+            Sem permissão no módulo Tarefas. Peça para habilitar em Configurações › Usuários.
           </p>
         )}
 

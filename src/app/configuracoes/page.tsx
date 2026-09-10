@@ -177,7 +177,7 @@ function ClinicaTab({ router }: { router: any }) {
 }
 
 const MODULES: [string, string][] = [
-  ['patients', 'Pacientes'], ['crm', 'CRM'], ['agenda', 'Agenda'], ['followup', 'Follow-up'],
+  ['patients', 'Pacientes'], ['crm', 'CRM'], ['agenda', 'Agenda'], ['followup', 'Tarefas'],
   ['whatsapp', 'WhatsApp'], ['automacoes', 'Automações'], ['dashboard', 'Dashboard'], ['configuracoes', 'Configurações'],
 ]
 const LEVELS: [string, string][] = [['none', 'Sem acesso'], ['view', 'Visualizar'], ['edit', 'Editar']]

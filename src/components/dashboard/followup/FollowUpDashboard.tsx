@@ -13,13 +13,13 @@ import { useKpis } from '@/components/dashboard/use-kpis'
 export default function FollowUpDashboard() {
   const { kpis, loading } = useKpis()
   if (loading) return (
-    <div className="space-y-6"><PageHeader title="Follow-up" description="Gerenciar tarefas e acompanhamentos" /><LoadingState rows={4} /></div>
+    <div className="space-y-6"><PageHeader title="Tarefas" description="Gerenciar tarefas e acompanhamentos" /><LoadingState rows={4} /></div>
   )
   const f = kpis?.followup ?? {}
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Follow-up" description="Gerenciar tarefas e acompanhamentos" />
+      <PageHeader title="Tarefas" description="Gerenciar tarefas e acompanhamentos" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Tarefas Pendentes" value={String(f.pendingToday ?? 0)} hint="Vencem hoje" tone="primary" icon={<ListTodo className="h-[18px] w-[18px]" />} />
@@ -28,12 +28,12 @@ export default function FollowUpDashboard() {
         <StatCard label="Taxa de Conclusão" value={`${f.completionRate ?? 0}%`} hint="Este mês" tone="success" icon={<CheckCircle2 className="h-[18px] w-[18px]" />} />
       </div>
 
-      <SectionCard title="Tarefas de Follow-up" description="Gerencie os acompanhamentos da clínica">
+      <SectionCard title="Tarefas" description="Gerencie os acompanhamentos da clínica">
         <EmptyState
           icon={<ListTodo className="h-6 w-6" />}
           title={`${f.completedThisMonth ?? 0} concluída(s) de ${f.totalThisMonth ?? 0} no mês`}
-          description="Abra o módulo de Follow-up para criar, concluir e acompanhar tarefas."
-          action={<Link href="/followup"><ActionButton>Abrir Follow-up</ActionButton></Link>}
+          description="Abra o módulo de Tarefas para criar, concluir e acompanhar tarefas."
+          action={<Link href="/tarefas"><ActionButton>Abrir Tarefas</ActionButton></Link>}
         />
       </SectionCard>
     </div>

@@ -8,7 +8,7 @@ const TABS = [
   { label: "Comercial", href: "/dashboard/commercial" },
   { label: "Agenda", href: "/dashboard/agenda" },
   { label: "WhatsApp", href: "/dashboard/whatsapp" },
-  { label: "Follow-up", href: "/dashboard/followup" },
+  { label: "Tarefas", href: "/dashboard/tarefas" },
   { label: "Recepção", href: "/dashboard/reception" },
 ];
 

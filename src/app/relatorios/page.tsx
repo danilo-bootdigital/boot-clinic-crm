@@ -150,7 +150,7 @@ export default function RelatoriosPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="Follow-up" description="Tarefas no período">
+            <SectionCard title="Tarefas" description="Criadas e concluídas no período">
               <div className="divide-y divide-border">
                 <Row label="Criadas" value={data.followup.created} />
                 <Row label="Concluídas" value={data.followup.completed} />

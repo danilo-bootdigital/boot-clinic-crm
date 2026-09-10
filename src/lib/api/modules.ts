@@ -30,7 +30,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
   { key: 'crm',           label: 'CRM',            isCore: false, available: true,  order: 3 },
   { key: 'agenda',        label: 'Agenda',         isCore: false, available: true,  order: 4 },
   { key: 'whatsapp',      label: 'WhatsApp',       isCore: false, available: true,  order: 5 },
-  { key: 'followup',      label: 'Follow-up',      isCore: false, available: true,  order: 6 },
+  { key: 'followup',      label: 'Tarefas',        isCore: false, available: true,  order: 6 },
   { key: 'automacoes',    label: 'Automações',     isCore: false, available: true,  order: 7 },
   { key: 'configuracoes', label: 'Configurações',  isCore: true,  available: true,  order: 8 },
   // Telemedicina — módulo construído (centro de atendimento remoto integrado).

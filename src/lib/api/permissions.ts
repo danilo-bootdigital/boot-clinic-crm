@@ -14,7 +14,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   telemedicina: 'Telemedicina',
   crm: 'CRM',
   agenda: 'Agenda',
-  followup: 'Follow-up',
+  followup: 'Tarefas',
   whatsapp: 'WhatsApp',
   automacoes: 'Automações',
   financeiro: 'Financeiro',
