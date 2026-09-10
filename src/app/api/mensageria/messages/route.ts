@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendWhatsappForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
+import { sendWhatsappForConversation, type QuotedRef } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { sendInstagramText, replyWindow } from '@/lib/messaging/adapters/instagram/graph';
 import { whatsappDestination, NO_DESTINATION } from '@/lib/messaging/adapters/whatsapp/destination';
 
@@ -12,12 +12,26 @@ const CreateSchema = z.object({
   conversationId: z.string().min(1),
   content: z.string().min(1, 'Mensagem vazia'),
   type: z.string().optional(),
+  /** "Responder": id LOCAL da mensagem citada (precisa ser da mesma conversa). */
+  replyToMessageId: z.string().optional(),
 });
 
 function serialize(m: any) {
   const att = m.attachments?.find((a: any) => !a.deletedAt) ?? null;
+  const quoted = m.replyToMessage;
+  const quotedAtt = quoted?.attachments?.find((a: any) => !a.deletedAt) ?? null;
   return {
     id: m.id, conversationId: m.conversationId, content: m.content,
+    // "Respondendo a": preview mínimo da mensagem citada (nunca o payload
+    // completo) — null quando não é resposta, ou quando a citada não existe
+    // mais nesta base (ex.: replyToExternalId sem correspondência local).
+    replyTo: quoted
+      ? {
+          id: quoted.id, content: quoted.content, caption: quoted.caption ?? null,
+          messageType: quoted.messageType ?? 'TEXT', direction: quoted.direction,
+          attachment: quotedAtt ? { id: quotedAtt.id, mimeType: quotedAtt.mimeType } : null,
+        }
+      : null,
     // Etiqueta de procedência (§4.3): vem da PRÓPRIA mensagem. A tela não deduz
     // canal a partir da conversa — numa thread com identidades em dois canais
     // as mensagens divergem entre si.
@@ -66,6 +80,7 @@ export async function GET(request: NextRequest) {
       include: {
         attachments: { where: { deletedAt: null } },
         account: { select: { label: true } },
+        replyToMessage: { include: { attachments: { where: { deletedAt: null } } } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -97,6 +112,18 @@ export async function POST(request: NextRequest) {
       include: { contact: { select: { phone: true } } },
     });
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
+
+    // "Responder": a citada precisa ser desta MESMA conversa — nunca confia
+    // no id que o cliente manda sem checar posse.
+    let quotedMessage: { id: string; externalId: string | null; direction: string; content: string; caption: string | null } | null = null;
+    if (d.replyToMessageId) {
+      quotedMessage = await prisma.message.findFirst({
+        where: { id: d.replyToMessageId, conversationId: conv.id, companyId: dbUser!.companyId },
+        select: { id: true, externalId: true, direction: true, content: true, caption: true },
+      });
+      if (!quotedMessage) return NextResponse.json({ error: 'Mensagem citada não encontrada' }, { status: 400 });
+    }
+
     // Despacho por canal: cada adapter tem suas regras de saída.
     if (conv.channel === Channel.TIKTOK) {
       return NextResponse.json(
@@ -116,7 +143,10 @@ export async function POST(request: NextRequest) {
         status: { in: ['PENDING', 'SENT', 'DELIVERED', 'READ'] },
         createdAt: { gte: new Date(Date.now() - SEND_DEDUP_WINDOW_MS) },
       },
-      include: { attachments: { where: { deletedAt: null } }, account: { select: { label: true } } },
+      include: {
+        attachments: { where: { deletedAt: null } }, account: { select: { label: true } },
+        replyToMessage: { include: { attachments: { where: { deletedAt: null } } } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     if (recentTwin) {
@@ -180,8 +210,24 @@ export async function POST(request: NextRequest) {
         channel: conv.channel, accountId: igAccount?.id ?? conv.accountId, source: MessageSource.CRM,
         content: d.content, messageType: 'TEXT', direction: 'OUTGOING', status: 'PENDING',
         createdByUserId: dbUser!.id,
+        replyToMessageId: quotedMessage?.id ?? null,
+        replyToExternalId: quotedMessage?.externalId ?? null,
       },
     });
+
+    // Encadear no WhatsApp real exige o externalId (key.id) da citada — uma
+    // mensagem nossa ainda PENDING (nunca confirmada pelo provedor) não tem.
+    // Sem isso, a resposta ainda fica registrada aqui (replyToMessageId acima),
+    // só não aparece "respondendo a" no aparelho do paciente.
+    const quotedRef: QuotedRef | undefined =
+      conv.channel === Channel.WHATSAPP && quotedMessage?.externalId
+        ? {
+            remoteJid: waDestination!,
+            externalId: quotedMessage.externalId,
+            fromMe: quotedMessage.direction === 'OUTGOING',
+            previewText: quotedMessage.caption || quotedMessage.content,
+          }
+        : undefined;
 
     let sent: { configured: boolean; ok: boolean; messageId?: string | null; instanceId?: string | null; error?: string };
 
@@ -189,7 +235,7 @@ export async function POST(request: NextRequest) {
       const res = await sendInstagramText(igAccount!, igRecipient!, d.content);
       sent = { configured: res.configured, ok: res.ok, messageId: res.messageId ?? null, instanceId: igAccount!.id, error: res.error };
     } else {
-      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, waDestination!, d.content);
+      sent = await sendWhatsappForConversation({ companyId: dbUser!.companyId, instanceId: conv.accountId }, waDestination!, d.content, quotedRef);
     }
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.accountId ?? null;
@@ -206,6 +252,7 @@ export async function POST(request: NextRequest) {
         // desconectado" é acionável pelo atendente, HTTP 500 não é.
         errorMessage: status === 'FAILED' ? sent.error ?? 'falha no envio pela Evolution' : null,
       },
+      include: { replyToMessage: { include: { attachments: { where: { deletedAt: null } } } } },
     });
     await prisma.conversation.update({
       where: { id: conv.id },

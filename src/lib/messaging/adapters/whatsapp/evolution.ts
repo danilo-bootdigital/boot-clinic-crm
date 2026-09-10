@@ -287,20 +287,56 @@ export async function findMessages(instance: InstanceRef, opts?: { remoteJid?: s
   return evo(`/chat/findMessages/${encodeURIComponent(refName(instance))}`, { method: 'POST', body: JSON.stringify({ where }) });
 }
 
+/** "Respondendo a" — encadeia a mensagem no WhatsApp real de quem recebe. */
+export interface QuotedRef {
+  /** Mesmo valor usado como destino (resolveNumber) — a conversa é a mesma. */
+  remoteJid: string;
+  /** key.id (externalId) da mensagem citada no provedor. */
+  externalId: string;
+  /** Se a mensagem citada foi enviada por NÓS (OUTGOING). */
+  fromMe: boolean;
+  /** Texto/legenda da citada — só o preview mínimo que a Evolution pede em `message`. */
+  previewText?: string;
+}
+
+function quotedOptions(quoted?: QuotedRef) {
+  if (!quoted) return undefined;
+  // NÃO VALIDADO AO VIVO (ao contrário dos contratos abaixo marcados
+  // "VALIDADO AO VIVO") — formato inferido do padrão Baileys/Evolution para
+  // "responder citando". Por isso todo envio com `quoted` tem fallback: se a
+  // Evolution rejeitar este campo, o chamador reenvia sem ele em vez de
+  // falhar a mensagem inteira (ver sendMessage/sendMediaMessage).
+  return {
+    quoted: {
+      key: { remoteJid: quoted.remoteJid, id: quoted.externalId, fromMe: quoted.fromMe },
+      message: { conversation: quoted.previewText || '' },
+    },
+  };
+}
+
 // Envia uma mensagem de texto PELA instância da clínica. Devolve também o
 // `messageId` (key.id do WhatsApp) para deduplicar o eco que volta no MESSAGES_UPSERT.
 export async function sendMessage(
   instance: InstanceRef,
   phone: string,
   text: string,
+  quoted?: QuotedRef,
 ): Promise<EvoResult & { messageId?: string }> {
   const resolved = await resolveNumber(instance, phone);
   if (!resolved.number) return { configured: true, ok: false, error: resolved.error };
   const number = resolved.number;
-  const res = await evo<any>(`/message/sendText/${encodeURIComponent(refName(instance))}`, {
+  const options = quotedOptions(quoted);
+  let res = await evo<any>(`/message/sendText/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
-    body: JSON.stringify({ number, text }),
+    body: JSON.stringify({ number, text, ...(options ? { options } : {}) }),
   });
+  if (options && !res.ok) {
+    // Degrada: manda sem o quote em vez de falhar a mensagem inteira.
+    res = await evo<any>(`/message/sendText/${encodeURIComponent(refName(instance))}`, {
+      method: 'POST',
+      body: JSON.stringify({ number, text }),
+    });
+  }
   return { ...res, messageId: res.data?.key?.id ?? undefined };
 }
 
@@ -370,11 +406,12 @@ export async function sendWhatsappForConversation(
   conv: { companyId: string; instanceId: string | null },
   phone: string,
   text: string,
+  quoted?: QuotedRef,
 ): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
   const instance = await resolveSendInstance(conv);
   if (!instance) return { configured: true, ok: false, error: NO_INSTANCE };
-  const res = await sendMessage(instance, phone, text);
+  const res = await sendMessage(instance, phone, text, quoted);
   const error = res.ok ? undefined : await sendFailureReason(instance, res);
   return { ...res, error, instanceId: instance.id };
 }
@@ -391,22 +428,31 @@ export type EvoMediaType = 'image' | 'document' | 'audio';
 export async function sendMediaMessage(
   instance: InstanceRef,
   phone: string,
-  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
+  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string; quoted?: QuotedRef },
 ): Promise<EvoResult & { messageId?: string }> {
   const resolved = await resolveNumber(instance, phone);
   if (!resolved.number) return { configured: true, ok: false, error: resolved.error };
   const number = resolved.number;
-  const res = await evo<any>(`/message/sendMedia/${encodeURIComponent(refName(instance))}`, {
+  const options = quotedOptions(opts.quoted);
+  const baseBody = {
+    number,
+    mediatype: opts.mediatype,
+    mimetype: opts.mimetype,
+    media: opts.base64,
+    fileName: opts.fileName,
+    ...(opts.caption ? { caption: opts.caption } : {}),
+  };
+  let res = await evo<any>(`/message/sendMedia/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
-    body: JSON.stringify({
-      number,
-      mediatype: opts.mediatype,
-      mimetype: opts.mimetype,
-      media: opts.base64,
-      fileName: opts.fileName,
-      ...(opts.caption ? { caption: opts.caption } : {}),
-    }),
+    body: JSON.stringify({ ...baseBody, ...(options ? { options } : {}) }),
   });
+  if (options && !res.ok) {
+    // Degrada: manda sem o quote em vez de falhar o envio da mídia inteiro.
+    res = await evo<any>(`/message/sendMedia/${encodeURIComponent(refName(instance))}`, {
+      method: 'POST',
+      body: JSON.stringify(baseBody),
+    });
+  }
   return { ...res, messageId: res.data?.key?.id ?? undefined };
 }
 
@@ -414,7 +460,7 @@ export async function sendMediaMessage(
 export async function sendMediaForConversation(
   conv: { companyId: string; instanceId: string | null },
   phone: string,
-  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string },
+  opts: { mediatype: EvoMediaType; mimetype: string; base64: string; fileName: string; caption?: string; quoted?: QuotedRef },
 ): Promise<EvoResult & { instanceId?: string; messageId?: string }> {
   if (!isEvolutionConfigured()) return { configured: false, ok: false };
   const instance = await resolveSendInstance(conv);

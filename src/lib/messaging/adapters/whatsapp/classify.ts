@@ -33,6 +33,30 @@ export function classifyMessage(m: any): MessageKind | null {
   return 'UNSUPPORTED';
 }
 
+// O `contextInfo` de uma mensagem citante mora DENTRO do nó do tipo
+// específico (varia conforme o tipo da mensagem que está respondendo).
+function contextInfoOf(m: any): any | undefined {
+  return (
+    m?.extendedTextMessage?.contextInfo ||
+    m?.imageMessage?.contextInfo ||
+    m?.videoMessage?.contextInfo ||
+    m?.documentMessage?.contextInfo ||
+    m?.audioMessage?.contextInfo ||
+    m?.stickerMessage?.contextInfo ||
+    m?.documentWithCaptionMessage?.message?.documentMessage?.contextInfo ||
+    undefined
+  );
+}
+
+/**
+ * Id (no provedor) da mensagem que esta está respondendo/citando —
+ * `contextInfo.stanzaId`. undefined quando a mensagem não é uma resposta.
+ */
+export function extractQuotedExternalId(m: any): string | undefined {
+  const stanzaId = contextInfoOf(m)?.stanzaId;
+  return typeof stanzaId === 'string' && stanzaId ? stanzaId : undefined;
+}
+
 // Parte local do jid, sem o sufixo de device ("...:12").
 function jidLocalPart(jid?: string | null): string | undefined {
   if (!jid) return undefined;

@@ -105,6 +105,23 @@ async function isDuplicate(accountId: string | null, externalId?: string | null)
   return Boolean(exists);
 }
 
+/**
+ * Resolve o id LOCAL da mensagem citada a partir do id do provedor
+ * (`contextInfo.stanzaId`). Mesmo escopo de busca do dedup (accountId +
+ * externalId) — é a mesma chave que identifica uma mensagem já gravada.
+ * null quando não é resposta, ou quando a citada ainda não foi ingerida
+ * (ex.: histórico incompleto) — o `replyToExternalId` fica salvo do mesmo
+ * jeito, então dá pra resolver depois se a citada aparecer.
+ */
+async function resolveReplyTo(accountId: string | null, replyToExternalId?: string | null) {
+  if (!replyToExternalId) return null;
+  const quoted = await prisma.message.findFirst({
+    where: { accountId, externalId: replyToExternalId },
+    select: { id: true },
+  });
+  return quoted?.id ?? null;
+}
+
 // Atualiza o preview/não-lidas da conversa. `isHistory` evita inflar não-lidas
 // e só avança o "último contato" quando a mensagem é mais recente.
 async function touchConversation(opts: {
@@ -140,6 +157,8 @@ export async function ingestMessage(opts: {
   /** undefined = não informado (assume TEXT se houver texto); null = sem conteúdo utilizável. */
   messageKind?: MessageKind | null;
   externalId?: string | null;
+  /** Id (no provedor) da mensagem que esta está respondendo — `contextInfo.stanzaId`. */
+  replyToExternalId?: string | null;
   status?: string;
   createdAt?: Date;
   createdByUserId?: string | null;
@@ -195,6 +214,7 @@ export async function ingestMessage(opts: {
   const direction = directionOf(opts.provenance.source);
   // Mídia COM texto: o texto é legenda e fica também em `caption`.
   const caption = effectiveKind !== 'TEXT' && !isPlaceholder && text ? text : null;
+  const replyToMessageId = await resolveReplyTo(conversation.accountId ?? opts.provenance.accountId, opts.replyToExternalId);
 
   try {
     await prisma.message.create({
@@ -215,6 +235,8 @@ export async function ingestMessage(opts: {
         direction,
         status: opts.status ?? (direction === 'OUTGOING' ? 'SENT' : 'RECEIVED'),
         createdByUserId: opts.createdByUserId ?? null,
+        replyToMessageId,
+        replyToExternalId: opts.replyToExternalId ?? null,
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
       },
     });
@@ -247,6 +269,8 @@ export async function ingestInboundMedia(opts: {
   messageKind: MessageKind;
   caption?: string | null;
   externalId?: string | null;
+  /** Id (no provedor) da mensagem que esta está respondendo — `contextInfo.stanzaId`. */
+  replyToExternalId?: string | null;
   createdAt?: Date;
 }): Promise<{ status: IngestResult; messageId: string | null; conversationId: string | null }> {
   const empty = { status: 'skipped' as IngestResult, messageId: null, conversationId: null };
@@ -282,6 +306,7 @@ export async function ingestInboundMedia(opts: {
   const direction = directionOf(opts.provenance.source);
   const caption = opts.caption && opts.caption.trim() ? opts.caption : null;
   const content = caption ?? mediaPlaceholder(opts.messageKind);
+  const replyToMessageId = await resolveReplyTo(conversation.accountId ?? opts.provenance.accountId, opts.replyToExternalId);
 
   let created;
   try {
@@ -301,6 +326,8 @@ export async function ingestInboundMedia(opts: {
         direction,
         status: 'RECEIVED',
         mediaStatus: 'PENDING',
+        replyToMessageId,
+        replyToExternalId: opts.replyToExternalId ?? null,
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
       },
     });

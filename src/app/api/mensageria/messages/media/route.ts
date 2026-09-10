@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
-import { sendMediaForConversation, sendAudioForConversation } from '@/lib/messaging/adapters/whatsapp/evolution';
+import { sendMediaForConversation, sendAudioForConversation, type QuotedRef } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { uploadMessagingMedia, deleteWhatsappMedia } from '@/lib/storage/messaging-storage';
 import { categoryForMime, validateWhatsappMedia } from '@/lib/messaging/media-config';
 import { mediaPlaceholder } from '@/lib/messaging/ingest';
@@ -13,11 +13,20 @@ import { whatsappDestination, NO_DESTINATION } from '@/lib/messaging/adapters/wh
 export const runtime = 'nodejs';
 
 function serialize(m: any, att: any) {
+  const quoted = m.replyToMessage;
+  const quotedAtt = quoted?.attachments?.find((a: any) => !a.deletedAt) ?? null;
   return {
     id: m.id, conversationId: m.conversationId, content: m.content, caption: m.caption ?? null,
     messageType: m.messageType, direction: m.direction, isFromPatient: m.direction === 'INCOMING',
     status: m.status, mediaStatus: m.mediaStatus, sentAt: m.sentAt ?? null, createdAt: m.createdAt,
     attachment: att ? { id: att.id, mimeType: att.mimeType, sizeBytes: att.sizeBytes, originalFileName: att.originalFileName } : null,
+    replyTo: quoted
+      ? {
+          id: quoted.id, content: quoted.content, caption: quoted.caption ?? null,
+          messageType: quoted.messageType ?? 'TEXT', direction: quoted.direction,
+          attachment: quotedAtt ? { id: quotedAtt.id, mimeType: quotedAtt.mimeType } : null,
+        }
+      : null,
   };
 }
 
@@ -35,6 +44,7 @@ export async function POST(request: NextRequest) {
     const file = form?.get('file');
     const conversationId = String(form?.get('conversationId') || '');
     const caption = (form?.get('caption') ? String(form?.get('caption')) : '').trim() || null;
+    const replyToMessageId = (form?.get('replyToMessageId') ? String(form?.get('replyToMessageId')) : '').trim() || null;
     if (!(file instanceof File) || !conversationId) {
       return NextResponse.json({ error: 'Arquivo e conversa são obrigatórios' }, { status: 400 });
     }
@@ -45,6 +55,17 @@ export async function POST(request: NextRequest) {
       include: { contact: { select: { phone: true } } },
     });
     if (!conv) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 });
+
+    // "Responder": a citada precisa ser desta MESMA conversa — nunca confia
+    // no id que o cliente manda sem checar posse.
+    let quotedMessage: { id: string; externalId: string | null; direction: string; content: string; caption: string | null } | null = null;
+    if (replyToMessageId) {
+      quotedMessage = await prisma.message.findFirst({
+        where: { id: replyToMessageId, conversationId: conv.id, companyId: dbUser!.companyId },
+        select: { id: true, externalId: true, direction: true, content: true, caption: true },
+      });
+      if (!quotedMessage) return NextResponse.json({ error: 'Mensagem citada não encontrada' }, { status: 400 });
+    }
     // Envio de mídia só existe onde há adapter de saída (hoje: WhatsApp).
     if (conv.channel !== Channel.WHATSAPP) {
       return NextResponse.json(
@@ -79,6 +100,8 @@ export async function POST(request: NextRequest) {
         channel: conv.channel, accountId: conv.accountId, source: MessageSource.CRM,
         content, caption, messageType, direction: 'OUTGOING',
         status: 'PENDING', mediaStatus: 'PENDING', createdByUserId: dbUser!.id,
+        replyToMessageId: quotedMessage?.id ?? null,
+        replyToExternalId: quotedMessage?.externalId ?? null,
       },
     });
 
@@ -118,9 +141,23 @@ export async function POST(request: NextRequest) {
     // Áudio vai como NOTA DE VOZ (sendWhatsAppAudio); imagem/documento via sendMedia.
     const base64 = Buffer.from(bytes).toString('base64');
     const convRef = { companyId: dbUser!.companyId, instanceId: conv.accountId };
+    // Encadear no WhatsApp real exige o externalId (key.id) da citada — uma
+    // mensagem nossa ainda PENDING (nunca confirmada pelo provedor) não tem.
+    // Sem isso, a resposta ainda fica registrada aqui (replyToMessageId acima),
+    // só não aparece "respondendo a" no aparelho do paciente. Áudio (nota de
+    // voz) fica de fora por ora — fora do escopo pedido (é sobre imagem).
+    const quotedRef: QuotedRef | undefined =
+      category !== 'audio' && quotedMessage?.externalId
+        ? {
+            remoteJid: contactPhone,
+            externalId: quotedMessage.externalId,
+            fromMe: quotedMessage.direction === 'OUTGOING',
+            previewText: quotedMessage.caption || quotedMessage.content,
+          }
+        : undefined;
     const sent = category === 'audio'
       ? await sendAudioForConversation(convRef, contactPhone, base64)
-      : await sendMediaForConversation(convRef, contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: up.mimeType, base64, fileName: up.originalFileName, caption: caption ?? undefined });
+      : await sendMediaForConversation(convRef, contactPhone, { mediatype: category === 'image' ? 'image' : 'document', mimetype: up.mimeType, base64, fileName: up.originalFileName, caption: caption ?? undefined, quoted: quotedRef });
     const status = !sent.configured ? 'PENDING' : sent.ok ? 'SENT' : 'FAILED';
     const usedInstanceId = sent.instanceId ?? conv.accountId ?? null;
 
@@ -132,6 +169,7 @@ export async function POST(request: NextRequest) {
         failedAt: status === 'FAILED' ? new Date() : null,
         errorMessage: status === 'FAILED' ? sent.error ?? 'falha no envio pela Evolution' : null,
       },
+      include: { replyToMessage: { include: { attachments: { where: { deletedAt: null } } } } },
     });
     await prisma.conversation.update({
       where: { id: conv.id },

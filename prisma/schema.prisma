@@ -725,9 +725,17 @@ model Message {
   account      ChannelAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
   attachments  MessageAttachment[]
 
+  // "Responder"/quote: replyToMessageId já existia como coluna solta (sem
+  // relação) — a FK abaixo é quem passa a permitir `include: replyToMessage`
+  // ao serializar a bolha. SetNull: se a citada sumir, a resposta continua
+  // existindo, só perde o preview.
+  replyToMessage Message?  @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies        Message[] @relation("MessageReply")
+
   @@index([conversationId, createdAt])
   @@index([companyId, createdAt])
   @@index([companyId, channel, createdAt])
+  @@index([replyToMessageId])
   // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
   @@unique([accountId, externalId])
   @@map("messages")

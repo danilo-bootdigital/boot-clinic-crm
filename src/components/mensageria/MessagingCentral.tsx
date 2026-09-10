@@ -15,6 +15,8 @@ import {
   CalendarDays,
   Bell,
   Settings,
+  Reply,
+  Smile,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,6 +34,7 @@ import { SendToPipeline } from '@/components/mensageria/SendToPipeline';
 import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromConversation';
 import { NewQuoteFromConversation } from '@/components/mensageria/NewQuoteFromConversation';
 import { ConversationTasks } from '@/components/mensageria/ConversationTasks';
+import { EmojiButton } from '@/components/mensageria/EmojiButton';
 import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
@@ -112,6 +115,15 @@ interface WhatsAppMessage {
   /** Motivo da falha, quando o provedor recusou o envio. */
   errorMessage?: string | null;
   attachment?: WhatsAppAttachment | null;
+  /** "Respondendo a" — preview mínimo da mensagem citada; null quando não é resposta. */
+  replyTo?: {
+    id: string;
+    content: string;
+    caption: string | null;
+    messageType: string;
+    direction?: 'INCOMING' | 'OUTGOING';
+    attachment?: { id: string; mimeType: string } | null;
+  } | null;
 }
 
 interface WhatsAppQuickReply {
@@ -135,6 +147,34 @@ interface PendingAttachment {
 
 interface MessagingCentralProps {
   onMessageSend?: (message: string, conversationId: string) => void;
+}
+
+const REPLY_MEDIA_LABEL: Record<string, string> = { IMAGE: '📷 Imagem', AUDIO: '🎤 Áudio', VIDEO: '🎬 Vídeo', DOCUMENT: '📎 Documento' };
+
+/** Texto curto pro preview de "respondendo a" — legenda/texto, ou o rótulo do tipo de mídia. */
+function replySnippet(m: { content: string; caption?: string | null; messageType?: string | null }) {
+  const texto = m.caption || m.content;
+  if (m.messageType && m.messageType !== 'TEXT' && REPLY_MEDIA_LABEL[m.messageType]) {
+    return m.caption ? `${REPLY_MEDIA_LABEL[m.messageType]} · ${m.caption}` : REPLY_MEDIA_LABEL[m.messageType];
+  }
+  return texto;
+}
+
+/** Barrinha de preview "respondendo a" — usada acima do composer e dentro da bolha citante. */
+function QuotedPreview({ quoted, onCancel }: { quoted: { content: string; caption?: string | null; messageType?: string | null; direction?: 'INCOMING' | 'OUTGOING' }; onCancel?: () => void }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border-l-4 border-primary bg-primary/5 px-2.5 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-primary">{quoted.direction === 'INCOMING' ? 'Paciente' : 'Você'}</p>
+        <p className="truncate text-xs text-muted-foreground">{replySnippet(quoted)}</p>
+      </div>
+      {onCancel && (
+        <button type="button" onClick={onCancel} className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted" aria-label="Cancelar resposta">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
 }
 
 /** Dia da mensagem em rótulo curto — separador da thread. */
@@ -186,6 +226,9 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   // um com a própria legenda.
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  // "Responder": mensagem citada, igual ao "swipe to reply" do WhatsApp — some
+  // ao trocar de conversa (contexto errado) ou depois do envio.
+  const [replyTarget, setReplyTarget] = useState<WhatsAppMessage | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   // Espelho do `sending` em ref: dois Enter no mesmo frame leem o MESMO valor de
@@ -268,6 +311,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
 
   // Troca de conversa: carrega a thread e desce para a última mensagem.
   useEffect(() => {
+    setReplyTarget(null); // contexto de resposta é desta conversa — não segue pra outra
     if (!selectedId) {
       setMessages([]);
       return;
@@ -375,6 +419,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
           conversationId: selectedConversation.id,
           type: 'TEXT',
           content: texto,
+          replyToMessageId: replyTarget?.id,
         }),
       });
       if (!response.ok) {
@@ -407,6 +452,21 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       });
     }
     if (novos.length) setAttachments((prev) => [...prev, ...novos]);
+  };
+
+  /** Insere no ponto do cursor (não só no fim) — comum digitar, abrir o emoji, continuar. */
+  const insertEmoji = (emoji: string) => {
+    const el = composerRef.current;
+    if (!el) { setNewMessage((m) => m + emoji); return; }
+    const start = el.selectionStart ?? newMessage.length;
+    const end = el.selectionEnd ?? newMessage.length;
+    const next = newMessage.slice(0, start) + emoji + newMessage.slice(end);
+    setNewMessage(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
   };
 
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -493,6 +553,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
           fd.append('conversationId', selectedConversation.id);
           const legenda = item.caption.trim();
           if (legenda) fd.append('caption', legenda);
+          if (replyTarget) fd.append('replyToMessageId', replyTarget.id);
           const res = await fetch('/api/mensageria/messages/media', { method: 'POST', body: fd });
           if (!res.ok) {
             const er = await res.json().catch(() => ({}));
@@ -506,11 +567,13 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
           setNewMessage('');
           if (!(await sendTextMessage(texto))) setNewMessage(texto);
         }
+        setReplyTarget(null);
       } else {
         // Limpa o campo AGORA: sem retorno visual imediato o atendente aperta
         // Enter de novo. Se o envio falhar, o texto volta — nada se perde.
         setNewMessage('');
-        if (!(await sendTextMessage(texto))) setNewMessage(texto);
+        if (await sendTextMessage(texto)) setReplyTarget(null);
+        else setNewMessage(texto);
       }
     } finally {
       sendingRef.current = false;
@@ -924,7 +987,19 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                             </span>
                           </div>
                         )}
-                        <div className={cn('flex', isIn ? 'justify-start' : 'justify-end')}>
+                        <div className={cn('group flex items-center gap-1', isIn ? 'justify-start' : 'justify-end')}>
+                          {/* Responder: só aparece no hover (padrão WhatsApp) — some no
+                              lugar errado da tela seria ruído em toda mensagem sempre visível. */}
+                          {!isIn && (
+                            <button
+                              onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
+                              title="Responder"
+                              aria-label="Responder"
+                              className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                            >
+                              <Reply className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <div
                             className={cn(
                               'max-w-[85%] rounded-xl px-3 py-2 shadow-sm sm:max-w-md',
@@ -934,6 +1009,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                             // thread de um só canal a etiqueta em cada bolha era ruído.
                             title={provenanceTitle(message)}
                           >
+                            {message.replyTo && (
+                              <div className="mb-1.5">
+                                <QuotedPreview quoted={message.replyTo} />
+                              </div>
+                            )}
                             {isMedia && (
                               <MessageMediaBubble
                                 messageType={message.messageType as 'IMAGE' | 'DOCUMENT' | 'AUDIO'}
@@ -991,6 +1071,16 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                               )}
                             </div>
                           </div>
+                          {isIn && (
+                            <button
+                              onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
+                              title="Responder"
+                              aria-label="Responder"
+                              className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                            >
+                              <Reply className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1002,6 +1092,12 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             {/* Composer */}
             <div className="shrink-0 border-t border-border bg-card px-3 py-3 lg:px-4">
               <div className="mx-auto max-w-3xl">
+                {/* "Respondendo a" — mesma ideia do swipe-to-reply do WhatsApp. */}
+                {replyTarget && (
+                  <div className="mb-2.5">
+                    <QuotedPreview quoted={replyTarget} onCancel={() => setReplyTarget(null)} />
+                  </div>
+                )}
                 {/* Fila de anexos — um ou vários, cada um com a própria legenda. */}
                 {attachments.length > 0 && (
                   <div className="mb-2.5 space-y-2">
@@ -1096,6 +1192,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   >
                     <Mic className="h-4 w-4" />
                   </button>
+                  <EmojiButton onSelect={insertEmoji} />
                   <Link
                     href="/mensageria/mensagens-prontas"
                     title="Mensagens prontas"

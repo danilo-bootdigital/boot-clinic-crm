@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { Channel, MessageSource, Prisma } from '@prisma/client';
 import { ingestMessage, ingestInboundMedia, upsertContactProfile } from '@/lib/messaging/ingest';
-import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMessage } from '@/lib/messaging/adapters/whatsapp/classify';
+import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMessage, extractQuotedExternalId } from '@/lib/messaging/adapters/whatsapp/classify';
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
 import { downloadAndStoreInboundMedia } from '@/lib/messaging/adapters/whatsapp/media-inbound';
 import { ackToStatus, statusPatch } from '@/lib/messaging/adapters/whatsapp/message-status';
@@ -296,6 +296,7 @@ export async function POST(request: NextRequest) {
         const phone = jidToPhone(msg?.key?.remoteJid) ?? altPhoneFromKey(msg?.key);
         const text = extractText(msg?.message);
         const mtype = classifyMessage(msg?.message);
+        const replyToExternalId = extractQuotedExternalId(msg?.message) ?? null;
         if (!firstType) firstType = mtype;
         if (!firstExternalId) firstExternalId = msg?.key?.id ?? null;
         const ts = msg?.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000) : undefined;
@@ -312,7 +313,7 @@ export async function POST(request: NextRequest) {
             },
             contact: { externalId, name: msg?.pushName, phone },
             messageKind: mtype, caption: text ?? null,
-            externalId: msg?.key?.id ?? null, createdAt: ts,
+            externalId: msg?.key?.id ?? null, replyToExternalId, createdAt: ts,
           });
           if (ing.status === 'duplicate') { dup++; continue; }
           if (ing.status !== 'created' || !ing.messageId || !ing.conversationId) { skipped++; continue; }
@@ -339,6 +340,7 @@ export async function POST(request: NextRequest) {
           text,
           messageKind: mtype,
           externalId: msg?.key?.id ?? null,
+          replyToExternalId,
           createdAt: ts,
           isHistory,
         });
