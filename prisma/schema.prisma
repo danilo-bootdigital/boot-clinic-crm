@@ -796,20 +796,39 @@ model QuickReply {
   // linhas antigas; toda mensagem criada pela página exige preencher.
   keyword   String?
   isActive  Boolean   @default(true)
-  // Anexo opcional (imagem ou PDF) — reaproveita o bucket privado
-  // whatsapp-media (lib/storage/messaging-storage.ts), path próprio em
-  // "{companyId}/quick-replies/...". Path nunca sai pro cliente; a página só
-  // vê nome/tipo/tamanho — o disparo baixa os bytes por id (rota dedicada).
-  attachmentPath      String?
-  attachmentMimeType  String?
-  attachmentFileName  String?
-  attachmentSizeBytes Int?
   createdAt DateTime  @default(now())
   deletedAt DateTime?
+
+  attachments QuickReplyAttachment[]
 
   @@index([companyId])
   @@index([companyId, keyword])
   @@map("quick_replies")
+}
+
+// Anexo (imagem ou PDF) de uma mensagem pronta — várias por mensagem, cada
+// uma com a própria legenda (`caption`), enviadas em sequência ao disparar
+// pelo "/palavra". Reaproveita o bucket privado whatsapp-media (lib/storage/
+// messaging-storage.ts), path próprio em "{companyId}/quick-replies/...".
+// `path` nunca sai pro cliente; a página só vê nome/tipo/tamanho/legenda — o
+// disparo baixa os bytes por id (rota dedicada).
+model QuickReplyAttachment {
+  id           String    @id @default(cuid())
+  companyId    String
+  quickReplyId String
+  path         String
+  mimeType     String
+  fileName     String
+  sizeBytes    Int
+  caption      String?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  quickReply QuickReply @relation(fields: [quickReplyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([quickReplyId, order])
+  @@map("quick_reply_attachments")
 }
 
 

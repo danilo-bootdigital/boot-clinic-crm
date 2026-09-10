@@ -122,8 +122,15 @@ interface WhatsAppQuickReply {
   keyword?: string | null;
   isActive?: boolean;
   hasAttachment?: boolean;
-  attachmentFileName?: string | null;
-  attachmentMimeType?: string | null;
+  attachments?: { id: string; fileName: string; mimeType: string; sizeBytes: number | null; caption: string | null }[];
+}
+
+/** Um anexo na fila do composer, ainda não enviado — `file` já pronto pro POST multipart. */
+interface PendingAttachment {
+  key: string;
+  file: File;
+  caption: string;
+  previewUrl: string | null;
 }
 
 interface MessagingCentralProps {
@@ -174,9 +181,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   const [newConv, setNewConv] = useState({ contactName: '', contactPhone: '' });
   const [newConvError, setNewConvError] = useState<string | null>(null);
   const [creatingConv, setCreatingConv] = useState(false);
-  // Mídia (imagem/documento)
-  const [file, setFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
+  // Mídia (imagem/documento) — fila: dá pra anexar/enviar mais de um arquivo
+  // de uma vez (é o que uma mensagem pronta com várias imagens precisa), cada
+  // um com a própria legenda.
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -354,19 +362,9 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     }
   }
 
-  const handleSendMessage = async () => {
-    const enviada = newMessage.trim();
-    // Trava de envio em curso: sem ela, cada Enter/clique durante os 1-2s de
-    // resposta do provedor era UMA mensagem a mais chegando no paciente.
-    if (!enviada || !selectedConversation || sendingRef.current) return;
-    sendingRef.current = true;
-    setSending(true);
-    setSendError(null);
-    nearBottomRef.current = true;
-    // Limpa o campo AGORA: sem retorno visual imediato o atendente aperta Enter
-    // de novo. Se o envio falhar, o texto volta — nada digitado se perde.
-    setNewMessage('');
-
+  /** Uma mensagem de texto isolada — usada tanto sozinha quanto depois da fila de anexos. */
+  async function sendTextMessage(texto: string): Promise<boolean> {
+    if (!selectedConversation) return false;
     try {
       const response = await fetch('/api/mensageria/messages', {
         method: 'POST',
@@ -376,101 +374,144 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
           // o cliente não escolhe por qual número a clínica responde.
           conversationId: selectedConversation.id,
           type: 'TEXT',
-          content: enviada,
+          content: texto,
         }),
       });
-
       if (!response.ok) {
         const er = await response.json().catch(() => ({}));
         setSendError(er.error || 'Falha ao enviar a mensagem');
-        setNewMessage(enviada);
-        return;
+        return false;
       }
       await loadMessages(selectedConversation.id);
-      if (onMessageSend) onMessageSend(enviada, selectedConversation.id);
+      if (onMessageSend) onMessageSend(texto, selectedConversation.id);
+      return true;
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
       setSendError('Falha de rede ao enviar a mensagem');
-      setNewMessage(enviada);
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
-    }
-  };
-
-  // Compartilhada entre o seletor manual (onPickFile) e a mensagem pronta com
-  // anexo (pickQuickReply): as duas acabam num File, que segue pro MESMO
-  // handleSendMedia — sem isso o disparo por "/palavra" duplicaria a lógica
-  // de upload → Message → MessageAttachment → Evolution.
-  const applyPickedFile = (f: File) => {
-    setFileError(null);
-    setSendError(null);
-    const v = clientValidateFile({ type: f.type, name: f.name, size: f.size });
-    if (!v.ok) {
-      setFileError(v.error || 'Arquivo inválido');
       return false;
-    }
-    setFile(f);
-    setFilePreview(f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
-    return true;
-  };
-
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!applyPickedFile(f) && fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  /**
-   * Escolher uma mensagem pronta: preenche o texto e, se ela tiver anexo,
-   * baixa o arquivo já salvo e aplica no MESMO composer de mídia — o
-   * atendente ainda revisa e clica em enviar, igual a qualquer anexo manual.
-   */
-  async function pickQuickReply(qr: WhatsAppQuickReply) {
-    setNewMessage(qr.content || qr.message || '');
-    composerRef.current?.focus();
-    if (!qr.hasAttachment) return;
-    try {
-      const res = await fetch(`/api/mensageria/quick-replies/${qr.id}/attachment`);
-      if (!res.ok) { setFileError('Não foi possível carregar o anexo desta mensagem.'); return; }
-      const blob = await res.blob();
-      const f = new File([blob], qr.attachmentFileName || 'arquivo', { type: qr.attachmentMimeType || blob.type });
-      applyPickedFile(f);
-    } catch {
-      setFileError('Falha de rede ao carregar o anexo desta mensagem.');
     }
   }
 
-  const clearFile = () => {
-    if (filePreview) URL.revokeObjectURL(filePreview);
-    setFile(null);
-    setFilePreview(null);
+  const addFilesToQueue = (files: File[]) => {
+    setFileError(null);
+    setSendError(null);
+    const novos: PendingAttachment[] = [];
+    for (const f of files) {
+      const v = clientValidateFile({ type: f.type, name: f.name, size: f.size });
+      if (!v.ok) { setFileError(`${f.name}: ${v.error || 'arquivo inválido'}`); continue; }
+      novos.push({
+        key: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        file: f,
+        caption: '',
+        previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+      });
+    }
+    if (novos.length) setAttachments((prev) => [...prev, ...novos]);
+  };
+
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFilesToQueue(Array.from(e.target.files || []));
+    if (fileInputRef.current) fileInputRef.current.value = ''; // permite escolher o mesmo arquivo de novo depois
+  };
+
+  const removeAttachment = (key: string) => {
+    setAttachments((prev) => {
+      const alvo = prev.find((a) => a.key === key);
+      if (alvo?.previewUrl) URL.revokeObjectURL(alvo.previewUrl);
+      return prev.filter((a) => a.key !== key);
+    });
+  };
+
+  const setAttachmentCaption = (key: string, caption: string) => {
+    setAttachments((prev) => prev.map((a) => (a.key === key ? { ...a, caption } : a)));
+  };
+
+  const clearAttachments = () => {
+    attachments.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+    setAttachments([]);
     setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSendMedia = async () => {
-    if (!file || !selectedConversation || sendingRef.current) return;
+  /**
+   * Escolher uma mensagem pronta: preenche o texto e, se ela tiver anexos,
+   * baixa cada um já salvo (com a legenda cadastrada) e entra na MESMA fila
+   * do composer — o atendente ainda revisa (e pode editar legenda/remover
+   * item) e clica em enviar, igual a qualquer anexo manual.
+   */
+  async function pickQuickReply(qr: WhatsAppQuickReply) {
+    setNewMessage(qr.content || qr.message || '');
+    composerRef.current?.focus();
+    if (!qr.attachments?.length) return;
+    try {
+      const baixados = await Promise.all(
+        qr.attachments.map(async (a) => {
+          const res = await fetch(`/api/mensageria/quick-replies/${qr.id}/attachments/${a.id}`);
+          if (!res.ok) return null;
+          const blob = await res.blob();
+          const f = new File([blob], a.fileName, { type: a.mimeType || blob.type });
+          const item: PendingAttachment = {
+            key: `${Date.now()}_${Math.random().toString(36).slice(2)}_${a.id}`,
+            file: f,
+            caption: a.caption || '',
+            previewUrl: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+          };
+          return item;
+        })
+      );
+      const ok = baixados.filter((x): x is PendingAttachment => x !== null);
+      if (ok.length < qr.attachments.length) setFileError('Alguns anexos desta mensagem não puderam ser carregados.');
+      if (ok.length) setAttachments((prev) => [...prev, ...ok]);
+    } catch {
+      setFileError('Falha de rede ao carregar os anexos desta mensagem.');
+    }
+  }
+
+  /**
+   * Envio único: texto sozinho OU fila de anexos (cada um vira uma mensagem
+   * de mídia própria, na ordem, com a própria legenda) seguida do texto
+   * solto, se sobrar algo digitado. Trava por sendingRef: sem ela, cada
+   * Enter/clique durante os 1-2s de resposta do provedor era UMA mensagem a
+   * mais chegando no paciente.
+   */
+  const handleSend = async () => {
+    const texto = newMessage.trim();
+    if (!selectedConversation || sendingRef.current || (!texto && attachments.length === 0)) return;
     sendingRef.current = true;
     setSending(true);
     setSendError(null);
     nearBottomRef.current = true;
+
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('conversationId', selectedConversation.id);
-      if (newMessage.trim()) fd.append('caption', newMessage.trim());
-      const res = await fetch('/api/mensageria/messages/media', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const er = await res.json().catch(() => ({}));
-        setSendError(er.error || 'Falha ao enviar o arquivo');
-        return;
+      if (attachments.length > 0) {
+        // Fila de mídia primeiro. Uma falha no meio para o envio e deixa o
+        // restante (a partir dali) na fila para o atendente tentar de novo —
+        // o que já saiu não precisa ser reenviado.
+        for (const item of attachments) {
+          const fd = new FormData();
+          fd.append('file', item.file);
+          fd.append('conversationId', selectedConversation.id);
+          const legenda = item.caption.trim();
+          if (legenda) fd.append('caption', legenda);
+          const res = await fetch('/api/mensageria/messages/media', { method: 'POST', body: fd });
+          if (!res.ok) {
+            const er = await res.json().catch(() => ({}));
+            setSendError(er.error || `Falha ao enviar ${item.file.name}`);
+            return;
+          }
+          removeAttachment(item.key);
+          await loadMessages(selectedConversation.id);
+        }
+        if (texto) {
+          setNewMessage('');
+          if (!(await sendTextMessage(texto))) setNewMessage(texto);
+        }
+      } else {
+        // Limpa o campo AGORA: sem retorno visual imediato o atendente aperta
+        // Enter de novo. Se o envio falhar, o texto volta — nada se perde.
+        setNewMessage('');
+        if (!(await sendTextMessage(texto))) setNewMessage(texto);
       }
-      clearFile();
-      setNewMessage('');
-      await loadMessages(selectedConversation.id);
-    } catch {
-      setSendError('Falha ao enviar o arquivo');
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -558,7 +599,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSend();
     }
   };
 
@@ -961,24 +1002,39 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             {/* Composer */}
             <div className="shrink-0 border-t border-border bg-card px-3 py-3 lg:px-4">
               <div className="mx-auto max-w-3xl">
-                {/* Preview do anexo selecionado */}
-                {file && (
-                  <div className="mb-2.5 flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
-                    {filePreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={filePreview} alt="Pré-visualização" className="h-14 w-14 rounded object-cover" />
-                    ) : (
-                      <div className="grid h-14 w-14 place-items-center rounded bg-muted">
-                        <Paperclip className="h-5 w-5 text-muted-foreground" />
+                {/* Fila de anexos — um ou vários, cada um com a própria legenda. */}
+                {attachments.length > 0 && (
+                  <div className="mb-2.5 space-y-2">
+                    {attachments.map((att) => (
+                      <div key={att.key} className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
+                        {att.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={att.previewUrl} alt="Pré-visualização" className="h-14 w-14 shrink-0 rounded object-cover" />
+                        ) : (
+                          <div className="grid h-14 w-14 shrink-0 place-items-center rounded bg-muted">
+                            <Paperclip className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p className="truncate text-sm font-medium text-foreground">{att.file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatBytes(att.file.size)}</p>
+                          <Input
+                            value={att.caption}
+                            onChange={(e) => setAttachmentCaption(att.key, e.target.value)}
+                            placeholder="Legenda desta imagem (opcional)"
+                            className="h-7 w-full text-xs"
+                          />
+                        </div>
+                        <button onClick={() => removeAttachment(att.key)} className="grid h-8 w-8 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted" aria-label="Remover anexo">
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
+                    ))}
+                    {attachments.length > 1 && (
+                      <button type="button" onClick={clearAttachments} className="text-xs text-muted-foreground underline hover:text-foreground">
+                        Remover todos
+                      </button>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · legenda opcional abaixo</p>
-                    </div>
-                    <button onClick={clearFile} className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:bg-muted" aria-label="Remover anexo">
-                      <X className="h-4 w-4" />
-                    </button>
                   </div>
                 )}
                 {/* Gravação / preview do áudio */}
@@ -1014,12 +1070,12 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
 
                 <div className="flex items-end gap-2">
-                  <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} className="hidden" onChange={onPickFile} />
+                  <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} multiple className="hidden" onChange={onPickFile} />
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={sending || recording || !!recordedUrl}
-                    title="Anexar imagem ou documento"
+                    title="Anexar imagem ou documento (pode escolher mais de um)"
                     aria-label="Anexar imagem ou documento"
                     className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                   >
@@ -1028,7 +1084,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                   <button
                     type="button"
                     onClick={recording ? stopRecording : startRecording}
-                    disabled={sending || !!file || !!recordedUrl}
+                    disabled={sending || attachments.length > 0 || !!recordedUrl}
                     title={recording ? 'Parar gravação' : 'Gravar áudio'}
                     aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
                     className={cn(
@@ -1076,20 +1132,22 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                       ref={composerRef}
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={file ? undefined : handleKeyDown}
-                      placeholder={file ? 'Legenda (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta)'}
+                      onKeyDown={attachments.length > 0 ? undefined : handleKeyDown}
+                      placeholder={attachments.length > 0 ? 'Mensagem de texto separada (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta)'}
                       className="max-h-40 min-h-[40px] w-full resize-none py-2.5"
                       rows={1}
                     />
                   </div>
                   <button
                     type="button"
-                    onClick={file ? handleSendMedia : handleSendMessage}
-                    disabled={sending || (!file && !newMessage.trim())}
+                    onClick={handleSend}
+                    disabled={sending || (attachments.length === 0 && !newMessage.trim())}
                     className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     <Send className="h-4 w-4" />
-                    <span className="hidden sm:inline">{sending ? 'Enviando…' : file ? 'Enviar arquivo' : 'Enviar'}</span>
+                    <span className="hidden sm:inline">
+                      {sending ? 'Enviando…' : attachments.length > 1 ? `Enviar (${attachments.length})` : attachments.length === 1 ? 'Enviar arquivo' : 'Enviar'}
+                    </span>
                   </button>
                 </div>
               </div>

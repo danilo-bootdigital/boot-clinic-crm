@@ -6,17 +6,28 @@ import { requirePermission } from '@/lib/api/permissions';
 import { normalizeKeyword } from '@/lib/messaging/quick-replies';
 import { pathBelongsToCompany, deleteWhatsappMedia } from '@/lib/storage/messaging-storage';
 
+// `id` presente = anexo já existente (só atualiza legenda/ordem); `path` +
+// companheiros presentes = upload novo (acabou de subir via /attachment).
+const AttachmentItemSchema = z.object({
+  id: z.string().optional(),
+  path: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileName: z.string().optional(),
+  sizeBytes: z.number().int().positive().optional(),
+  caption: z.string().optional(),
+});
+
 const UpdateSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional(),
   keyword: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
-  attachmentPath: z.string().optional(),
-  attachmentMimeType: z.string().optional(),
-  attachmentFileName: z.string().optional(),
-  attachmentSizeBytes: z.number().int().positive().optional(),
-  /** Remove o anexo existente sem substituir por outro. */
-  removeAttachment: z.boolean().optional(),
+  /**
+   * Lista completa (substitui tudo) — quando presente, sincroniza: item com
+   * `id` mantém o arquivo e só atualiza legenda/ordem; sem `id` é upload
+   * novo; o que existia e não está mais na lista é removido (banco + storage).
+   */
+  attachments: z.array(AttachmentItemSchema).optional(),
 });
 
 // PUT /api/mensageria/quick-replies/[id]
@@ -29,6 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const existing = await prisma.quickReply.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
+      include: { attachments: true },
     });
     if (!existing) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 });
 
@@ -47,22 +59,56 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       }
     }
 
-    if (d.attachmentPath && !pathBelongsToCompany(d.attachmentPath, dbUser!.companyId)) {
-      return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
-    }
-
-    // Novo anexo substitui o antigo; `removeAttachment` limpa sem substituir.
-    // Nos dois casos, o arquivo antigo (se houver) é apagado do storage —
-    // best-effort: uma falha aqui não deve travar a atualização do registro.
-    const novoPath = d.removeAttachment ? null : (d.attachmentPath !== undefined ? d.attachmentPath : existing.attachmentPath);
-    const trocouAnexo = novoPath !== existing.attachmentPath;
-    if (trocouAnexo && existing.attachmentPath) {
-      await deleteWhatsappMedia(existing.attachmentPath, dbUser!.companyId).catch(() => {});
+    const existingIds = new Set(existing.attachments.map((a) => a.id));
+    if (d.attachments !== undefined) {
+      for (const a of d.attachments) {
+        if (a.id) {
+          if (!existingIds.has(a.id)) return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
+        } else if (!a.path || !a.mimeType || !a.fileName || !a.sizeBytes) {
+          return NextResponse.json({ error: 'Anexo novo incompleto' }, { status: 400 });
+        } else if (!pathBelongsToCompany(a.path, dbUser!.companyId)) {
+          return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
+        }
+      }
     }
 
     const novoContent = d.content !== undefined ? (d.content.trim() || null) : existing.content;
-    if (!novoContent && !novoPath) {
+    const anexosFinais = d.attachments ?? existing.attachments;
+    if (!novoContent && anexosFinais.length === 0) {
       return NextResponse.json({ error: 'Preencha o texto ou anexe uma imagem/PDF' }, { status: 400 });
+    }
+
+    if (d.attachments !== undefined) {
+      const keepIds = new Set(d.attachments.filter((a) => a.id).map((a) => a.id));
+      const remover = existing.attachments.filter((a) => !keepIds.has(a.id));
+      // Storage primeiro (best-effort — uma falha aqui não deve travar a
+      // atualização), banco depois.
+      for (const a of remover) await deleteWhatsappMedia(a.path, dbUser!.companyId).catch(() => {});
+      if (remover.length) {
+        await prisma.quickReplyAttachment.deleteMany({ where: { id: { in: remover.map((a) => a.id) } } });
+      }
+      for (let order = 0; order < d.attachments.length; order++) {
+        const a = d.attachments[order];
+        if (a.id) {
+          await prisma.quickReplyAttachment.update({
+            where: { id: a.id },
+            data: { caption: a.caption?.trim() || null, order },
+          });
+        } else {
+          await prisma.quickReplyAttachment.create({
+            data: {
+              quickReplyId: params.id,
+              companyId: dbUser!.companyId,
+              path: a.path!,
+              mimeType: a.mimeType!,
+              fileName: a.fileName!,
+              sizeBytes: a.sizeBytes!,
+              caption: a.caption?.trim() || null,
+              order,
+            },
+          });
+        }
+      }
     }
 
     const item = await prisma.quickReply.update({
@@ -72,13 +118,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         ...(d.content !== undefined && { content: novoContent }),
         ...(keyword !== undefined && { keyword }),
         ...(d.isActive !== undefined && { isActive: d.isActive }),
-        ...(trocouAnexo && {
-          attachmentPath: novoPath,
-          attachmentMimeType: novoPath ? d.attachmentMimeType || null : null,
-          attachmentFileName: novoPath ? d.attachmentFileName || null : null,
-          attachmentSizeBytes: novoPath ? d.attachmentSizeBytes || null : null,
-        }),
       },
+      include: { attachments: { orderBy: { order: 'asc' } } },
     });
     return NextResponse.json(item);
   } catch (err) {
@@ -98,12 +139,13 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
 
     const existing = await prisma.quickReply.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
+      include: { attachments: true },
     });
     if (!existing) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 });
 
     await prisma.quickReply.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
-    if (existing.attachmentPath) {
-      await deleteWhatsappMedia(existing.attachmentPath, dbUser!.companyId).catch(() => {});
+    for (const a of existing.attachments) {
+      await deleteWhatsappMedia(a.path, dbUser!.companyId).catch(() => {});
     }
     return NextResponse.json({ success: true });
   } catch (err) {

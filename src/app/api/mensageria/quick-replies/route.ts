@@ -12,19 +12,24 @@ const DEFAULTS = [
   { title: 'Lembrete', content: 'Lembrete: sua consulta está agendada. Até breve!', keyword: 'lembrete' },
 ];
 
-// `content` é opcional no schema: mensagem pode ser só o anexo. O `.refine`
+const AttachmentItemSchema = z.object({
+  path: z.string().min(1),
+  mimeType: z.string().min(1),
+  fileName: z.string().min(1),
+  sizeBytes: z.number().int().positive(),
+  caption: z.string().optional(),
+});
+
+// `content` é opcional no schema: mensagem pode ser só os anexos. O `.refine`
 // abaixo é quem garante que não sobra uma mensagem sem texto E sem anexo.
 const Schema = z
   .object({
     title: z.string().min(1),
     content: z.string().optional(),
     keyword: z.string().min(1, 'Palavra-chave é obrigatória'),
-    attachmentPath: z.string().optional(),
-    attachmentMimeType: z.string().optional(),
-    attachmentFileName: z.string().optional(),
-    attachmentSizeBytes: z.number().int().positive().optional(),
+    attachments: z.array(AttachmentItemSchema).optional(),
   })
-  .refine((d) => !!(d.content?.trim() || d.attachmentPath), {
+  .refine((d) => !!(d.content?.trim() || d.attachments?.length), {
     message: 'Preencha o texto ou anexe uma imagem/PDF',
     path: ['content'],
   });
@@ -48,15 +53,16 @@ export async function GET(request: NextRequest) {
     const items = await prisma.quickReply.findMany({
       where: { companyId: dbUser!.companyId, deletedAt: null, ...(all ? {} : { isActive: true }) },
       orderBy: { title: 'asc' },
+      include: { attachments: { orderBy: { order: 'asc' } } },
     });
-    // Compat: o componente usa `message` e/ou `content`. `attachmentPath`
-    // nunca sai daqui — só nome/tipo/tamanho; os bytes vêm pela rota dedicada.
+    // Compat: o componente usa `message` e/ou `content`. `path` nunca sai
+    // daqui — só nome/tipo/tamanho/legenda; os bytes vêm pela rota dedicada.
     return NextResponse.json(items.map((q) => ({
       id: q.id, title: q.title, content: q.content, message: q.content, keyword: q.keyword, isActive: q.isActive,
-      hasAttachment: !!q.attachmentPath,
-      attachmentFileName: q.attachmentFileName,
-      attachmentMimeType: q.attachmentMimeType,
-      attachmentSizeBytes: q.attachmentSizeBytes,
+      hasAttachment: q.attachments.length > 0,
+      attachments: q.attachments.map((a) => ({
+        id: a.id, fileName: a.fileName, mimeType: a.mimeType, sizeBytes: a.sizeBytes, caption: a.caption,
+      })),
     })));
   } catch (err) {
     console.error('Erro ao listar respostas rápidas:', err);
@@ -82,8 +88,10 @@ export async function POST(request: NextRequest) {
     });
     if (dup) return NextResponse.json({ error: `Já existe uma mensagem com a palavra-chave "/${keyword}"` }, { status: 400 });
 
-    if (d.attachmentPath && !pathBelongsToCompany(d.attachmentPath, dbUser!.companyId)) {
-      return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
+    for (const a of d.attachments ?? []) {
+      if (!pathBelongsToCompany(a.path, dbUser!.companyId)) {
+        return NextResponse.json({ error: 'Anexo inválido' }, { status: 400 });
+      }
     }
 
     const item = await prisma.quickReply.create({
@@ -92,11 +100,19 @@ export async function POST(request: NextRequest) {
         content: d.content?.trim() || null,
         keyword,
         companyId: dbUser!.companyId,
-        attachmentPath: d.attachmentPath || null,
-        attachmentMimeType: d.attachmentPath ? d.attachmentMimeType || null : null,
-        attachmentFileName: d.attachmentPath ? d.attachmentFileName || null : null,
-        attachmentSizeBytes: d.attachmentPath ? d.attachmentSizeBytes || null : null,
+        attachments: {
+          create: (d.attachments ?? []).map((a, order) => ({
+            companyId: dbUser!.companyId,
+            path: a.path,
+            mimeType: a.mimeType,
+            fileName: a.fileName,
+            sizeBytes: a.sizeBytes,
+            caption: a.caption?.trim() || null,
+            order,
+          })),
+        },
       },
+      include: { attachments: true },
     });
     return NextResponse.json(item, { status: 201 });
   } catch (err) {
