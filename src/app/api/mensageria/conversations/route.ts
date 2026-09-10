@@ -55,10 +55,26 @@ export async function GET() {
       nextTaskByConv.set(t.conversationId, t.dueDate);
     }
 
+    // Última mensagem de CADA conversa, com a direção — é o que diz se o
+    // paciente está esperando resposta (última = INCOMING) ou se a clínica já
+    // respondeu (última = OUTGOING/MOBILE/automação). Uma consulta só
+    // (distinct + orderBy), não N+1 por conversa.
+    const lastMsgs = await prisma.message.findMany({
+      where: { companyId: dbUser!.companyId, conversationId: { in: convs.map((c) => c.id) } },
+      orderBy: [{ conversationId: 'asc' }, { createdAt: 'desc' }],
+      distinct: ['conversationId'],
+      select: { conversationId: true, direction: true, createdAt: true },
+    });
+    const lastMsgByConv = new Map(lastMsgs.map((m) => [m.conversationId, m]));
+
     // Formato consumido pela tela da mensageria. Cada item carrega a etiqueta de
     // procedência (canal + conta de entrada) — a tela não deduz nada (§4.3).
     return NextResponse.json(convs.map((c) => {
       const nextTaskDueAt = nextTaskByConv.get(c.id) ?? null;
+      const last = lastMsgByConv.get(c.id);
+      // Conversa ENCERRADA não tem ninguém esperando resposta — só conta
+      // enquanto ela segue aberta/pendente.
+      const awaitingSince = last?.direction === 'INCOMING' && c.status !== 'CLOSED' ? last.createdAt : null;
       return {
         id: c.id,
         channel: c.channel,
@@ -74,6 +90,7 @@ export async function GET() {
         contact: { id: c.contact.id, name: c.contact.name, phone: c.contact.phone },
         nextTaskDueAt,
         nextTaskOverdue: nextTaskDueAt ? nextTaskDueAt.getTime() < Date.now() : false,
+        awaitingSince,
       };
     }));
   } catch (err) {

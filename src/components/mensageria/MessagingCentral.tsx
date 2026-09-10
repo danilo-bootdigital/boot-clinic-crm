@@ -17,6 +17,7 @@ import {
   Settings,
   Reply,
   Smile,
+  Clock,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromCo
 import { NewQuoteFromConversation } from '@/components/mensageria/NewQuoteFromConversation';
 import { ConversationTasks } from '@/components/mensageria/ConversationTasks';
 import { EmojiButton } from '@/components/mensageria/EmojiButton';
+import { waitingLabel, waitingTone } from '@/lib/messaging/waiting-time';
 import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
 
@@ -85,6 +87,8 @@ interface WhatsAppConversation {
   messages?: WhatsAppMessage[];
   nextTaskDueAt?: string | null;
   nextTaskOverdue?: boolean;
+  /** Desde quando a ÚLTIMA mensagem é do paciente sem resposta da clínica — null = já respondida/encerrada. */
+  awaitingSince?: string | null;
 }
 
 interface WhatsAppAttachment {
@@ -860,7 +864,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                       aria-current={ativa}
                       className={cn(
                         'flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors',
-                        ativa ? 'bg-primary/5' : 'hover:bg-muted/60'
+                        ativa
+                          ? 'bg-primary/5'
+                          : conversation.awaitingSince && waitingTone(conversation.awaitingSince) === 'destructive'
+                          ? 'bg-destructive/5 hover:bg-destructive/10'
+                          : 'hover:bg-muted/60'
                       )}
                     >
                       <span
@@ -892,6 +900,26 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                           )}
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {/* Prioridade visual: quanto tempo o paciente está sem
+                              resposta é o sinal mais importante da lista — vem
+                              primeiro e é o único badge com cor sólida (não só
+                              tom pastel) quando crítico. */}
+                          {conversation.awaitingSince && (() => {
+                            const tone = waitingTone(conversation.awaitingSince!);
+                            return (
+                              <span
+                                title={`Paciente aguardando resposta desde ${new Date(conversation.awaitingSince!).toLocaleString('pt-BR')}`}
+                                className={cn(
+                                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                  tone === 'destructive' ? 'bg-destructive text-white'
+                                    : tone === 'warning' ? 'bg-warning/20 text-warning-strong'
+                                    : 'bg-muted text-muted-foreground'
+                                )}
+                              >
+                                <Clock className="h-2.5 w-2.5" /> aguardando {waitingLabel(conversation.awaitingSince!)}
+                              </span>
+                            );
+                          })()}
                           <ChannelBadge channel={conversation.channel} accountLabel={conversation.account?.label} />
                           {conversation.patientId && (
                             <span className="inline-flex items-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
