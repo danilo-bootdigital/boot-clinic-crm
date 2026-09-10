@@ -1,41 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, Check, ListChecks, Pencil, X } from 'lucide-react';
+import { Bell, ListChecks } from 'lucide-react';
 import { Drawer } from '@/components/ui/drawer';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { FilterSelect } from '@/components/ui/filter-bar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 import { isTaskOpen, relativeDueLabel, taskStatusMeta } from '@/lib/followup/task-status';
-
-const PRIORITY = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-const PRIORITY_LABELS: Record<string, string> = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta', URGENT: 'Urgente' };
-const TYPES = ['FOLLOW_UP', 'REMINDER', 'ALERT', 'TASK'];
-const TYPE_LABELS: Record<string, string> = { FOLLOW_UP: 'Follow-up', REMINDER: 'Lembrete', ALERT: 'Alerta', TASK: 'Tarefa' };
-
-function hoje() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { TaskForm, emptyTaskForm, type TaskFormValue } from '@/components/tasks/TaskForm';
+import { TaskListItem } from '@/components/tasks/TaskListItem';
 
 /** ISO completo -> "YYYY-MM-DD" para preencher o <input type=date> na edição. */
 function toDateInput(iso: string) {
   return String(iso).slice(0, 10);
 }
 
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-const emptyForm = { title: '', dueDate: hoje(), priority: 'MEDIUM', type: 'FOLLOW_UP', description: '' };
+const ADMIN_ROLES = ['SUPER_ADMIN', 'OWNER', 'MANAGER'];
 
 /**
  * Tarefas da conversa: dois botões irmãos que falam com o MESMO módulo de
- * Follow-up (nome interno; a tela chama "Tarefas") usado na página central
- * `/tarefas` (mesma API, mesmo model — `/tarefas` ainda não foi componentizado como `components/clinical/Quotes`,
- * então este componente conversa direto com `/api/followup/tasks`).
+ * Tarefas (mesma API, mesmo model, mesmo <TaskForm/> da página `/tarefas` —
+ * um só formulário para a mesma entidade, como manda a regra de não duplicar
+ * componentes).
  *
  * - "Nova tarefa": abre o drawer já no formulário de criação.
  * - Sino: carrega a lista assim que a conversa é selecionada — é a
@@ -51,33 +36,41 @@ export function ConversationTasks({
   conversationId: string;
   patientId?: string | null;
 }) {
+  const [me, setMe] = useState<any | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[] | null>(null);
   const [permError, setPermError] = useState(false);
   const [open, setOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any | null>(null); // null = criando nova
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<TaskFormValue>(emptyTaskForm());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/me').then((r) => (r.ok ? r.json() : null)).then(setMe);
+    fetch('/api/users').then((r) => (r.ok ? r.json() : [])).then(setUsers);
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/followup/tasks?conversationId=${conversationId}`, { cache: 'no-store' });
     if (res.status === 403) { setPermError(true); setTasks([]); return; }
     setPermError(false);
-    setTasks(res.ok ? await res.json() : []);
+    setTasks(res.ok ? (await res.json()).tasks ?? [] : []);
   }, [conversationId]);
 
   // Carrega ao trocar de conversa — o sino já nasce no estado certo assim que
   // o atendente abre o chat, antes de qualquer clique.
   useEffect(() => { load(); }, [load]);
 
+  const isAdmin = me ? ADMIN_ROLES.includes(me.role) : false;
   const abertas = (tasks ?? []).filter(isTaskOpen);
   // Reavalia "vencida" pelo relógio, não pelo campo `status` salvo — nada
   // transita pra OVERDUE sozinho no banco (exigiria um job de fundo).
   const vencidas = abertas.filter((t) => taskStatusMeta(t).label === 'Atrasada');
 
   function abrirCriar() {
-    setForm(emptyForm);
+    setForm(emptyTaskForm(me?.id ?? ''));
     setEditingTask(null);
     setError(null);
     setFormOpen(true);
@@ -88,8 +81,13 @@ export function ConversationTasks({
       title: t.title,
       dueDate: toDateInput(t.dueDate),
       priority: t.priority,
-      type: t.type,
+      assignedToId: t.assignedToId || '',
       description: t.description || '',
+      category: t.category || '',
+      patientId: t.patientId || '',
+      isRecurring: !!t.isRecurring,
+      recurrenceType: t.recurrenceType || 'WEEKLY',
+      recurrenceEvery: t.recurrenceEvery || 1,
     });
     setEditingTask(t);
     setError(null);
@@ -105,13 +103,14 @@ export function ConversationTasks({
     e.preventDefault();
     setError(null);
     setBusy(true);
+    const payload = { ...form, category: form.category.trim() };
     const res = editingTask
       ? await fetch(`/api/followup/tasks/${editingTask.id}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         })
       : await fetch('/api/followup/tasks', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, conversationId, patientId: patientId || undefined }),
+          body: JSON.stringify({ ...payload, conversationId, patientId: patientId || payload.patientId || undefined }),
         });
     setBusy(false);
     if (!res.ok) {
@@ -140,7 +139,15 @@ export function ConversationTasks({
     setStatus(id, 'CANCELED', motivo);
   }
 
-  const label = 'mb-1 block text-xs font-medium text-foreground';
+  async function remove(id: string) {
+    if (!confirm('Excluir esta tarefa?')) return;
+    await fetch(`/api/followup/tasks/${id}`, { method: 'DELETE' });
+    setFormOpen(false);
+    setEditingTask(null);
+    load();
+  }
+
+  const canCompleteEditing = !!editingTask && (isAdmin || editingTask.assignedToId === me?.id || editingTask.createdById === me?.id);
 
   return (
     <>
@@ -204,40 +211,16 @@ export function ConversationTasks({
                 )}
               </div>
             )}
-            <div>
-              <label className={label}>Título *</label>
-              <Input className="w-full" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Vencimento *</label>
-                <Input type="date" className="w-full" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
-              </div>
-              <div>
-                <label className={label}>Prioridade</label>
-                <FilterSelect className="w-full" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                  {PRIORITY.map((x) => <option key={x} value={x}>{PRIORITY_LABELS[x]}</option>)}
-                </FilterSelect>
-              </div>
-            </div>
-            <div>
-              <label className={label}>Tipo</label>
-              <FilterSelect className="w-full" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {TYPES.map((x) => <option key={x} value={x}>{TYPE_LABELS[x]}</option>)}
-              </FilterSelect>
-            </div>
-            <div>
-              <label className={label}>Descrição</label>
-              <Textarea className="w-full" rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
+
+            <TaskForm value={form} onChange={setForm} users={users} defaultExpanded={!!(form.description || form.category || form.isRecurring)} />
 
             {editingTask && (editingTask.completedAt || editingTask.canceledAt || editingTask.createdAt) && (
               <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Histórico</p>
-                <p>Criada em {formatDateTime(editingTask.createdAt)}</p>
-                {editingTask.completedAt && <p className="text-success">Contato feito — concluída em {formatDateTime(editingTask.completedAt)}</p>}
+                <p>Criada em {new Date(editingTask.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                {editingTask.completedAt && <p className="text-success">Contato feito — concluída em {new Date(editingTask.completedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
                 {editingTask.canceledAt && (
-                  <p>Contato não feito — cancelada em {formatDateTime(editingTask.canceledAt)}{editingTask.canceledReason ? `: "${editingTask.canceledReason}"` : ''}</p>
+                  <p>Contato não feito — cancelada em {new Date(editingTask.canceledAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}{editingTask.canceledReason ? `: "${editingTask.canceledReason}"` : ''}</p>
                 )}
               </div>
             )}
@@ -246,15 +229,20 @@ export function ConversationTasks({
 
             <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
               <div className="flex gap-2">
-                {editingTask && isTaskOpen(editingTask) && (
-                  <>
-                    <button type="button" onClick={() => setStatus(editingTask.id, 'COMPLETED')} className="rounded-lg border border-success/30 px-3 py-2 text-sm font-medium text-success hover:bg-success/10">
-                      Concluir
-                    </button>
-                    <button type="button" onClick={() => cancelarComMotivo(editingTask.id)} className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
-                      Cancelar tarefa
-                    </button>
-                  </>
+                {editingTask && isTaskOpen(editingTask) && canCompleteEditing && (
+                  <button type="button" onClick={() => setStatus(editingTask.id, 'COMPLETED')} className="rounded-lg border border-success/30 px-3 py-2 text-sm font-medium text-success hover:bg-success/10">
+                    Concluir
+                  </button>
+                )}
+                {editingTask && isTaskOpen(editingTask) && isAdmin && (
+                  <button type="button" onClick={() => cancelarComMotivo(editingTask.id)} className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
+                    Cancelar tarefa
+                  </button>
+                )}
+                {editingTask && isAdmin && (
+                  <button type="button" onClick={() => remove(editingTask.id)} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10">
+                    Excluir
+                  </button>
                 )}
               </div>
               <div className="flex gap-2">
@@ -273,33 +261,16 @@ export function ConversationTasks({
           !permError && <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma tarefa criada para esta conversa.</p>
         ) : (
           <div className="divide-y divide-border">
-            {tasks.map((t) => {
-              const meta = taskStatusMeta(t);
-              return (
-                <div key={t.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <button type="button" onClick={() => abrirVer(t)} className="min-w-0 flex-1 text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-foreground group-hover:underline">{t.title}</span>
-                      <StatusBadge tone={meta.tone as any}>{meta.label}</StatusBadge>
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {TYPE_LABELS[t.type]} · {PRIORITY_LABELS[t.priority]}
-                      {isTaskOpen(t) ? ` · ${relativeDueLabel(t.dueDate)}` : ` · venceu em ${new Date(t.dueDate).toLocaleDateString('pt-BR')}`}
-                    </p>
-                    {t.description && <p className="mt-0.5 truncate text-xs text-muted-foreground/80">{t.description}</p>}
-                  </button>
-                  <div className="flex shrink-0 gap-1">
-                    <button onClick={() => abrirVer(t)} title="Ver/editar" className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Pencil className="h-4 w-4" /></button>
-                    {isTaskOpen(t) && (
-                      <>
-                        <button onClick={() => setStatus(t.id, 'COMPLETED')} title="Concluir" className="rounded-md p-2 text-success hover:bg-success/10"><Check className="h-4 w-4" /></button>
-                        <button onClick={() => cancelarComMotivo(t.id)} title="Cancelar" className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {tasks.map((t) => (
+              <TaskListItem
+                key={t.id}
+                task={t}
+                currentUserId={me?.id ?? ''}
+                isAdmin={isAdmin}
+                onOpen={abrirVer}
+                onComplete={(id) => setStatus(id, 'COMPLETED')}
+              />
+            ))}
           </div>
         )}
       </Drawer>

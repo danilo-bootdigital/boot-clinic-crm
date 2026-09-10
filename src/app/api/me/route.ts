@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db/prisma';
 import { resolveDbUser } from '@/lib/api/session';
 import { effectivePermissions } from '@/lib/api/permissions';
 import { clinicalModuleLevel } from '@/lib/api/clinical-access';
 import { telemedicineModuleVisible } from '@/lib/api/telemedicine-access';
 import { financialModuleLevel } from '@/lib/api/financial-access';
 import { ensureModuleCatalog, getEnabledModules } from '@/lib/api/modules';
+import { brTodayStart } from '@/lib/followup/dates';
 
 // GET /api/me - usuário atual + permissões efetivas por módulo + módulos habilitados
 // na clínica (para o frontend gatear menu/botões respeitando plano + ativação + RBAC).
@@ -27,6 +29,23 @@ export async function GET() {
     // Módulos habilitados para a clínica (nível SaaS + nível Clínica).
     await ensureModuleCatalog();
     const enabled = await getEnabledModules({ id: dbUser!.companyId, plan: dbUser!.company?.plan });
+
+    // Badge do menu (Tarefas atrasadas atribuídas a mim) — uma contagem indexada
+    // a mais nesta mesma resposta, já buscada uma vez por carregamento da
+    // sidebar; não uma rota nova nem uma consulta por render do menu.
+    let tasksOverdueCount = 0;
+    if (enabled.has('followup') && permissions.followup !== 'none') {
+      tasksOverdueCount = await prisma.followUpTask.count({
+        where: {
+          companyId: dbUser!.companyId,
+          deletedAt: null,
+          assignedToId: dbUser!.id,
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          dueDate: { lt: brTodayStart() },
+        },
+      });
+    }
+
     return NextResponse.json({
       id: dbUser!.id,
       name: dbUser!.name,
@@ -34,6 +53,7 @@ export async function GET() {
       role: dbUser!.role,
       permissions,
       modules: Array.from(enabled),
+      tasksOverdueCount,
       // Identidade visual da clínica logada (para a sidebar). Sempre da empresa
       // do usuário autenticado — nunca de outra clínica.
       company: { name: dbUser!.company?.name ?? null, logo: dbUser!.company?.logo ?? null },

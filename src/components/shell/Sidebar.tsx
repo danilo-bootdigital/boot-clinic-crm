@@ -40,6 +40,9 @@ export function Sidebar({
   // Identidade visual da clínica logada (logo + nome).
   const [company, setCompany] = useState<Company | null>(null);
   const [logoBroken, setLogoBroken] = useState(false);
+  // Tarefas atrasadas atribuídas ao usuário — badge discreto no menu, vindo da
+  // mesma chamada a /api/me (sem consulta extra por render).
+  const [tasksOverdueCount, setTasksOverdueCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/me")
@@ -49,12 +52,14 @@ export function Sidebar({
         setRole(me?.role ?? null);
         setModules(Array.isArray(me?.modules) ? me.modules : null);
         setCompany(me?.company ?? null);
+        setTasksOverdueCount(Number(me?.tasksOverdueCount) || 0);
       })
       .catch(() => {
         setPerms(null);
         setRole(null);
         setModules(null);
         setCompany(null);
+        setTasksOverdueCount(0);
       });
   }, []);
 
@@ -142,7 +147,7 @@ export function Sidebar({
                         onClick={onMobileClose}
                         title={collapsed ? item.label : undefined}
                         className={cn(
-                          "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                           collapsed && "justify-center px-0",
                           active
                             ? "bg-accent font-semibold text-accent-foreground"
@@ -155,7 +160,18 @@ export function Sidebar({
                             !active && "text-sidebar-muted group-hover:text-foreground",
                           )}
                         />
-                        {!collapsed && <span className="truncate">{item.label}</span>}
+                        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                        {item.href === "/tarefas" && tasksOverdueCount > 0 && (
+                          <span
+                            title={`${tasksOverdueCount} tarefa(s) atrasada(s)`}
+                            className={cn(
+                              "grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-white",
+                              collapsed && "absolute right-1 top-1 h-4 min-w-4 text-[9px]",
+                            )}
+                          >
+                            {tasksOverdueCount}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );

@@ -11,7 +11,21 @@ const nextId = (p: string) => `${p}_${(++seq).toString(36)}`;
 // Casa um registro contra um `where` simples: igualdade escalar, { contains },
 // null explícito e o par (instanceId, externalId). Ignora chaves undefined.
 function matches(rec: Rec, where: Rec): boolean {
+  // Combinadores top-level (AND/OR/NOT) — usados pelas rotas de Tarefas para
+  // combinar escopo de empresa + papel (admin vê tudo, os demais só "minhas").
+  if (where.AND !== undefined) {
+    const clauses = Array.isArray(where.AND) ? where.AND : [where.AND];
+    if (!clauses.every((w: Rec) => matches(rec, w))) return false;
+  }
+  if (where.OR !== undefined) {
+    const clauses = Array.isArray(where.OR) ? where.OR : [where.OR];
+    if (!clauses.some((w: Rec) => matches(rec, w))) return false;
+  }
+  if (where.NOT !== undefined) {
+    if (matches(rec, where.NOT)) return false;
+  }
   for (const [k, v] of Object.entries(where)) {
+    if (k === 'AND' || k === 'OR' || k === 'NOT') continue;
     if (v === undefined) continue;
     if (v === null) {
       if (rec[k] !== null && rec[k] !== undefined) return false;
@@ -118,9 +132,39 @@ class Table {
     const w = flattenWhere(where);
     return this.hydrate(this.rows.find((r) => matches(r, w)) ?? null, include);
   }
-  async findMany({ where = {}, include }: { where?: Rec; include?: Rec } = {}) {
+  async findMany({
+    where = {},
+    include,
+    orderBy,
+    skip,
+    take,
+  }: { where?: Rec; include?: Rec; orderBy?: Rec | Rec[]; skip?: number; take?: number } = {}) {
     const w = flattenWhere(where);
-    return this.rows.filter((r) => matches(r, w)).map((r) => this.hydrate(r, include)!);
+    let rows = this.rows.filter((r) => matches(r, w));
+    // orderBy: string/número/Date comparados na ordem natural. Não reproduz a
+    // ordem de declaração de um enum do Postgres (ex.: TaskStatus) — os testes
+    // que dependem de ordenação usam um recorte já homogêneo por status.
+    if (orderBy) {
+      const specs = Array.isArray(orderBy) ? orderBy : [orderBy];
+      rows = [...rows].sort((a, b) => {
+        for (const spec of specs) {
+          for (const [field, dir] of Object.entries(spec)) {
+            const av = a[field];
+            const bv = b[field];
+            const an = av instanceof Date ? av.getTime() : av;
+            const bn = bv instanceof Date ? bv.getTime() : bv;
+            if (an === bn) continue;
+            const cmp = an < bn ? -1 : 1;
+            return dir === 'desc' ? -cmp : cmp;
+          }
+        }
+        return 0;
+      });
+    }
+    if (typeof skip === 'number' || typeof take === 'number') {
+      rows = rows.slice(skip ?? 0, (skip ?? 0) + (take ?? rows.length));
+    }
+    return rows.map((r) => this.hydrate(r, include)!);
   }
   async count({ where = {} }: { where?: Rec } = {}) {
     return this.rows.filter((r) => matches(r, where)).length;
@@ -188,6 +232,8 @@ export interface PrismaMock {
   appointment: Table;
   patient: Table;
   room: Table;
+  // Módulo Tarefas (ex-Follow-up)
+  followUpTask: Table;
   __reset(): void;
 }
 
@@ -220,6 +266,7 @@ export function makePrismaMock(): PrismaMock {
     appointment: new Table('appt'),
     patient: new Table('pat'),
     room: new Table('room'),
+    followUpTask: new Table('task'),
     __reset() {
       for (const t of [
         mock.channelAccount, mock.conversation, mock.message,
@@ -230,6 +277,7 @@ export function makePrismaMock(): PrismaMock {
         mock.pipeline, mock.pipelineStage,
         mock.professional, mock.professionalSpecialty, mock.specialty,
         mock.appointment, mock.patient, mock.room,
+        mock.followUpTask,
       ]) t.rows = [];
     },
   };

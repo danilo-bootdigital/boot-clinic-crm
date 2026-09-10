@@ -3,10 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Runtime do app: role app_user (NOBYPASSRLS) — a RLS das tabelas financeiras
   // só isola por empresa quando o role de conexão NÃO faz bypass de RLS.
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Migrations/introspection (prisma migrate/db): role privilegiado (postgres),
   // que tem DDL. O Prisma Client em runtime NÃO usa directUrl.
   directUrl = env("MIGRATE_DATABASE_URL")
@@ -14,32 +14,32 @@ datasource db {
 
 // Multiempresa (cada Company = 1 clínica assinante do SaaS)
 model Company {
-  id                  String        @id @default(cuid())
-  name                String
-  cnpj                String?       @unique
-  logo                String?
-  address             String?
-  phone               String?
-  email               String?
+  id                   String        @id @default(cuid())
+  name                 String
+  cnpj                 String?       @unique
+  logo                 String?
+  address              String?
+  phone                String?
+  email                String?
   // Assinatura SaaS — gerida pelo painel Super-Admin.
-  status              CompanyStatus @default(ACTIVE)
-  plan                String? // "trial" | "basic" | "pro"
-  trialEndsAt         DateTime?
+  status               CompanyStatus @default(ACTIVE)
+  plan                 String? // "trial" | "basic" | "pro"
+  trialEndsAt          DateTime?
   // Integração Asaas (cobrança recorrente no cartão). Preenchidos para planos pagos.
-  asaasCustomerId     String?
-  asaasSubscriptionId String?
+  asaasCustomerId      String?
+  asaasSubscriptionId  String?
   // SEC2 — token do webhook WhatsApp POR CLÍNICA (multiempresa). A URL do webhook
   // carrega ?token=<este valor>, que autentica E identifica a clínica destinatária.
-  whatsappWebhookToken String?      @unique
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  deletedAt           DateTime?
+  whatsappWebhookToken String?       @unique
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  deletedAt            DateTime?
 
   // Relacionamentos
-  users            User[]
-  patients         Patient[]
-  tags             Tag[]
-  channelAccounts  ChannelAccount[] // contas de canal da mensageria desta clínica (1:N)
+  users           User[]
+  patients        Patient[]
+  tags            Tag[]
+  channelAccounts ChannelAccount[] // contas de canal da mensageria desta clínica (1:N)
 
   @@map("companies")
 }
@@ -412,31 +412,48 @@ model FollowUpTemplate {
 }
 
 model FollowUpTask {
-  id             String     @id @default(cuid())
-  title          String
-  description    String?
-  dueDate        DateTime
-  status         TaskStatus @default(PENDING)
-  priority       Priority   @default(MEDIUM)
-  type           TaskType
-  templateId     String?
-  assignedToId   String?
-  createdById    String
-  completedAt    DateTime?
-  canceledAt     DateTime?
-  canceledReason String?
-  companyId      String
-  patientId      String?
-  dealId         String?
-  appointmentId  String?
+  id                 String          @id @default(cuid())
+  title              String
+  description        String?
+  dueDate            DateTime
+  status             TaskStatus      @default(PENDING)
+  priority           Priority        @default(MEDIUM)
+  type               TaskType
+  // Categoria livre (Comercial/Marketing/Operacional/.../Outro) — string, não
+  // enum: a UI sugere opções, mas o banco aceita qualquer valor sem migration
+  // para adicionar categoria nova.
+  category           String?
+  templateId         String?
+  assignedToId       String?
+  createdById        String
+  completedAt        DateTime?
+  completedById      String?
+  canceledAt         DateTime?
+  canceledReason     String?
+  companyId          String
+  patientId          String?
+  dealId             String?
+  appointmentId      String?
   // Tarefa criada a partir de uma conversa da mensageria (botão "Nova tarefa").
   // Aditivo e nulável: tarefa criada em /followup não tem conversa de origem.
-  conversationId String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  deletedAt      DateTime?
+  conversationId     String?
+  // Recorrência simples (sem cron): ao concluir uma tarefa recorrente, a API
+  // gera a próxima ocorrência somando o intervalo à dueDate concluída — sem
+  // job de fundo e sem alterar o histórico das ocorrências já passadas.
+  isRecurring        Boolean         @default(false)
+  recurrenceType     RecurrenceType?
+  recurrenceEvery    Int? // a cada N dias/semanas/meses (default 1 na app)
+  // Aponta para a tarefa ORIGINAL da série (não para a anterior) — permite
+  // achar "todas as ocorrências desta rotina" sem percorrer uma cadeia.
+  recurrenceParentId String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
 
   @@index([companyId, conversationId])
+  @@index([companyId, status, dueDate])
+  @@index([companyId, assignedToId, status, dueDate])
+  @@index([companyId, recurrenceParentId])
   @@map("follow_up_tasks")
 }
 
@@ -594,12 +611,12 @@ model ChannelAccount {
   // --- Ponte com o provedor (só o adapter lê) ---
   // WhatsApp/Evolution: { instanceName, evolutionInstanceId, qrCode }
   // Instagram/Meta: { pageId, igUserId }
-  providerConfig Json?
+  providerConfig        Json?
   // Versão dos eventos já registrados no provedor; gate p/ re-registrar só
   // quando defasado (herdado do webhookEventsVersion do módulo WhatsApp).
-  providerEventsVersion Int @default(0)
+  providerEventsVersion Int     @default(0)
   // Token do webhook inbound desta conta.
-  webhookToken String? @unique
+  webhookToken          String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -626,19 +643,19 @@ enum ContactNameSource {
 // — é justamente o que permite receber DM de rede social sem CPF (diretriz
 // regra 4). Vira paciente só quando os dados obrigatórios existirem.
 model Contact {
-  id        String    @id @default(cuid())
-  companyId String
-  name      String
+  id         String            @id @default(cuid())
+  companyId  String
+  name       String
   // Procedência do nome: ver ContactNameSource. Default CHANNEL porque o caso
   // comum é o nome chegar do canal.
   nameSource ContactNameSource @default(CHANNEL)
   phone      String? // pode não existir (DM de rede social)
-  email     String?
-  patientId String? // vínculo quando/se virar paciente (FK escalar, padrão do projeto)
-  notes     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  email      String?
+  patientId  String? // vínculo quando/se virar paciente (FK escalar, padrão do projeto)
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deletedAt  DateTime?
 
   identities    ContactIdentity[]
   conversations Conversation[]
@@ -714,7 +731,7 @@ model Message {
   externalId String? // id da mensagem no provedor — chave de deduplicação
   content    String
   direction  String // INCOMING | OUTGOING
-  status     String @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
+  status     String  @default("PENDING") // PENDING | SENT | FAILED | RECEIVED | DELIVERED
 
   messageType       String? // TEXT | IMAGE | AUDIO | VIDEO | DOCUMENT | STICKER | ...
   caption           String?   @db.Text // legenda de mídia (separada de `content`)
@@ -750,12 +767,12 @@ model Message {
   replyToMessage Message?  @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies        Message[] @relation("MessageReply")
 
+  // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
+  @@unique([accountId, externalId])
   @@index([conversationId, createdAt])
   @@index([companyId, createdAt])
   @@index([companyId, channel, createdAt])
   @@index([replyToMessageId])
-  // Dedup: mesma mensagem (echo do CRM / reimport de histórico) não grava 2x.
-  @@unique([accountId, externalId])
   @@map("messages")
 }
 
@@ -839,7 +856,7 @@ model QuickReply {
 // `path` nunca sai pro cliente; a página só vê nome/tipo/tamanho/legenda — o
 // disparo baixa os bytes por id (rota dedicada).
 model QuickReplyAttachment {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   companyId    String
   quickReplyId String
   path         String
@@ -847,8 +864,8 @@ model QuickReplyAttachment {
   fileName     String
   sizeBytes    Int
   caption      String?
-  order        Int       @default(0)
-  createdAt    DateTime  @default(now())
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
 
   quickReply QuickReply @relation(fields: [quickReplyId], references: [id], onDelete: Cascade)
 
@@ -856,7 +873,6 @@ model QuickReplyAttachment {
   @@index([quickReplyId, order])
   @@map("quick_reply_attachments")
 }
-
 
 // ============================================================================
 // PEDIDO DE EXAMES
@@ -939,7 +955,6 @@ model ExamRequestItem {
   @@map("exam_request_items")
 }
 
-
 // Modelo de pedido reutilizável. Nasce de duas formas: montado do zero ou
 // salvo a partir de um pedido já emitido ("salvar como modelo").
 model ExamTemplate {
@@ -974,7 +989,6 @@ model ExamTemplateItem {
   @@index([templateId])
   @@map("exam_template_items")
 }
-
 
 // Biblioteca de painéis de exame do SAAS (nível plataforma, sem companyId).
 // Gerida pelo Super-Admin e APLICADA por cópia no catálogo de uma clínica.
@@ -1082,25 +1096,25 @@ model Specialty {
 }
 
 model Professional {
-  id        String    @id @default(cuid())
-  name      String
+  id            String    @id @default(cuid())
+  name          String
   // CRM é obrigatório para novos cadastros (validado na API e na tela). A coluna
   // segue nulável porque já existem registros sem CRM criados antes da regra —
   // eles são cobrados na próxima edição.
-  crm       String?
-  phone     String?
-  email     String?
+  crm           String?
+  phone         String?
+  email         String?
   // Assinatura digitalizada: caminho no bucket PRIVADO
   // `professional-signatures`. Nunca guardamos URL assinada, só o caminho.
   signaturePath String?
-  companyId String
+  companyId     String
   // Vínculo opcional 1:1 com a conta de acesso (usuário com papel DOCTOR).
   // Criar/editar um usuário médico sincroniza este registro automaticamente.
-  userId    String?   @unique
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  userId        String?   @unique
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   user        User?                   @relation(fields: [userId], references: [id])
   specialties ProfessionalSpecialty[]
@@ -1286,6 +1300,8 @@ enum EntityType {
   EXAM_REQUEST
   // CRM — cadastro dos motivos de perda do funil
   DEAL_LOSS_REASON
+  // Módulo Tarefas (centro operacional de pendências da clínica)
+  FOLLOW_UP_TASK
 }
 
 enum ActionType {

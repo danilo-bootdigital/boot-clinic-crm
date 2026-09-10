@@ -8,6 +8,7 @@ import { StatCard } from '@/components/ui/stat-card'
 import { SectionCard } from '@/components/ui/section-card'
 import { LoadingState } from '@/components/ui/loading-state'
 import { AreaTrendChart } from '@/components/charts'
+import { PendingTasksWidget } from '@/components/dashboard/executive/PendingTasksWidget'
 
 const brl = (n: number) => `R$ ${(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 const brlAxis = (n: number) => (Math.abs(n) >= 1000 ? `R$ ${Math.round(n / 1000)}k` : `R$ ${Math.round(n)}`)
@@ -107,6 +108,8 @@ export default function ExecutiveDashboard() {
           </div>
         </SectionCard>
       </div>
+
+      <PendingTasksWidget />
     </div>
   )
 }
