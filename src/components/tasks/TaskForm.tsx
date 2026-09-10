@@ -5,7 +5,9 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FilterSelect } from '@/components/ui/filter-bar';
+import { cn } from '@/lib/utils';
 import { TASK_CATEGORIES, TASK_CATEGORY_LABELS } from '@/lib/followup/categories';
+import { EDITABLE_STATUS_OPTIONS, STATUS_LABELS } from '@/lib/followup/task-status';
 
 export const PRIORITY_OPTIONS = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const;
 export const PRIORITY_LABELS: Record<string, string> = { LOW: 'Baixa', MEDIUM: 'Normal', HIGH: 'Alta', URGENT: 'Urgente' };
@@ -21,6 +23,7 @@ export interface TaskFormValue {
   description: string;
   category: string; // '' | uma de TASK_CATEGORIES | valor livre ("Outro")
   patientId: string;
+  status: (typeof EDITABLE_STATUS_OPTIONS)[number];
   isRecurring: boolean;
   recurrenceType: (typeof RECURRENCE_OPTIONS)[number];
   recurrenceEvery: number;
@@ -35,6 +38,7 @@ export function emptyTaskForm(defaultAssigneeId = ''): TaskFormValue {
     description: '',
     category: '',
     patientId: '',
+    status: 'PENDING',
     isRecurring: false,
     recurrenceType: 'WEEKLY',
     recurrenceEvery: 1,
@@ -61,17 +65,31 @@ export function TaskForm({
   users,
   patients,
   defaultExpanded = false,
+  showStatus = false,
+  canSetCompleted = true,
+  canSetCanceled = true,
 }: {
   value: TaskFormValue;
   onChange: (next: TaskFormValue) => void;
   users: Person[];
   patients?: Person[];
   defaultExpanded?: boolean;
+  /** Mostra o seletor de Status — só faz sentido editando uma tarefa existente (na criação, status sempre nasce Pendente). */
+  showStatus?: boolean;
+  /** Se a sessão atual pode marcar esta tarefa como Concluída (mesma regra do servidor). */
+  canSetCompleted?: boolean;
+  /** Se a sessão atual pode marcar esta tarefa como Cancelada (ação de gestão). */
+  canSetCanceled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const set = <K extends keyof TaskFormValue>(key: K, v: TaskFormValue[K]) => onChange({ ...value, [key]: v });
   const label = 'mb-1 block text-xs font-medium text-foreground';
   const customCategory = value.category !== '' && !(TASK_CATEGORIES as readonly string[]).includes(value.category);
+  const statusOptions = EDITABLE_STATUS_OPTIONS.filter((s) => {
+    if (s === 'COMPLETED') return canSetCompleted || value.status === 'COMPLETED';
+    if (s === 'CANCELED') return canSetCanceled || value.status === 'CANCELED';
+    return true;
+  });
 
   return (
     <div className="space-y-4">
@@ -80,7 +98,7 @@ export function TaskForm({
         <Input className="w-full" value={value.title} onChange={(e) => set('title', e.target.value)} placeholder="Ex.: Pausar campanha de Botox" required />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className={cn('grid grid-cols-1 gap-3', showStatus ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
         <div>
           <label className={label}>Prazo *</label>
           <Input type="date" className="w-full" value={value.dueDate} onChange={(e) => set('dueDate', e.target.value)} required />
@@ -102,6 +120,16 @@ export function TaskForm({
             ))}
           </FilterSelect>
         </div>
+        {showStatus && (
+          <div>
+            <label className={label}>Status</label>
+            <FilterSelect className="w-full" value={value.status} onChange={(e) => set('status', e.target.value as TaskFormValue['status'])}>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+              ))}
+            </FilterSelect>
+          </div>
+        )}
       </div>
 
       <button

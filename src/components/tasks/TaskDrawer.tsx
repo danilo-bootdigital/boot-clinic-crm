@@ -77,7 +77,16 @@ export function TaskDrawer({
           </div>
         )}
 
-        <TaskForm value={form} onChange={setForm} users={users} patients={patients} defaultExpanded={!!(form.description || form.category || form.patientId || form.isRecurring)} />
+        <TaskForm
+          value={form}
+          onChange={setForm}
+          users={users}
+          patients={patients}
+          defaultExpanded={!!(form.description || form.category || form.patientId || form.isRecurring)}
+          showStatus={!!editingTask}
+          canSetCompleted={canComplete}
+          canSetCanceled={canCancel}
+        />
 
         {editingTask && (
           <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">

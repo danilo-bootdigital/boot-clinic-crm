@@ -23,12 +23,16 @@ export function isTaskOpen(task: TaskLike): boolean {
   return task.status === 'PENDING' || task.status === 'IN_PROGRESS';
 }
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', COMPLETED: 'Concluída', CANCELED: 'Cancelada', OVERDUE: 'Atrasada',
 };
 const STATUS_TONES: Record<string, string> = {
   PENDING: 'warning', IN_PROGRESS: 'info', COMPLETED: 'success', CANCELED: 'neutral', OVERDUE: 'destructive',
 };
+
+// Status que o usuário pode escolher diretamente no formulário — OVERDUE fica
+// de fora porque é computado (ver isTaskOverdue), nunca gravado no banco.
+export const EDITABLE_STATUS_OPTIONS = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED'] as const;
 
 /** Label/tom já considerando o vencimento — "Pendente" vira "Atrasada" sem exigir job de fundo. */
 export function taskStatusMeta(task: TaskLike, now: Date = new Date()): { label: string; tone: string } {

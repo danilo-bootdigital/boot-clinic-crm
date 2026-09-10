@@ -89,6 +89,7 @@ export default function TarefasPage() {
       description: t.description || '',
       category: t.category || '',
       patientId: t.patientId || '',
+      status: t.status,
       isRecurring: !!t.isRecurring,
       recurrenceType: t.recurrenceType || 'WEEKLY',
       recurrenceEvery: t.recurrenceEvery || 1,

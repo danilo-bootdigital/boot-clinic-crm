@@ -85,6 +85,7 @@ export function ConversationTasks({
       description: t.description || '',
       category: t.category || '',
       patientId: t.patientId || '',
+      status: t.status,
       isRecurring: !!t.isRecurring,
       recurrenceType: t.recurrenceType || 'WEEKLY',
       recurrenceEvery: t.recurrenceEvery || 1,
@@ -212,7 +213,15 @@ export function ConversationTasks({
               </div>
             )}
 
-            <TaskForm value={form} onChange={setForm} users={users} defaultExpanded={!!(form.description || form.category || form.isRecurring)} />
+            <TaskForm
+              value={form}
+              onChange={setForm}
+              users={users}
+              defaultExpanded={!!(form.description || form.category || form.isRecurring)}
+              showStatus={!!editingTask}
+              canSetCompleted={canCompleteEditing}
+              canSetCanceled={isAdmin}
+            />
 
             {editingTask && (editingTask.completedAt || editingTask.canceledAt || editingTask.createdAt) && (
               <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
