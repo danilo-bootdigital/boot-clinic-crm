@@ -229,6 +229,11 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   // "Responder": mensagem citada, igual ao "swipe to reply" do WhatsApp — some
   // ao trocar de conversa (contexto errado) ou depois do envio.
   const [replyTarget, setReplyTarget] = useState<WhatsAppMessage | null>(null);
+  // Arrastar-e-soltar: overlay visual enquanto o arquivo paira sobre a
+  // conversa. Contador (não boolean) porque dragenter/dragleave disparam em
+  // CADA filho do painel — um boolean simples pisca o overlay a cada pixel.
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   // Espelho do `sending` em ref: dois Enter no mesmo frame leem o MESMO valor de
@@ -380,6 +385,21 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
 
   useEffect(() => { setSlashActiveIndex(0); }, [slashQuery]);
 
+  // Rede de segurança: se o arquivo for solto um pixel fora da área da
+  // conversa (ex.: em cima da lista de conversas), o padrão do navegador é
+  // abrir a imagem na aba — perde a tela inteira. Isso barra em qualquer
+  // ponto da página; o drop DENTRO da conversa já é tratado (e some daqui
+  // por já ter sido interceptado antes de borbulhar).
+  useEffect(() => {
+    const stop = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => {
+      window.removeEventListener('dragover', stop);
+      window.removeEventListener('drop', stop);
+    };
+  }, []);
+
   async function createConversation(e: React.FormEvent) {
     e.preventDefault();
     setNewConvError(null);
@@ -452,6 +472,53 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       });
     }
     if (novos.length) setAttachments((prev) => [...prev, ...novos]);
+  };
+
+  // Arrastar-e-soltar sobre a conversa inteira (não só o composer) — colar
+  // uma imagem tem que funcionar de onde o mouse estiver, sem procurar um
+  // alvo exato. `preventDefault` no dragOver é OBRIGATÓRIO: sem ele o
+  // navegador recusa o drop (e em muitos casos navega pra própria imagem).
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (recording || !!recordedUrl) return; // gravando/revisando áudio: sem anexo por cima
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes('Files')) setDragOver(true);
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setDragOver(false);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setDragOver(false);
+    if (recording || !!recordedUrl) return;
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) addFilesToQueue(files);
+  };
+
+  /**
+   * Colar (Ctrl+V) imagem copiada — print de tela, imagem de outro app/aba.
+   * Só intercepta quando o clipboard TEM arquivo; colar texto continua normal.
+   */
+  const onPasteComposer = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const f = items[i].getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length) {
+      e.preventDefault();
+      addFilesToQueue(files);
+    }
   };
 
   /** Insere no ponto do cursor (não só no fim) — comum digitar, abrir o emoji, continuar. */
@@ -854,7 +921,22 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       </aside>
 
       {/* ------------------------------------------------------------ Thread */}
-      <section className={cn('flex min-w-0 flex-1 flex-col', !selectedId && 'hidden md:flex')}>
+      <section
+        className={cn('relative flex min-w-0 flex-1 flex-col', !selectedId && 'hidden md:flex')}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center bg-primary/10 backdrop-blur-[1px]">
+            <div className="rounded-xl border-2 border-dashed border-primary bg-card px-6 py-4 text-center shadow-popover">
+              <Paperclip className="mx-auto h-6 w-6 text-primary" />
+              <p className="mt-1.5 text-sm font-medium text-foreground">Solte para anexar</p>
+              <p className="text-xs text-muted-foreground">Imagem ou documento</p>
+            </div>
+          </div>
+        )}
         {selectedConversation ? (
           <>
             {/* Cabeçalho da conversa */}
@@ -1230,7 +1312,8 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={attachments.length > 0 ? undefined : handleKeyDown}
-                      placeholder={attachments.length > 0 ? 'Mensagem de texto separada (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta)'}
+                      onPaste={onPasteComposer}
+                      placeholder={attachments.length > 0 ? 'Mensagem de texto separada (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta · Ctrl+V cola imagem)'}
                       className="max-h-40 min-h-[40px] w-full resize-none py-2.5"
                       rows={1}
                     />
