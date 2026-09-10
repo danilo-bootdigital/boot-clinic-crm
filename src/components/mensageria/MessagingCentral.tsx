@@ -36,6 +36,7 @@ import { ScheduleFromConversation } from '@/components/mensageria/ScheduleFromCo
 import { NewQuoteFromConversation } from '@/components/mensageria/NewQuoteFromConversation';
 import { ConversationTasks } from '@/components/mensageria/ConversationTasks';
 import { EmojiButton } from '@/components/mensageria/EmojiButton';
+import { ContactTags } from '@/components/mensageria/ContactTags';
 import { waitingLabel, waitingTone } from '@/lib/messaging/waiting-time';
 import { MarkDealLost } from '@/components/mensageria/MarkDealLost';
 import { EditableContactName } from '@/components/mensageria/EditableContactName';
@@ -1421,6 +1422,14 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 </p>
               )}
             </div>
+            {selectedConversation.contact?.id && (
+              <div>
+                <p className="text-xs text-muted-foreground">Etiquetas</p>
+                <div className="mt-1">
+                  <ContactTags contactId={selectedConversation.contact.id} />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-5 border-t border-border pt-4">

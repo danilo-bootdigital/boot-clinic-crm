@@ -196,7 +196,8 @@ model PatientAttachment {
   @@map("patient_attachments")
 }
 
-// Tags de Pacientes
+// Tags — catálogo único por empresa, compartilhado entre Pacientes e
+// Contatos da mensageria (mesmo nome/cor não se duplica entre os dois).
 model Tag {
   id        String   @id @default(cuid())
   name      String
@@ -207,6 +208,7 @@ model Tag {
   // Relacionamentos
   company  Company      @relation(fields: [companyId], references: [id])
   patients PatientTag[]
+  contacts ContactTag[]
 
   // Único por empresa (não global) — cada clínica tem suas próprias tags.
   @@unique([companyId, name])
@@ -225,6 +227,21 @@ model PatientTag {
 
   @@unique([patientId, tagId])
   @@map("patient_tags")
+}
+
+// Etiqueta do CONTATO da mensageria (nome/cor personalizáveis, catálogo
+// compartilhado com Tag acima) — mesmo padrão de junção do PatientTag.
+model ContactTag {
+  id        String   @id @default(cuid())
+  contactId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tagId])
+  @@map("contact_tags")
 }
 
 // Módulo de CRM/Pipeline
@@ -625,6 +642,7 @@ model Contact {
 
   identities    ContactIdentity[]
   conversations Conversation[]
+  tags          ContactTag[]
 
   @@index([companyId, phone])
   @@index([companyId, name])
