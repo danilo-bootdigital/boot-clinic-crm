@@ -4,9 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Menu,
-  Search,
   Bell,
-  Plus,
   LogOut,
   User as UserIcon,
   ChevronDown,
@@ -67,27 +65,9 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
         <Breadcrumbs />
       </div>
 
-      {/* Busca global */}
-      <div className="ml-auto flex max-w-md flex-1 items-center lg:ml-6 lg:mr-auto">
-        <div className="relative w-full">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder="Buscar pacientes, agendamentos…"
-            className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-        </div>
-      </div>
-
-      {/* Ações rápidas */}
-      <button className="hidden h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:inline-flex">
-        <Plus className="h-4 w-4" />
-        <span>Novo</span>
-      </button>
-
       {/* Notificações */}
       <button
-        className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="relative ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         aria-label="Notificações"
       >
         <Bell className="h-[18px] w-[18px]" />
