@@ -95,26 +95,47 @@ export function Sidebar({
         )}
       >
         {/* Identidade da clínica logada */}
-        <div className={cn("flex h-[72px] items-center gap-3", collapsed ? "justify-center px-2" : "px-4")}>
+        {/* Expandida: logo em destaque em cima, nome embaixo. Recolhida: só o ícone. */}
+        <div
+          className={cn(
+            "flex shrink-0 flex-col items-center",
+            collapsed ? "h-[72px] justify-center px-2" : "gap-2 px-4 pb-3 pt-5",
+          )}
+        >
           {company?.logo && !logoBroken ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={company.logo}
               alt={company.name || "Logo da clínica"}
               onError={() => setLogoBroken(true)}
-              className="h-12 w-12 shrink-0 rounded-lg border border-border bg-card object-contain p-1"
+              className={cn(
+                "shrink-0 object-contain",
+                collapsed
+                  ? "h-12 w-12 rounded-lg border border-border bg-card p-1"
+                  : "h-20 w-auto max-w-full",
+              )}
             />
           ) : company ? (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-semibold text-primary-foreground">
+            <div
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-lg bg-primary font-semibold text-primary-foreground",
+                collapsed ? "h-12 w-12 text-base" : "h-16 w-16 text-xl",
+              )}
+            >
               {initials(company.name)}
             </div>
           ) : (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Activity className="h-6 w-6" strokeWidth={2.5} />
+            <div
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground",
+                collapsed ? "h-12 w-12" : "h-16 w-16",
+              )}
+            >
+              <Activity className={collapsed ? "h-6 w-6" : "h-8 w-8"} strokeWidth={2.5} />
             </div>
           )}
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="w-full min-w-0 text-center">
               <p className="truncate text-sm font-semibold text-foreground">
                 {company?.name || "Minha Clínica"}
               </p>
