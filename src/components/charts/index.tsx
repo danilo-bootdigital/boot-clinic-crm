@@ -23,8 +23,9 @@ import {
 
 // Sequência teal para categorias (do mais forte ao mais claro).
 export const VIZ_SEQUENCE = ['#178F77', '#26C6A3', '#5FD9BD', '#99E8D6', '#C9F2E8']
-const GRID = '#E5E5E5'
-const AXIS = '#8A8A8A'
+// Tokens (e não hex) para a grade e os eixos acompanharem o tema escuro.
+const GRID = 'hsl(var(--border))'
+const AXIS = 'hsl(var(--muted-foreground))'
 
 type Formatter = (value: number) => string
 

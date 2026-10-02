@@ -12,9 +12,9 @@ export type ChannelValue = 'WHATSAPP' | 'INSTAGRAM' | 'TIKTOK';
 export type SourceValue = 'CONTACT' | 'CRM' | 'MOBILE' | 'AUTOMATION';
 
 const CHANNEL_META: Record<ChannelValue, { label: string; className: string }> = {
-  WHATSAPP: { label: 'WhatsApp', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  INSTAGRAM: { label: 'Instagram', className: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200' },
-  TIKTOK: { label: 'TikTok', className: 'bg-slate-100 text-slate-700 ring-slate-300' },
+  WHATSAPP: { label: 'WhatsApp', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800' },
+  INSTAGRAM: { label: 'Instagram', className: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200 dark:bg-fuchsia-950/60 dark:text-fuchsia-300 dark:ring-fuchsia-800' },
+  TIKTOK: { label: 'TikTok', className: 'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600' },
 };
 
 // Só marcamos a origem do ENVIO quando ela não é a esperada. Mensagem enviada
@@ -56,7 +56,7 @@ export function ChannelBadge({
       )}
       {sourceMeta && (
         <span
-          className="rounded-full bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-200"
+          className="rounded-full bg-amber-50 px-1.5 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-800"
           title={sourceMeta.title}
         >
           {sourceMeta.label}

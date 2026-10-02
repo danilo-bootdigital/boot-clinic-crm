@@ -201,6 +201,23 @@ class Table {
     rec.updatedAt = new Date();
     return rec;
   }
+  async updateMany({ where = {}, data }: { where?: Rec; data: Rec }) {
+    const hit = this.rows.filter((r) => matches(r, where));
+    for (const rec of hit) {
+      applyData(rec, data);
+      rec.updatedAt = new Date();
+    }
+    return { count: hit.length };
+  }
+  async delete({ where }: { where: Rec }) {
+    const i = this.rows.findIndex((r) => matches(r, where));
+    if (i < 0) {
+      const err: any = new Error('Record to delete does not exist');
+      err.code = 'P2025';
+      throw err;
+    }
+    return this.rows.splice(i, 1)[0];
+  }
 }
 
 export interface PrismaMock {
@@ -234,6 +251,8 @@ export interface PrismaMock {
   room: Table;
   // Módulo Tarefas (ex-Follow-up)
   followUpTask: Table;
+  /** Forma em array, executada em sequência (sem rollback — basta aos testes). */
+  $transaction(ops: Promise<any>[]): Promise<any[]>;
   __reset(): void;
 }
 
@@ -267,6 +286,11 @@ export function makePrismaMock(): PrismaMock {
     patient: new Table('pat'),
     room: new Table('room'),
     followUpTask: new Table('task'),
+    async $transaction(ops) {
+      const out: any[] = [];
+      for (const op of ops) out.push(await op);
+      return out;
+    },
     __reset() {
       for (const t of [
         mock.channelAccount, mock.conversation, mock.message,
