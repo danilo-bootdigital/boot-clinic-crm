@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { DealSource } from '@/lib/validations/crm';
 import { FunnelPipeline, type FunnelVariant } from '@/components/charts';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,58 @@ interface PipelineStage {
   color: string;
   probability?: number;
   isFinal: boolean;
+  finalType?: 'NONE' | 'WON' | 'LOST';
+}
+
+/**
+ * Cores oferecidas para a etapa. São as mesmas das etapas padrão (getDefaultStages):
+ * a cor fica gravada no banco e tinge o cabeçalho, então a escolha é fechada
+ * para o quadro não virar um arco-íris de tons parecidos.
+ */
+const STAGE_COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#06B6D4', '#EC4899', '#EF4444', '#64748B'];
+
+/** Cartões visíveis por coluna antes de a coluna ganhar rolagem própria. */
+const VISIBLE_CARDS = 5;
+
+/**
+ * Lista de cartões de uma etapa. Até {@link VISIBLE_CARDS} cartões a coluna
+ * cresce normalmente; a partir do sexto, a altura trava no fim do quinto e o
+ * resto rola dentro da coluna — o quadro fica com as colunas alinhadas em vez
+ * de uma etapa cheia empurrar a página inteira.
+ *
+ * A altura é medida (e não um `max-h` fixo) porque o cartão varia: com ou sem
+ * telefone, motivo de perda, follow-up. Um valor fixo cortaria o quinto no meio.
+ */
+function StageCardList({ count, children }: { count: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [maxHeight, setMaxHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      if (count <= VISIBLE_CARDS) return setMaxHeight(null);
+      const last = el.children[VISIBLE_CARDS - 1] as HTMLElement | undefined;
+      if (!last) return setMaxHeight(null);
+      const padBottom = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+      setMaxHeight(last.offsetTop + last.offsetHeight + padBottom);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    Array.from(el.children).slice(0, VISIBLE_CARDS).forEach((c) => ro.observe(c));
+    return () => ro.disconnect();
+  }, [count]);
+
+  return (
+    <div
+      ref={ref}
+      // `relative` faz do container o offsetParent dos cartões (medição acima).
+      className="scrollbar-thin relative min-h-[200px] space-y-3 overflow-y-auto overscroll-contain p-4"
+      style={maxHeight ? { maxHeight } : undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 interface DealLossReason {
@@ -107,6 +160,15 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
   const [lossReasonId, setLossReasonId] = useState('');
   const [lossBusy, setLossBusy] = useState(false);
   const [lossError, setLossError] = useState<string | null>(null);
+  // Exclusão de etapa: etapa escolhida + destino dos negócios que estiverem nela.
+  const [stageToDelete, setStageToDelete] = useState<PipelineStage | null>(null);
+  const [moveToStageId, setMoveToStageId] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Criar/renomear etapa: um só diálogo; `stage` presente = edição.
+  const [stageForm, setStageForm] = useState<{ stage: PipelineStage | null; name: string; color: string } | null>(null);
+  const [stageFormBusy, setStageFormBusy] = useState(false);
+  const [stageFormError, setStageFormError] = useState<string | null>(null);
   const [funnelVariant, setFunnelVariant] = useState<FunnelVariant>('funnel');
   const [filters, setFilters] = useState({
     responsibleUserId: '',
@@ -261,6 +323,89 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
     }
   };
 
+  // Etapas que aceitam negócio parado: as finais (Fechado/Perdido) ficam de fora
+  // porque o servidor não as deixa excluir nem receber negócios em lote.
+  const isOpenStage = (s: PipelineStage) => (s.finalType ?? (s.isFinal ? 'WON' : 'NONE')) === 'NONE';
+  const openStages = stages.filter(isOpenStage);
+  const canDeleteStage = (s: PipelineStage) => isOpenStage(s) && openStages.length > 1;
+
+  const askDeleteStage = (stage: PipelineStage) => {
+    const others = openStages.filter((s) => s.id !== stage.id);
+    // Sugere a etapa vizinha anterior (ou a próxima): é para onde o negócio
+    // naturalmente voltaria se a etapa nunca tivesse existido.
+    const before = [...others].reverse().find((s) => s.order < stage.order);
+    setMoveToStageId((before ?? others[0])?.id ?? '');
+    setDeleteError(null);
+    setStageToDelete(stage);
+  };
+
+  const confirmDeleteStage = async () => {
+    if (!stageToDelete) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/crm/pipelines/${pipelineId}/stages/${stageToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moveToStageId: moveToStageId || undefined }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setDeleteError(body?.error ?? 'Não foi possível excluir a etapa.');
+        return;
+      }
+      setStageToDelete(null);
+      await Promise.all([loadStages(), loadDeals()]);
+    } catch (error) {
+      console.error('Erro ao excluir etapa:', error);
+      setDeleteError('Falha de rede ao excluir a etapa.');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const openStageForm = (stage: PipelineStage | null) => {
+    setStageFormError(null);
+    setStageForm(
+      stage
+        ? { stage, name: stage.name, color: stage.color }
+        : { stage: null, name: '', color: STAGE_COLORS[openStages.length % STAGE_COLORS.length] }
+    );
+  };
+
+  const saveStageForm = async () => {
+    if (!stageForm) return;
+    const name = stageForm.name.trim();
+    if (!name) {
+      setStageFormError('Dê um nome à etapa.');
+      return;
+    }
+    setStageFormBusy(true);
+    setStageFormError(null);
+    try {
+      const url = stageForm.stage
+        ? `/api/crm/pipelines/${pipelineId}/stages/${stageForm.stage.id}`
+        : `/api/crm/pipelines/${pipelineId}/stages`;
+      const response = await fetch(url, {
+        method: stageForm.stage ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color: stageForm.color }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStageFormError(body?.error ?? 'Não foi possível salvar a etapa.');
+        return;
+      }
+      setStageForm(null);
+      await loadStages();
+    } catch (error) {
+      console.error('Erro ao salvar etapa:', error);
+      setStageFormError('Falha de rede ao salvar a etapa.');
+    } finally {
+      setStageFormBusy(false);
+    }
+  };
+
   // Drag and drop handlers
   const handleDragStart = (deal: Deal) => {
     setDraggedDeal(deal);
@@ -279,7 +424,7 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
   }
 
   return (
-    <div className="min-h-screen bg-muted p-4">
+    <div>
       {/* Filtros */}
       <div className="mb-6 bg-card rounded-xl border border-border shadow-card p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -423,8 +568,10 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
         </div>
       )}
 
-      {/* Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {/* Kanban Board — uma fileira só, na ordem do funil. As colunas esticam
+          para preencher telas largas e, quando não cabem, o quadro rola na
+          horizontal em vez de quebrar em duas fileiras. */}
+      <div className="scrollbar-thin -mx-1 flex items-start gap-4 overflow-x-auto px-1 pb-3">
         {stages.map((stage) => {
           const stageDeals = getDealsByStage(stage.id);
           const stageValue = getValueByStage(stage.id);
@@ -432,30 +579,52 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
           return (
             <div
               key={stage.id}
-              className="bg-card rounded-xl border border-border shadow-card"
+              className="flex min-w-[17rem] flex-1 basis-0 flex-col rounded-xl border border-border bg-card shadow-card"
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(stage.id)}
             >
               {/* Cabeçalho da etapa */}
               <div
-                className="p-4 border-b"
+                className="rounded-t-xl border-b p-4"
                 style={{ backgroundColor: stage.color + '20' }}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-foreground">{stage.name}</h3>
-                  <span className="text-sm text-muted-foreground">
-                    {stageDeals.length} deal{stageDeals.length !== 1 ? 's' : ''}
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="min-w-0 truncate font-semibold text-foreground">{stage.name}</h3>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="text-sm tabular-nums text-muted-foreground">
+                      {stageDeals.length} deal{stageDeals.length !== 1 ? 's' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openStageForm(stage)}
+                      title={`Editar etapa ${stage.name}`}
+                      aria-label={`Editar etapa ${stage.name}`}
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    {canDeleteStage(stage) && (
+                      <button
+                        type="button"
+                        onClick={() => askDeleteStage(stage)}
+                        title={`Excluir etapa ${stage.name}`}
+                        aria-label={`Excluir etapa ${stage.name}`}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {stageValue > 0 && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Total: R$ {stageValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                 )}
               </div>
 
               {/* Cards da etapa */}
-              <div className="p-4 space-y-3 min-h-[200px]">
+              <StageCardList count={stageDeals.length}>
                 {stageDeals.map((deal) => (
                   <div
                     key={deal.id}
@@ -556,11 +725,168 @@ export default function KanbanBoard({ pipelineId, onDealClick }: KanbanBoardProp
                     Nenhum deal nesta etapa
                   </div>
                 )}
-              </div>
+              </StageCardList>
             </div>
           );
         })}
+
+        {/* Nova etapa: no fim do quadro, que é onde se procura. No funil ela
+            entra antes de Fechado/Perdido (o servidor posiciona). */}
+        {stages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => openStageForm(null)}
+            className="flex min-h-[200px] w-56 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="h-5 w-5" />
+            Nova etapa
+          </button>
+        )}
       </div>
+
+      {/* Criar / editar etapa */}
+      {stageForm && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-form-etapa"
+        >
+          <form
+            className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-lg"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveStageForm();
+            }}
+          >
+            <h3 id="titulo-form-etapa" className="text-base font-semibold text-foreground">
+              {stageForm.stage ? 'Editar etapa' : 'Nova etapa'}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {stageForm.stage
+                ? stageForm.stage.isFinal
+                  ? 'Etapa de desfecho: o nome muda, a função (ganho/perda) continua a mesma.'
+                  : 'Os negócios desta etapa continuam nela.'
+                : 'Entra no funil antes de Fechado e Perdido.'}
+            </p>
+
+            <div className="mt-4">
+              <label htmlFor="nome-etapa" className="mb-1 block text-sm font-medium text-foreground">
+                Nome *
+              </label>
+              <Input
+                id="nome-etapa"
+                autoFocus
+                maxLength={40}
+                value={stageForm.name}
+                onChange={(e) => setStageForm((f) => (f ? { ...f, name: e.target.value } : f))}
+                placeholder="Ex.: Avaliação agendada"
+                className="w-full"
+              />
+            </div>
+
+            <fieldset className="mt-4">
+              <legend className="mb-2 text-sm font-medium text-foreground">Cor</legend>
+              <div className="flex flex-wrap gap-2">
+                {STAGE_COLORS.map((c) => {
+                  const selected = stageForm.color.toLowerCase() === c.toLowerCase();
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setStageForm((f) => (f ? { ...f, color: c } : f))}
+                      aria-label={`Cor ${c}`}
+                      aria-pressed={selected}
+                      className={`h-7 w-7 rounded-full border-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                        selected ? 'scale-110 border-foreground' : 'border-transparent hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {stageFormError && <p className="mt-3 text-sm text-destructive">{stageFormError}</p>}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStageForm(null)}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={stageFormBusy || !stageForm.name.trim()}
+                className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              >
+                {stageFormBusy ? 'Salvando…' : stageForm.stage ? 'Salvar' : 'Criar etapa'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Excluir etapa: os negócios dela vão para a etapa escolhida. */}
+      {stageToDelete && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-excluir-etapa"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-lg">
+            <h3 id="titulo-excluir-etapa" className="text-base font-semibold text-foreground">
+              Excluir a etapa “{stageToDelete.name}”?
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A etapa sai do funil. Nenhum negócio é apagado: os que estiverem nela vão para a etapa abaixo.
+            </p>
+
+            <div className="mt-4">
+              <label htmlFor="destino-etapa" className="mb-1 block text-sm font-medium text-foreground">
+                Mover os negócios para
+              </label>
+              <FilterSelect
+                id="destino-etapa"
+                className="w-full"
+                value={moveToStageId}
+                onChange={(e) => setMoveToStageId(e.target.value)}
+              >
+                {openStages
+                  .filter((s) => s.id !== stageToDelete.id)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </FilterSelect>
+            </div>
+
+            {deleteError && <p className="mt-3 text-sm text-destructive">{deleteError}</p>}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStageToDelete(null)}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteStage}
+                disabled={deleteBusy || !moveToStageId}
+                className="rounded-lg bg-destructive px-3 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {deleteBusy ? 'Excluindo…' : 'Excluir etapa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Motivo da perda: o cartão só entra em Perdido depois da escolha. */}
       {lossPrompt && (
