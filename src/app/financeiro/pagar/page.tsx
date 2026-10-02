@@ -67,7 +67,7 @@ export default function ContasPagarPage() {
   }
 
   if (denied) return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Contas a Pagar" icon={<Wallet className="h-5 w-5" />} />
       <FinanceTabs role={role} />
       <EmptyState title="Sem acesso" description="Contas a Pagar é restrito a OWNER, MANAGER e Financeiro." />
@@ -75,7 +75,7 @@ export default function ContasPagarPage() {
   )
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader
         title="Financeiro" description="Contas a Pagar" icon={<Wallet className="h-5 w-5" />}
         actions={canCreate && !showNew ? (<Button onClick={() => setShowNew(true)}><Plus className="mr-1.5 h-4 w-4" />Nova despesa</Button>) : undefined}

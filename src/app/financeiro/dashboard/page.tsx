@@ -34,7 +34,7 @@ export default function DashboardFinanceiroPage() {
   }, [])
 
   if (denied) return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Dashboard" icon={<Gauge className="h-5 w-5" />} />
       <FinanceTabs role={role} />
       <EmptyState title="Sem acesso" description="O dashboard financeiro é restrito a OWNER, MANAGER e Financeiro." />
@@ -42,7 +42,7 @@ export default function DashboardFinanceiroPage() {
   )
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Dashboard executivo" icon={<Gauge className="h-5 w-5" />} />
       <FinanceTabs role={role} />
 

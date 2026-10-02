@@ -72,7 +72,7 @@ export default function FinanceiroPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader
         title="Financeiro" description="Contas a Receber" icon={<Wallet className="h-5 w-5" />}
         actions={canCreate && !showNew ? (

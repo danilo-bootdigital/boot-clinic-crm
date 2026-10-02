@@ -19,7 +19,7 @@ export default function CategoriasPage() {
   const canExpenseManage = payableCan(role, 'create')
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Categorias" icon={<Tags className="h-5 w-5" />} />
       <FinanceTabs role={role} />
 
