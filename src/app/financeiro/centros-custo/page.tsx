@@ -18,7 +18,7 @@ export default function CentrosCustoPage() {
   const canManage = payableCan(role, 'create')
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Centros de custo" icon={<Building2 className="h-5 w-5" />} />
       <FinanceTabs role={role} />
       {canView ? (

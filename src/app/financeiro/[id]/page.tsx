@@ -62,9 +62,9 @@ export default function ReceivableDetailPage() {
     if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'Erro ao estornar') } else load()
   }
 
-  if (loading) return <div className="mx-auto max-w-5xl px-4 py-6 text-sm text-muted-foreground">Carregando…</div>
+  if (loading) return <div className="text-sm text-muted-foreground">Carregando…</div>
   if (error || !data) return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div>
       <p className="text-sm text-destructive">{error || 'Recebível não encontrado'}</p>
       <Link href="/financeiro" className="mt-3 inline-block text-sm text-primary hover:underline">← Voltar</Link>
     </div>
@@ -73,7 +73,7 @@ export default function ReceivableDetailPage() {
   const canceled = data.status === 'CANCELADO'
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+    <div>
       <Link href="/financeiro" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Voltar
       </Link>

@@ -12,7 +12,7 @@ const BARE_ROUTES = ["/login", "/tele"];
 
 /**
  * Rotas full-bleed: mantêm sidebar e topbar, mas a página ocupa TODA a área
- * restante — sem `max-w-content`, sem padding e sem o scroll do `<main>`.
+ * restante — sem padding e sem o scroll do `<main>`.
  *
  * É o que uma caixa de entrada precisa: a lista e a thread rolam cada uma no
  * seu painel, com o campo de envio fixo no rodapé. Numa página comum (que rola
@@ -24,12 +24,6 @@ const FULL_ROUTES = ["/mensageria"];
 // de entrada — o match por prefixo acima as pegaria por engano.
 const FULL_ROUTE_EXCEPTIONS = ["/mensageria/mensagens-prontas"];
 
-/**
- * Rotas largas: página comum (padding + scroll do `<main>`), mas sem o teto de
- * `max-w-content`. É para quadros com muitas colunas lado a lado (kanban), que
- * em 1240px viram duas fileiras e perdem a leitura da esquerda para a direita.
- */
-const WIDE_ROUTES = ["/crm"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -55,7 +49,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const bare = matches(BARE_ROUTES);
   const full = matches(FULL_ROUTES) && !matches(FULL_ROUTE_EXCEPTIONS);
-  const wide = matches(WIDE_ROUTES);
 
   if (bare) return <>{children}</>;
 
@@ -82,7 +75,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
         ) : (
           <main className="scrollbar-thin flex-1 px-4 py-6 lg:px-8 lg:py-8">
-            <div className={cn("mx-auto w-full animate-fade-in", !wide && "max-w-content")}>
+            {/* Largura total em todas as telas: o sistema é usado em monitor de
+                recepção/consultório, e tabela, agenda e kanban rendem mais com a
+                tela inteira. Limite de largura fica só onde é leitura/digitação
+                (formulários, coluna de mensagens), dentro de cada componente. */}
+            <div className="w-full animate-fade-in">
               {children}
             </div>
           </main>

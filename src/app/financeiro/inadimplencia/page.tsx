@@ -75,7 +75,7 @@ export default function InadimplenciaPage() {
   }
 
   if (denied) return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Inadimplência" icon={<AlertTriangle className="h-5 w-5" />} />
       <FinanceTabs role={role} />
       <EmptyState title="Sem acesso" description="O painel de inadimplência é restrito a quem tem acesso ao financeiro." />
@@ -83,7 +83,7 @@ export default function InadimplenciaPage() {
   )
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Inadimplência — parcelas vencidas em aberto" icon={<AlertTriangle className="h-5 w-5" />} />
       <FinanceTabs role={role} />
 

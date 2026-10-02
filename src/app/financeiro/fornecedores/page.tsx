@@ -66,7 +66,7 @@ export default function FornecedoresPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+    <div>
       <PageHeader title="Financeiro" description="Fornecedores" icon={<Truck className="h-5 w-5" />}
         actions={canManage && editId === null ? <Button size="sm" onClick={openNew}>+ Novo fornecedor</Button> : undefined} />
       <FinanceTabs role={role} />
