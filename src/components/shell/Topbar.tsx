@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface TopbarProps {
   onOpenMobileNav: () => void;
@@ -65,9 +66,12 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
         <Breadcrumbs />
       </div>
 
+      {/* Tema claro/escuro */}
+      <ThemeToggle className="ml-auto" />
+
       {/* Notificações */}
       <button
-        className="relative ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         aria-label="Notificações"
       >
         <Bell className="h-[18px] w-[18px]" />

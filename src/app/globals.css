@@ -65,6 +65,56 @@
 
     --radius: 0.75rem;                /* 12px — base do sistema (cards/botões) */
   }
+
+  /*
+   * Tema escuro — mesmos papéis, valores invertidos. A marca (teal) não muda:
+   * é ela que diz "Boot Clinic" nos dois temas. Neutros sem matiz, como no
+   * claro, para as cores das etapas/etiquetas (gravadas no banco) não brigarem
+   * com um fundo azulado. Ativado pela classe `.dark` no <html> (ThemeToggle).
+   */
+  .dark {
+    color-scheme: dark;
+
+    --background: 0 0% 8%;            /* #141414 — canvas */
+    --foreground: 0 0% 92%;           /* #EBEBEB */
+    --card: 0 0% 11%;                 /* #1C1C1C */
+    --card-foreground: 0 0% 92%;
+    --popover: 0 0% 13%;              /* um degrau acima do card: menus flutuam */
+    --popover-foreground: 0 0% 92%;
+
+    --primary: 167 68% 46%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 0 0% 16%;                /* header de tabela, hover */
+    --muted-foreground: 0 0% 64%;     /* #A3A3A3 */
+    --accent: 167 45% 15%;            /* teal lavado no escuro */
+    --accent-foreground: 167 65% 62%; /* teal claro p/ texto sobre accent */
+
+    --success: 158 55% 46%;
+    --success-foreground: 0 0% 100%;
+    --warning: 44 92% 50%;
+    --warning-foreground: 0 0% 10%;
+    --warning-strong: 44 90% 62%;     /* âmbar claro p/ texto sobre fundo escuro */
+    --destructive: 1 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --info: 167 68% 46%;
+    --info-foreground: 0 0% 100%;
+
+    --status-realizado: 211 85% 60%;
+    --status-falta: 24 88% 58%;
+
+    --border: 0 0% 20%;               /* #333 */
+    --input: 0 0% 22%;
+    --ring: 167 68% 46%;
+
+    --sidebar: 0 0% 10%;
+    --sidebar-foreground: 0 0% 64%;
+    --sidebar-muted: 0 0% 48%;
+    --sidebar-accent: 167 45% 15%;
+    --sidebar-border: 0 0% 18%;
+  }
 }
 
 @layer base {
