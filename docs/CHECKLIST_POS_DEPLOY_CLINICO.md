@@ -36,7 +36,7 @@
 - [ ] **Documentos:** upload de documento → abre por link assinado → remover.
 
 ## RBAC por papel (repetir login)
-- [ ] **DOCTOR:** edita prontuário/anamnese/imagens; **vê** contratos/orçamentos mas não cria.
+- [ ] **DOCTOR:** edita prontuário/anamnese/imagens/contratos; **vê** orçamentos mas não cria.
 - [ ] **RECEPTION:** cria anamnese e anexa documentos; prontuário **somente leitura**.
 - [ ] **FINANCE:** vê contratos/orçamentos; prontuário/anamnese/imagens **bloqueados (403)**.
 - [ ] **MARKETING:** sem acesso a nenhuma área clínica.

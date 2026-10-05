@@ -185,14 +185,15 @@ async function main() {
     const mAn = await mkt.req('GET', '/api/clinico/anamneses')
     mAn.status === 403 ? ok('MARKETING bloqueado em anamneses (403)') : fail('MARKETING anamneses deveria 403, veio ' + mAn.status)
 
-    // DOCTOR: edita prontuário, vê (não edita) contratos.
+    // DOCTOR: edita prontuário e contratos (colhe o termo de consentimento);
+    // orçamento só visualiza.
     const doctor = await makeUser('DOCTOR')
     const dRec = await doctor.req('POST', `/api/patients/${pid}/medical-records`, { type: 'OBSERVATION', title: 'Obs do médico', content: 'ok' })
     dRec.status === 201 ? ok('DOCTOR cria registro de prontuário (201)') : fail('DOCTOR prontuário: ' + dRec.status)
-    const dCtrView = await doctor.req('GET', `/api/patients/${pid}/contracts`)
-    dCtrView.status === 200 ? ok('DOCTOR vê contratos (200)') : fail('DOCTOR ver contratos: ' + dCtrView.status)
     const dCtrEdit = await doctor.req('POST', `/api/patients/${pid}/contracts`, { title: 'x', content: 'y' })
-    dCtrEdit.status === 403 ? ok('DOCTOR bloqueado ao CRIAR contrato (403)') : fail('DOCTOR criar contrato deveria 403, veio ' + dCtrEdit.status)
+    dCtrEdit.status === 201 ? ok('DOCTOR cria contrato (201)') : fail('DOCTOR criar contrato deveria 201, veio ' + dCtrEdit.status)
+    const dQuoteEdit = await doctor.req('POST', `/api/patients/${pid}/quotes`, { title: 'x' })
+    dQuoteEdit.status === 403 ? ok('DOCTOR bloqueado ao CRIAR orçamento (403)') : fail('DOCTOR criar orçamento deveria 403, veio ' + dQuoteEdit.status)
 
     console.log('\n== ISOLAMENTO (multiempresa) ==')
     const other = await prisma.company.findFirst({ where: { id: { not: companyId }, deletedAt: null } })

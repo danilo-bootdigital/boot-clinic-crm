@@ -29,8 +29,10 @@ export const CLINICAL_AREAS: ClinicalArea[] = [
 // 'clinico' definido na matriz de permissões por usuário (Configurações).
 // OWNER / MANAGER / SUPER_ADMIN têm acesso total (não passam por aqui).
 const CLINICAL_MATRIX: Partial<Record<UserRole, Record<ClinicalArea, PermLevel>>> = {
-  // Médico/Profissional: prontuário, anamnese e imagens (edição); vê contratos/orçamentos.
-  DOCTOR: { anamnese: 'edit', prontuario: 'edit', imagens: 'edit', contratos: 'view', orcamentos: 'view' },
+  // Médico/Profissional: prontuário, anamnese, imagens e contratos (edição); vê orçamentos.
+  // Contratos em edição (2026-10): em estética quem aplica é quem colhe o termo
+  // de consentimento — gera, assina presencialmente e envia pelo WhatsApp.
+  DOCTOR: { anamnese: 'edit', prontuario: 'edit', imagens: 'edit', contratos: 'edit', orcamentos: 'view' },
   // Recepção: cria anamnese e anexa documentos/imagens; NÃO edita evolução clínica (só visualiza prontuário).
   RECEPTION: { anamnese: 'edit', prontuario: 'view', imagens: 'edit', contratos: 'edit', orcamentos: 'edit' },
   // Financeiro: vê orçamento (e contrato), sem acesso a prontuário/anamnese/imagens clínicas.
