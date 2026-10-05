@@ -142,6 +142,14 @@ async function touchConversation(opts: {
   if (Object.keys(data).length) {
     await prisma.conversation.update({ where: { id: opts.conversationId }, data });
   }
+  // Contato perdido que volta a escrever reaparece na coluna — senão a
+  // mensagem dele ficaria invisível para a equipe.
+  if (!opts.isHistory && opts.direction === 'INCOMING') {
+    await prisma.conversation.updateMany({
+      where: { id: opts.conversationId, status: 'LOST' },
+      data: { status: 'OPEN' },
+    });
+  }
 }
 
 export type IngestResult = 'created' | 'duplicate' | 'skipped' | 'placeholder';

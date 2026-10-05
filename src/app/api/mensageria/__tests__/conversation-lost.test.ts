@@ -138,3 +138,19 @@ describe('POST — registro da perda', () => {
     expect(await db.deal.count()).toBe(0);
   });
 });
+
+describe('POST — perdido sai da coluna de conversas', () => {
+  it('marca a conversa como LOST e a lista deixa de trazê-la', async () => {
+    const motivo = await db.dealLossReason.create({ data: { companyId: 'A', name: 'Preço', order: 0 } });
+    const res = await POST(postReq({ lossReasonId: motivo.id }), { params: { id: conv.id } });
+    expect(res.status).toBe(200);
+
+    const atual = await db.conversation.findFirst({ where: { id: conv.id } });
+    expect(atual.status).toBe('LOST');
+
+    vi.mocked(resolveModuleUser).mockResolvedValue({ dbUser: { id: 'u1', name: 'Recepção', companyId: 'A', role: 'ADMIN' } } as any);
+    const { GET: LIST } = await import('@/app/api/mensageria/conversations/route');
+    const lista = await (await LIST()).json();
+    expect(lista.map((c: any) => c.id)).not.toContain(conv.id);
+  });
+});

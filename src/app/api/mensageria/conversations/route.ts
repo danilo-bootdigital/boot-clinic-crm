@@ -26,7 +26,9 @@ export async function GET() {
     if (denied) return denied;
 
     const convs = await prisma.conversation.findMany({
-      where: { companyId: dbUser!.companyId, deletedAt: null },
+      // LOST = contato dado como perdido pela conversa: some da coluna até
+      // escrever de novo (a ingestão reabre).
+      where: { companyId: dbUser!.companyId, deletedAt: null, status: { not: 'LOST' } },
       // NULLS LAST é essencial: o Postgres põe NULL PRIMEIRO em DESC, então
       // conversa sem mensagem nenhuma (importada de findChats) subia para o topo
       // e enterrava o atendimento real embaixo de centenas de threads vazias.

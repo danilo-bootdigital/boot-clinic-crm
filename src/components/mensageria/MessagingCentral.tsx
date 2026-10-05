@@ -69,6 +69,7 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   OPEN: { label: 'Aberta', className: 'bg-success/15 text-success' },
   PENDING: { label: 'Pendente', className: 'bg-warning/15 text-warning' },
   CLOSED: { label: 'Encerrada', className: 'bg-muted text-muted-foreground' },
+  LOST: { label: 'Perdido', className: 'bg-destructive/15 text-destructive' },
 };
 
 interface WhatsAppConversation {
@@ -1052,7 +1053,16 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 {/* Perdido também mora aqui: quem descobre o motivo é quem está
                     conversando, e obrigar a abrir o CRM é o que faz a perda
                     nunca ser registrada. */}
-                <MarkDealLost conversationId={selectedConversation.id} />
+                <MarkDealLost
+                  conversationId={selectedConversation.id}
+                  onLost={() => {
+                    // Perdido sai da coluna na hora; o servidor já marcou LOST.
+                    const perdida = selectedConversation.id;
+                    setConversations((prev) => prev.filter((c) => c.id !== perdida));
+                    setSelectedId(null);
+                    loadConversations(true);
+                  }}
+                />
               </div>
             </div>
 

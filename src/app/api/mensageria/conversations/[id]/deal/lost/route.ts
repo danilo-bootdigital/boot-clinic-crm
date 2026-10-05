@@ -170,6 +170,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           },
         });
 
+    // Contato perdido sai da coluna de conversas: a fila é de quem ainda está
+    // em atendimento. Se a pessoa voltar a escrever, a ingestão reabre (OPEN).
+    await prisma.conversation.update({
+      where: { id: conv.id },
+      data: { status: 'LOST', unreadCount: 0 },
+    });
+
     await prisma.dealActivity.create({
       data: {
         type: 'MOVED_STAGE',
