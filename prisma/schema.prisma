@@ -1532,6 +1532,30 @@ model PatientContract {
   updatedAt   DateTime       @updatedAt
   deletedAt   DateTime?
 
+  // ---- Assinatura eletrônica (Lei 14.063/2020, assinatura simples) ----
+  // Link público: guardamos só o HASH do token — quem lê o banco não consegue
+  // montar o link. O token em claro só existe na mensagem enviada ao paciente.
+  signTokenHash      String?   @unique
+  signTokenExpiresAt DateTime?
+  // Código de confirmação por WhatsApp (só o hash; expira e tem limite de tentativas).
+  otpHash            String?
+  otpExpiresAt       DateTime?
+  otpAttempts        Int       @default(0)
+  otpSendCount       Int       @default(0)
+  otpLastSentAt      DateTime?
+  otpSentTo          String? // número mascarado, para a evidência
+  viewedAt           DateTime? // 1ª abertura do link pelo paciente
+  // Evidências da assinatura.
+  signMethod         String? // IN_PERSON | REMOTE
+  contentHash        String? // SHA-256 do texto assinado — prova de que não mudou depois
+  signerName         String?
+  signerCpf          String?
+  signerIp           String?
+  signerUserAgent    String?
+  signedByUserId     String? // atendente que conduziu a assinatura presencial
+  signatureImagePath String? // PNG do traço (bucket clinical-media)
+  signedPdfPath      String? // PDF final com página de evidências
+
   @@map("patient_contracts")
 }
 

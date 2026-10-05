@@ -22,7 +22,7 @@ async function ensureBucket(admin: ReturnType<typeof createAdminClient>) {
 export interface ClinicalUploadInput {
   companyId: string;
   patientId: string;
-  kind: 'images' | 'documents' | 'records' | 'anamnesis'; // pasta lógica
+  kind: 'images' | 'documents' | 'records' | 'anamnesis' | 'contracts'; // pasta lógica
   fileName: string;
   contentType: string;
   bytes: Uint8Array;

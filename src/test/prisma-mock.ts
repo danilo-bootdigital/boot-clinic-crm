@@ -251,6 +251,10 @@ export interface PrismaMock {
   room: Table;
   // Módulo Tarefas (ex-Follow-up)
   followUpTask: Table;
+  // Contratos com assinatura eletrônica.
+  patientContract: Table;
+  timelineEvent: Table;
+  notificationEvent: Table;
   /** Forma em array, executada em sequência (sem rollback — basta aos testes). */
   $transaction(ops: Promise<any>[]): Promise<any[]>;
   __reset(): void;
@@ -286,6 +290,9 @@ export function makePrismaMock(): PrismaMock {
     patient: new Table('pat'),
     room: new Table('room'),
     followUpTask: new Table('task'),
+    patientContract: new Table('ctr', { unique: ['signTokenHash'] }),
+    timelineEvent: new Table('tl'),
+    notificationEvent: new Table('notif'),
     async $transaction(ops) {
       const out: any[] = [];
       for (const op of ops) out.push(await op);
@@ -302,6 +309,7 @@ export function makePrismaMock(): PrismaMock {
         mock.professional, mock.professionalSpecialty, mock.specialty,
         mock.appointment, mock.patient, mock.room,
         mock.followUpTask,
+        mock.patientContract, mock.timelineEvent, mock.notificationEvent,
       ]) t.rows = [];
     },
   };

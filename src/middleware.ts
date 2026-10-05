@@ -37,7 +37,8 @@ export async function middleware(request: NextRequest) {
   // Prefixos com barra final para não casar rotas como /api/publicReport ou /loginX.
   // '/tele/' é a sala pública da teleconsulta (paciente acessa por link, sem login).
   // '/api/cron/' são jobs agendados (Vercel Cron) — autenticam por CRON_SECRET na própria rota.
-  const prefixPublicPaths = ['/api/auth/', '/api/public/', '/tele/', '/api/cron/']
+  // '/assinar/' é a página pública de assinatura de contrato (link no WhatsApp).
+  const prefixPublicPaths = ['/api/auth/', '/api/public/', '/tele/', '/assinar/', '/api/cron/']
   const isPublicPath =
     exactPublicPaths.includes(pathname) ||
     prefixPublicPaths.some(path => pathname.startsWith(path))

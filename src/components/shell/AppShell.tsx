@@ -8,7 +8,9 @@ import { Topbar } from "./Topbar";
 
 /** Rotas que NÃO usam o shell (sem sidebar/header). */
 // '/tele' = sala pública da teleconsulta (paciente, sem login nem navegação do CRM).
-const BARE_ROUTES = ["/login", "/tele"];
+// '/assinar' = assinatura de contrato pelo paciente (link público) e a tela
+// presencial em tela cheia.
+const BARE_ROUTES = ["/login", "/tele", "/assinar", "/clinico/contratos/assinar"];
 
 /**
  * Rotas full-bleed: mantêm sidebar e topbar, mas a página ocupa TODA a área

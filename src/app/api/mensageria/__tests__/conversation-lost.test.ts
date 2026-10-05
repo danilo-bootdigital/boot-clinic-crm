@@ -146,7 +146,7 @@ describe('POST — perdido sai da coluna de conversas', () => {
     expect(res.status).toBe(200);
 
     const atual = await db.conversation.findFirst({ where: { id: conv.id } });
-    expect(atual.status).toBe('LOST');
+    expect(atual!.status).toBe('LOST');
 
     vi.mocked(resolveModuleUser).mockResolvedValue({ dbUser: { id: 'u1', name: 'Recepção', companyId: 'A', role: 'ADMIN' } } as any);
     const { GET: LIST } = await import('@/app/api/mensageria/conversations/route');

@@ -4,11 +4,13 @@ import { FileSignature } from 'lucide-react'
 import ClinicalListView from '@/components/clinical/ClinicalListView'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { CONTRACT_STATUS_LABELS } from '@/lib/validations/clinical'
+import ContractTemplatesManager from '@/components/contracts/ContractTemplatesManager'
 
 const TONE: Record<string, any> = { DRAFT: 'warning', SENT: 'info', SIGNED: 'success', CANCELED: 'destructive' }
 
 export default function ContratosPage() {
   return (
+    <div className="space-y-6">
     <ClinicalListView
       title="Contratos" description="Contratos da clínica" icon={<FileSignature className="h-5 w-5" />}
       endpoint="/api/clinico/contracts" emptyLabel="contrato"
@@ -20,5 +22,7 @@ export default function ContratosPage() {
         </div>
       )}
     />
+    <ContractTemplatesManager />
+    </div>
   )
 }

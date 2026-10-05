@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveClinicalPatientAccess } from '@/lib/api/clinical-access';
 import { writeAudit } from '@/lib/api/audit';
 import { CreatePatientContractSchema } from '@/lib/validations/clinical';
+import { serializeContract } from '@/lib/contracts/serialize';
 
 // GET /api/patients/[id]/contracts - contratos do paciente.
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -14,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       where: { patientId: patient!.id, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(rows);
+    return NextResponse.json(rows.map(serializeContract));
   } catch (err) {
     console.error('Erro ao listar contratos:', err);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
@@ -44,10 +45,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         content: d.content,
         variables: d.variables ?? undefined,
         value: d.value ?? null,
-        status: d.status || 'DRAFT',
+        // Nasce sempre rascunho: "Enviado" só existe com link gerado e
+        // "Assinado" só com assinatura de verdade (rota de assinatura).
+        status: 'DRAFT',
         createdById: dbUser!.id,
-        ...(d.status === 'SENT' && { sentAt: new Date() }),
-        ...(d.status === 'SIGNED' && { signedAt: new Date() }),
       },
     });
 
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       newValues: { patientId: patient!.id, title: contract.title, status: contract.status }, request,
     });
 
-    return NextResponse.json(contract, { status: 201 });
+    return NextResponse.json(serializeContract(contract), { status: 201 });
   } catch (err) {
     if (err instanceof z.ZodError)
       return NextResponse.json({ error: 'Dados inválidos', details: err.errors }, { status: 400 });
