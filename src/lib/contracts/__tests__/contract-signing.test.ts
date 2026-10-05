@@ -217,8 +217,18 @@ describe('assinatura presencial e travas', () => {
     expect(res.status).toBe(400);
   });
 
-  it('texto não muda depois do envio', async () => {
-    await sendLink();
+  it('editar depois do envio derruba o link e volta a rascunho', async () => {
+    const { token } = await sendLink();
+    const res = await UPDATE(new NextRequest('http://localhost/x', { method: 'PUT', body: JSON.stringify({ content: 'outro texto' }) }), { params: { id: contract.id } });
+    expect(res.status).toBe(200);
+    const saved = await db.patientContract.findFirst({ where: { id: contract.id } });
+    expect(saved!.status).toBe('DRAFT');
+    expect(saved!.content).toBe('outro texto');
+    expect((await PUBLIC_GET(req(), { params: { token } })).status).toBe(404);
+  });
+
+  it('assinado não pode ser editado', async () => {
+    await SIGN_IN_PERSON(req({ cpf: '12345678909', signature: pngDataUrl(), accepted: true }), { params: { id: contract.id } });
     const res = await UPDATE(new NextRequest('http://localhost/x', { method: 'PUT', body: JSON.stringify({ content: 'outro texto' }) }), { params: { id: contract.id } });
     expect(res.status).toBe(409);
   });

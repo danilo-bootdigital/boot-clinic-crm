@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, ArrowLeft, Send, XCircle, PenLine, Download, Copy, Check } from 'lucide-react'
+import { Plus, ArrowLeft, Send, XCircle, PenLine, Download, Copy, Check, Pencil } from 'lucide-react'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ActionButton } from '@/components/ui/action-button'
@@ -42,6 +42,10 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
   const [busyId, setBusyId] = useState<string | null>(null)
   const [links, setLinks] = useState<Record<string, LinkInfo>>({})
   const [copied, setCopied] = useState<string | null>(null)
+  // Edição de um contrato já gerado (rascunho ou enviado, nunca assinado).
+  const [editing, setEditing] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ title: '', content: '', value: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/patients/${patientId}/contracts`, { cache: 'no-store' })
@@ -111,6 +115,31 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
     resetForm(); load()
   }
 
+  function openEdit(c: any) {
+    setError(null); setCreating(false)
+    setEditing(c)
+    setEditForm({ title: c.title, content: c.content, value: c.value != null ? String(c.value) : '' })
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const sobras = unresolvedVariables(editForm.content)
+    if (sobras.length) { setError(`O texto ainda tem campos sem valor: ${sobras.map((s) => `{{${s}}}`).join(', ')}`); return }
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/clinico/contracts/${editing.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editForm.title, content: editForm.content, value: editForm.value ? Number(editForm.value) : null }),
+      })
+      if (!res.ok) { const er = await res.json().catch(() => ({})); setError(er.error || 'Não foi possível salvar.'); return }
+      setLinks((l) => { const n = { ...l }; delete n[editing.id]; return n })
+      setEditing(null); load()
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   async function cancel(id: string) {
     if (!confirm('Cancelar este contrato? O link enviado ao paciente deixa de funcionar.')) return
     const res = await fetch(`/api/clinico/contracts/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'CANCELED' }) })
@@ -144,13 +173,41 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
     <SectionCard
       title="Contratos"
       description="Gere a partir de um modelo e colete a assinatura na clínica ou pelo WhatsApp"
-      actions={canEdit && (creating
-        ? <ActionButton variant="outline" icon={<ArrowLeft />} onClick={resetForm}>Voltar</ActionButton>
+      actions={canEdit && (creating || editing
+        ? <ActionButton variant="outline" icon={<ArrowLeft />} onClick={() => { resetForm(); setEditing(null) }}>Voltar</ActionButton>
         : <ActionButton icon={<Plus />} onClick={() => setCreating(true)}>Novo contrato</ActionButton>)}
     >
       {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
 
-      {creating ? (
+      {editing ? (
+        <form onSubmit={saveEdit} className="space-y-4 max-w-2xl">
+          {editing.status === 'SENT' && (
+            <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+              Este contrato já foi enviado ao paciente. Ao salvar, o link enviado deixa de funcionar e o contrato volta a rascunho — envie de novo depois.
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
+              <Input className="w-full" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Valor (R$)</label>
+              <Input type="number" step="0.01" className="w-full" value={editForm.value} onChange={(e) => setEditForm({ ...editForm, value: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Texto do contrato *</label>
+            <Textarea className="w-full" rows={18} value={editForm.content} onChange={(e) => setEditForm({ ...editForm, content: e.target.value })} required />
+          </div>
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+            <button type="submit" disabled={savingEdit} className="px-4 py-2 text-sm text-primary-foreground bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60">
+              {savingEdit ? 'Salvando…' : 'Salvar alterações'}
+            </button>
+          </div>
+        </form>
+      ) : creating ? (
         <form onSubmit={create} className="space-y-4 max-w-2xl">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Modelo</label>
@@ -198,7 +255,7 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
             </div>
             <Textarea className="w-full font-normal" rows={16} value={form.content}
               onChange={(e) => { setEdited(true); setForm({ ...form, content: e.target.value }) }} required />
-            <p className="mt-1 text-xs text-muted-foreground">Depois de enviado ao paciente, o texto fica travado.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Dá para editar até a assinatura. Depois de assinado, o texto fica travado.</p>
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t">
             <button type="submit" className="px-4 py-2 text-sm text-primary-foreground bg-primary rounded-md hover:bg-primary/90">Gerar contrato</button>
@@ -258,6 +315,10 @@ export default function Contracts({ patient, canEdit = true }: { patient: any; c
                             <button onClick={() => sendLink(c)} disabled={busyId === c.id}
                               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-60">
                               <Send className="h-3.5 w-3.5" /> {busyId === c.id ? 'Enviando…' : c.status === 'SENT' ? 'Reenviar link' : 'Enviar no WhatsApp'}
+                            </button>
+                            <button onClick={() => openEdit(c)} title="Editar contrato" aria-label="Editar contrato"
+                              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted">
+                              <Pencil className="h-3.5 w-3.5" /> Editar
                             </button>
                             <button onClick={() => cancel(c.id)} title="Cancelar contrato" aria-label="Cancelar contrato"
                               className="rounded-md p-1.5 text-destructive hover:bg-destructive/10">

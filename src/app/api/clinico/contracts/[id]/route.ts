@@ -46,14 +46,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Com link na mão do paciente, o texto não muda — senão ele assinaria uma
     // versão diferente da que leu. Para corrigir: cancelar e gerar outro.
     const mudaTexto = (d.title !== undefined && d.title !== existing.title) || (d.content !== undefined && d.content !== existing.content);
-    if (existing.status !== 'DRAFT' && mudaTexto) {
-      return NextResponse.json(
-        { error: 'O texto não pode mudar depois do envio. Cancele e gere um novo contrato.' },
-        { status: 409 }
-      );
+    if (existing.status === 'CANCELED' && mudaTexto) {
+      return NextResponse.json({ error: 'Contrato cancelado não pode ser editado.' }, { status: 409 });
     }
 
     const statusStamp: any = {};
+    // Editar um contrato já ENVIADO derruba o link: o paciente nunca pode
+    // assinar um texto diferente do que está na tela da clínica. Volta a
+    // rascunho e precisa ser reenviado.
+    if (existing.status === 'SENT' && mudaTexto) {
+      Object.assign(statusStamp, {
+        status: 'DRAFT', sentAt: null, viewedAt: null,
+        signTokenHash: null, signTokenExpiresAt: null, otpHash: null, otpExpiresAt: null,
+      });
+    }
     if (d.status && d.status !== existing.status) {
       if (d.status === 'CANCELED') {
         statusStamp.canceledAt = new Date();
