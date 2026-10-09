@@ -34,6 +34,11 @@ const ROLE_LABELS: Record<string, string> = {
 
 const label = 'block text-sm font-medium text-foreground mb-1'
 
+// Gestores que podem também atender como médico(a) — espelha lib/api/is-doctor.ts.
+const DOCTOR_CAPABLE = (r: string) => r === 'OWNER' || r === 'MANAGER'
+const atendeComoMedico = (u: { role: string; attendsAsDoctor?: boolean }) =>
+  u.role === 'DOCTOR' || (DOCTOR_CAPABLE(u.role) && !!u.attendsAsDoctor)
+
 export default function ConfiguracoesPage() {
   const router = useRouter()
   // O callback do Instagram redireciona para ?tab=instagram — sem isso o
@@ -209,7 +214,7 @@ function UsuariosTab() {
   const [profileForm, setProfileForm] = useState<{ name: string; email: string }>({ name: '', email: '' })
   const [adding, setAdding] = useState(false)
   const [me, setMe] = useState<{ id: string; role: string } | null>(null)
-  const [form, setForm] = useState<any>({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms(), specialtyIds: [] as string[] })
+  const [form, setForm] = useState<any>({ name: '', email: '', password: '', role: 'RECEPTION', attendsAsDoctor: false, permissions: emptyPerms(), specialtyIds: [] as string[] })
   // Catálogo da clínica: usuário com papel Médico também nasce agendável, e
   // profissional sem especialidade não entra em agendamento nenhum.
   const [specialties, setSpecialties] = useState<{ id: string; name: string }[]>([])
@@ -222,7 +227,17 @@ function UsuariosTab() {
   }, [])
   useEffect(() => { load() }, [load])
   // Papel/id do ator — usados como defesa adicional (a regra obrigatória é no backend).
-  useEffect(() => { fetch('/api/me').then((r) => r.json()).then((m) => m?.id && setMe({ id: m.id, role: m.role })).catch(() => {}) }, [])
+  // `meError` distingue "carregando" de "falhou" — sem isso o select de papel
+  // ficava vazio (e não abria) quando /api/me falhava.
+  const [meError, setMeError] = useState(false)
+  const loadMe = useCallback(() => {
+    setMeError(false)
+    fetch('/api/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => { if (m?.id && m?.role) setMe({ id: m.id, role: m.role }); else setMeError(true) })
+      .catch(() => setMeError(true))
+  }, [])
+  useEffect(() => { loadMe() }, [loadMe])
   useEffect(() => {
     fetch('/api/specialties')
       .then((r) => (r.ok ? r.json() : []))
@@ -235,8 +250,22 @@ function UsuariosTab() {
 
   async function changeRole(id: string, role: string) {
     setMsg(null)
-    const res = await fetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
+    // Médico promovido a gestor continua atendendo (mesmo cadastro na agenda,
+    // com as especialidades) — dá para desligar depois no "Também atende".
+    const wasDoctor = users.find((u) => u.id === id)?.role === 'DOCTOR'
+    const body = wasDoctor && DOCTOR_CAPABLE(role) ? { role, attendsAsDoctor: true } : { role }
+    const res = await fetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (!res.ok) setMsg((await res.json().catch(() => ({}))).error || 'Falha ao alterar papel')
+    else if ('attendsAsDoctor' in body) setMsg(`Papel alterado para ${ROLE_LABELS[role]}. Continua atendendo como médico(a) na agenda.`)
+    load()
+  }
+  async function toggleAttends(id: string, attendsAsDoctor: boolean) {
+    setMsg(null)
+    const res = await fetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attendsAsDoctor }) })
+    if (!res.ok) setMsg((await res.json().catch(() => ({}))).error || 'Falha ao salvar')
+    else setMsg(attendsAsDoctor
+      ? 'Agora atende como médico(a). Confira as especialidades em Agenda › Profissionais.'
+      : 'Deixou de atender como médico(a) e saiu da agenda.')
     load()
   }
   async function savePerms(id: string) {
@@ -271,7 +300,7 @@ function UsuariosTab() {
   }
   async function createUser(e: React.FormEvent) {
     e.preventDefault(); setMsg(null)
-    if (form.role === 'DOCTOR' && (form.specialtyIds ?? []).length === 0) {
+    if (atendeComoMedico(form) && (form.specialtyIds ?? []).length === 0) {
       setMsg(
         specialties.length === 0
           ? 'Cadastre as especialidades da clínica na aba Especialidades antes de criar um usuário médico.'
@@ -281,7 +310,7 @@ function UsuariosTab() {
     }
     const res = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
     if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error || 'Falha ao criar usuário'); return }
-    setAdding(false); setForm({ name: '', email: '', password: '', role: 'RECEPTION', permissions: emptyPerms(), specialtyIds: [] })
+    setAdding(false); setForm({ name: '', email: '', password: '', role: 'RECEPTION', attendsAsDoctor: false, permissions: emptyPerms(), specialtyIds: [] })
     setMsg('Usuário criado.'); load()
   }
 
@@ -307,9 +336,37 @@ function UsuariosTab() {
                 <div><label className={label}>Nome *</label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
                 <div><label className={label}>E-mail *</label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
                 <div><label className={label}>Senha inicial *</label><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} minLength={6} required /></div>
-                <div><label className={label}>Papel</label><FilterSelect className="w-full" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>{assignable.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</FilterSelect></div>
+                <div>
+                  <label className={label}>Papel</label>
+                  {assignable.length > 0 ? (
+                    <FilterSelect className="w-full" value={assignable.includes(form.role) ? form.role : ''} onChange={(e) => setForm({ ...form, role: e.target.value })} required>
+                      {!assignable.includes(form.role) && <option value="" disabled>Selecione…</option>}
+                      {assignable.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </FilterSelect>
+                  ) : meError ? (
+                    <p className="py-2 text-sm text-destructive">
+                      Não foi possível carregar seu perfil.{' '}
+                      <button type="button" onClick={loadMe} className="underline">Tentar novamente</button>
+                    </p>
+                  ) : me ? (
+                    <p className="py-2 text-sm text-muted-foreground">Seu papel não permite atribuir papéis a novos usuários.</p>
+                  ) : (
+                    <p className="py-2 text-sm text-muted-foreground">Carregando papéis…</p>
+                  )}
+                </div>
               </div>
-              {form.role === 'DOCTOR' && (
+              {DOCTOR_CAPABLE(form.role) && (
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={!!form.attendsAsDoctor}
+                    onChange={(e) => setForm({ ...form, attendsAsDoctor: e.target.checked })}
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  Também atende como médico(a)
+                </label>
+              )}
+              {atendeComoMedico(form) && (
                 <div>
                   <label className={label}>Especialidades *</label>
                   <p className="mb-2 text-xs text-muted-foreground">
@@ -373,6 +430,18 @@ function UsuariosTab() {
                     onChange={(e) => changeRole(u.id, e.target.value)}>
                     {ROLES.filter((r) => r === u.role || (me && canAssignRole(me.role, r))).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </FilterSelect>
+                  {DOCTOR_CAPABLE(u.role) && (
+                    <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground" title="Entra na agenda como médico(a), mantendo o nível de gestão">
+                      <input
+                        type="checkbox"
+                        checked={!!u.attendsAsDoctor}
+                        disabled={!me || me.id === u.id || !canManageTarget(me.role, u.role)}
+                        onChange={(e) => toggleAttends(u.id, e.target.checked)}
+                        className="h-4 w-4 rounded border-input accent-primary disabled:opacity-60"
+                      />
+                      Também atende
+                    </label>
+                  )}
                   {me && (canManageTarget(me.role, u.role) || me.id === u.id) && (
                     <button
                       onClick={() => { setEditProfile(editProfile === u.id ? null : u.id); setProfileForm({ name: u.name || '', email: u.email || '' }) }}

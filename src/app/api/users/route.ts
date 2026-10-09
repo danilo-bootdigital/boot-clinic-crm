@@ -7,6 +7,7 @@ import { requirePermission, sanitizePermissions } from '@/lib/api/permissions';
 import { canAssignRole } from '@/lib/api/role-hierarchy';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncProfessionalForUser } from '@/lib/api/professional-sync';
+import { atendeComoMedico, DOCTOR_CAPABLE_MANAGER_ROLES } from '@/lib/api/is-doctor';
 
 const CreateSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -14,7 +15,9 @@ const CreateSchema = z.object({
   password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
   role: z.enum(['SUPER_ADMIN', 'OWNER', 'MANAGER', 'DOCTOR', 'RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE']),
   permissions: z.any().optional(),
-  /** Obrigatório para papel DOCTOR: o usuário médico também nasce agendável. */
+  /** Gestor (OWNER/MANAGER) que também atende como médico(a). Ignorado nos demais papéis. */
+  attendsAsDoctor: z.boolean().optional(),
+  /** Obrigatório para quem atende como médico(a): o usuário também nasce agendável. */
   specialtyIds: z.array(z.string()).optional(),
 });
 
@@ -27,7 +30,7 @@ export async function GET() {
 
     const users = await prisma.user.findMany({
       where: { companyId: dbUser!.companyId, deletedAt: null },
-      select: { id: true, name: true, email: true, role: true, permissions: true },
+      select: { id: true, name: true, email: true, role: true, permissions: true, attendsAsDoctor: true },
       orderBy: { name: 'asc' },
     });
     return NextResponse.json(users);
@@ -65,8 +68,10 @@ export async function POST(request: NextRequest) {
     // Usuário médico nasce como profissional da agenda — e profissional sem
     // especialidade não é agendável. Cobrar aqui evita criar o médico hoje e a
     // recepção descobrir o problema amanhã, no meio do atendimento.
+    // Flag só vale para gestores; nos demais papéis é descartado.
+    const attendsAsDoctor = !!d.attendsAsDoctor && DOCTOR_CAPABLE_MANAGER_ROLES.includes(d.role as UserRole);
     let especialidadesDoMedico: string[] = [];
-    if (d.role === 'DOCTOR') {
+    if (atendeComoMedico({ role: d.role as UserRole, attendsAsDoctor })) {
       const validas = await prisma.specialty.findMany({
         where: { id: { in: d.specialtyIds ?? [] }, companyId: dbUser!.companyId, deletedAt: null },
         select: { id: true },
@@ -103,10 +108,11 @@ export async function POST(request: NextRequest) {
           role: d.role as UserRole,
           companyId: dbUser!.companyId,
           permissions: sanitizePermissions(d.permissions),
+          attendsAsDoctor,
         },
-        select: { id: true, name: true, email: true, role: true, permissions: true, companyId: true },
+        select: { id: true, name: true, email: true, role: true, permissions: true, attendsAsDoctor: true, companyId: true },
       });
-      // Médico (DOCTOR) também vira profissional selecionável na agenda, já com
+      // Quem atende como médico(a) também vira profissional selecionável na agenda, já com
       // as especialidades — senão nasce fora dos agendamentos.
       await syncProfessionalForUser(user, especialidadesDoMedico);
       const { companyId: _omit, ...payload } = user;

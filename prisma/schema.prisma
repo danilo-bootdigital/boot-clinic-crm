@@ -62,6 +62,9 @@ model User {
   companyId   String
   // Permissões por módulo: { patients|crm|agenda|followup|dashboard|configuracoes: 'none'|'view'|'edit' }
   permissions Json?
+  // Gestor (OWNER/MANAGER) que também atende: entra na agenda como médico(a).
+  // Ignorado nos demais papéis — ver lib/api/is-doctor.ts.
+  attendsAsDoctor Boolean @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?

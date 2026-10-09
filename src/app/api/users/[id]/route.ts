@@ -8,12 +8,15 @@ import { canManageTarget, canAssignRole } from '@/lib/api/role-hierarchy';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { writeAudit } from '@/lib/api/audit';
 import { syncProfessionalForUser } from '@/lib/api/professional-sync';
+import { DOCTOR_CAPABLE_MANAGER_ROLES } from '@/lib/api/is-doctor';
 
 const Schema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(160).optional(),
   email: z.string().email('E-mail inválido').optional(),
   role: z.enum(['SUPER_ADMIN', 'OWNER', 'MANAGER', 'DOCTOR', 'RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE']).optional(),
   permissions: z.any().optional(),
+  /** Gestor (OWNER/MANAGER) que também atende como médico(a). */
+  attendsAsDoctor: z.boolean().optional(),
 });
 
 // PUT /api/users/[id] - edita dados do usuário da empresa (nome, e-mail, papel,
@@ -28,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const target = await prisma.user.findFirst({
       where: { id: params.id, companyId: dbUser!.companyId, deletedAt: null },
-      select: { id: true, name: true, email: true, role: true, permissions: true },
+      select: { id: true, name: true, email: true, role: true, permissions: true, attendsAsDoctor: true },
     });
     if (!target) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
 
@@ -37,7 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const isSelf = params.id === dbUser!.id;
 
     // Evita lockout: não permite alterar o PRÓPRIO papel/permissões (nome/e-mail são liberados).
-    if (isSelf && (d.role !== undefined || d.permissions !== undefined)) {
+    if (isSelf && (d.role !== undefined || d.permissions !== undefined || d.attendsAsDoctor !== undefined)) {
       return NextResponse.json({ error: 'Você não pode alterar o seu próprio papel/permissões' }, { status: 400 });
     }
 
@@ -50,6 +53,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (d.role !== undefined && !canAssignRole(dbUser!.role, d.role)) {
       return NextResponse.json({ error: 'Você não pode atribuir um papel igual ou superior ao seu' }, { status: 403 });
     }
+
+    // "Também atende" só vale para gestor (papel final, após eventual troca).
+    // Ao deixar de ser gestor o flag é zerado, para não reaparecer numa promoção futura.
+    const finalRole = (d.role ?? target.role) as UserRole;
+    const attendsAsDoctor = DOCTOR_CAPABLE_MANAGER_ROLES.includes(finalRole)
+      ? (d.attendsAsDoctor ?? target.attendsAsDoctor)
+      : false;
 
     const emailChanged = d.email !== undefined && d.email !== target.email;
 
@@ -84,8 +94,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           ...(d.email !== undefined && { email: d.email }),
           ...(d.role !== undefined && { role: d.role as UserRole }),
           ...(d.permissions !== undefined && { permissions: sanitizePermissions(d.permissions) }),
+          attendsAsDoctor,
         },
-        select: { id: true, name: true, email: true, role: true, permissions: true },
+        select: { id: true, name: true, email: true, role: true, permissions: true, attendsAsDoctor: true },
       });
     } catch (dbErr) {
       // Banco falhou DEPOIS de já ter trocado o e-mail no Auth → reverte o Auth p/ não dessincronizar.
@@ -102,12 +113,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Auditoria: registra apenas os campos efetivamente enviados (antes → depois).
     const oldValues: Record<string, unknown> = {};
     const newValues: Record<string, unknown> = {};
-    for (const k of ['name', 'email', 'role', 'permissions'] as const) {
+    for (const k of ['name', 'email', 'role', 'permissions', 'attendsAsDoctor'] as const) {
       if (d[k] !== undefined) { oldValues[k] = (target as any)[k]; newValues[k] = (user as any)[k]; }
     }
     await writeAudit({ dbUser: dbUser!, action: 'UPDATE', entityType: 'USER', entityId: params.id, oldValues, newValues, request });
 
-    // Mantém o profissional da agenda em sincronia (papel pode ter mudado de/para DOCTOR).
+    // Mantém o profissional da agenda em sincronia (pode ter passado a atender ou deixado de atender).
     await syncProfessionalForUser({ ...user, companyId: dbUser!.companyId });
 
     return NextResponse.json(user);

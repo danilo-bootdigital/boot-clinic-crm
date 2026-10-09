@@ -107,7 +107,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
           id: true,
           name: true,
           userId: true,
-          user: { select: { role: true } },
+          user: { select: { role: true, attendsAsDoctor: true } },
           specialties: { select: { specialtyId: true } },
         },
       }),
