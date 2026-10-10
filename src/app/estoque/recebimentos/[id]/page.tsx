@@ -17,6 +17,7 @@ import {
 import { stockCan } from '@/lib/stock-caps'
 import { allocateCents } from '@/lib/stock/rules'
 import { brl, formatDate, RECEIVABLE_STATUS_LABELS, STATUS_TONE } from '@/lib/financial-format'
+import { useBreadcrumbLabel } from '@/components/shell/breadcrumb-labels'
 
 type CatalogItem = {
   id: string; name: string; baseUnit: string; purchaseUnit: string | null; conversionFactor: number
@@ -73,6 +74,7 @@ export default function RecebimentoPage({ params }: { params: { id: string } }) 
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
+  useBreadcrumbLabel(params.id, receipt ? `#${receipt.number}` : null)
   const canViewCost = stockCan(role, 'view_cost')
   const canAdjust = stockCan(role, 'adjust')
 

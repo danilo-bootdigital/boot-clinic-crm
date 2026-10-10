@@ -16,6 +16,7 @@ import { MovementsTable, reverseWithPrompt, type Movement } from '@/components/s
 import { ControlledBadge, ControlledNote, StockStatusBadge, StockTabs, fmtDate, fmtQty, useLookups, useRole } from '@/components/stock/shared'
 import { ITEM_KIND_LABELS, LOT_STATUS_LABELS, STORAGE_TEMP_LABELS, isExpired, stockCan } from '@/lib/stock-caps'
 import { brl } from '@/lib/financial-format'
+import { useBreadcrumbLabel } from '@/components/shell/breadcrumb-labels'
 
 type Detail = {
   item: Record<string, any>
@@ -38,6 +39,7 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
   const [msg, setMsg] = useState<string | null>(null)
   const [trace, setTrace] = useState<{ lot: any; applications: any[] } | null>(null)
 
+  useBreadcrumbLabel(params.id, data?.item?.name)
   const canViewCost = stockCan(role, 'view_cost')
   const canManage = stockCan(role, 'manage')
   const canAdjust = stockCan(role, 'adjust')
