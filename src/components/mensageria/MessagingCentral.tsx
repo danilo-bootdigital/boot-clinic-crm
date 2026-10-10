@@ -671,10 +671,10 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     }
   };
 
-  const handleRetry = async (messageId: string) => {
+  const handleRetry = useCallback(async (messageId: string) => {
     const res = await fetch(`/api/mensageria/messages/${messageId}/retry`, { method: 'POST' });
     if (res.ok && selectedId) await loadMessages(selectedId);
-  };
+  }, [selectedId, loadMessages]);
 
   // --- Gravação de áudio (nota de voz) ---
   const startRecording = async () => {
@@ -778,6 +778,218 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     ? STATUS_META[selectedConversation.status] ?? { label: selectedConversation.status, className: 'bg-muted text-muted-foreground' }
     : null;
 
+  // Lista de conversas e thread memoizadas: o campo de digitação vive neste
+  // mesmo componente, e sem isso CADA tecla redesenhava centenas de conversas e
+  // todas as bolhas da thread — as letras demoravam a aparecer no campo.
+  const conversationItems = useMemo(() => (
+    filteredConversations.map((conversation) => {
+      const ativa = selectedId === conversation.id;
+      return (
+        <li key={conversation.id}>
+          <button
+            type="button"
+            onClick={() => setSelectedId(conversation.id)}
+            aria-current={ativa}
+            className={cn(
+              'flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors',
+              ativa
+                ? 'bg-primary/5'
+                : conversation.awaitingSince && waitingTone(conversation.awaitingSince) === 'destructive'
+                ? 'bg-destructive/5 hover:bg-destructive/10'
+                : 'hover:bg-muted/60'
+            )}
+          >
+            <span
+              className={cn(
+                'grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-semibold',
+                ativa ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+              )}
+              aria-hidden
+            >
+              {(contactLabel(conversation.contact?.name, conversation.contact?.phone).trim()[0] || '?').toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className={cn('truncate text-sm', conversation.unreadCount ? 'font-semibold text-foreground' : 'font-medium text-foreground')}>
+                  {contactLabel(conversation.contact?.name, conversation.contact?.phone)}
+                </span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {listTime(conversation.lastMessageAt)}
+                </span>
+              </span>
+              <span className="mt-0.5 flex items-center gap-2">
+                <span className={cn('truncate text-xs', conversation.unreadCount ? 'text-foreground' : 'text-muted-foreground')}>
+                  {conversation.lastMessage || 'Sem mensagens'}
+                </span>
+                {conversation.unreadCount > 0 && (
+                  <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {conversation.unreadCount}
+                  </span>
+                )}
+              </span>
+              <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {/* Prioridade visual: quanto tempo o paciente está sem
+                    resposta é o sinal mais importante da lista — vem
+                    primeiro e é o único badge com cor sólida (não só
+                    tom pastel) quando crítico. */}
+                {conversation.awaitingSince && (() => {
+                  const tone = waitingTone(conversation.awaitingSince!);
+                  return (
+                    <span
+                      title={`Paciente aguardando resposta desde ${new Date(conversation.awaitingSince!).toLocaleString('pt-BR')}`}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                        tone === 'destructive' ? 'bg-destructive text-white'
+                          : tone === 'warning' ? 'bg-warning/20 text-warning-strong'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      <Clock className="h-2.5 w-2.5" /> aguardando {waitingLabel(conversation.awaitingSince!)}
+                    </span>
+                  );
+                })()}
+                <ChannelBadge channel={conversation.channel} accountLabel={conversation.account?.label} />
+                {conversation.patientId && (
+                  <span className="inline-flex items-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                    Paciente
+                  </span>
+                )}
+                {conversation.nextTaskDueAt && (
+                  <span
+                    title={`Tarefa ${conversation.nextTaskOverdue ? 'vencida' : 'pendente'} · ${new Date(conversation.nextTaskDueAt).toLocaleDateString('pt-BR')}`}
+                    className={cn(
+                      'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      conversation.nextTaskOverdue ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'
+                    )}
+                  >
+                    <Bell className="h-2.5 w-2.5" /> Tarefa
+                  </span>
+                )}
+              </span>
+            </span>
+          </button>
+        </li>
+      );
+    })
+  ), [filteredConversations, selectedId]);
+
+  const selectedChannel = selectedConversation?.channel;
+  const threadItems = useMemo(() => (
+    messages.map((message, i) => {
+      const isIn = message.direction === 'INCOMING';
+      const isMedia = message.messageType === 'IMAGE' || message.messageType === 'DOCUMENT' || message.messageType === 'AUDIO';
+      const showCaption = message.caption || (!isMedia && message.content);
+      const anterior = messages[i - 1];
+      const novoDia = !anterior || new Date(anterior.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
+      return (
+        <div key={message.id}>
+          {novoDia && (
+            <div className="my-3 flex justify-center">
+              <span className="rounded-full bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+                {dayLabel(message.createdAt)}
+              </span>
+            </div>
+          )}
+          <div className={cn('group flex items-center gap-1', isIn ? 'justify-start' : 'justify-end')}>
+            {/* Responder: só aparece no hover (padrão WhatsApp) — some no
+                lugar errado da tela seria ruído em toda mensagem sempre visível. */}
+            {!isIn && (
+              <button
+                onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
+                title="Responder"
+                aria-label="Responder"
+                className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+              >
+                <Reply className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <div
+              className={cn(
+                'max-w-[85%] rounded-xl px-3 py-2 shadow-sm sm:max-w-md',
+                isIn ? 'chat-bubble-in rounded-tl-sm' : 'chat-bubble-out rounded-tr-sm'
+              )}
+              // A procedência sai do visual mas continua acessível: numa
+              // thread de um só canal a etiqueta em cada bolha era ruído.
+              title={provenanceTitle(message)}
+            >
+              {message.replyTo && (
+                <div className="mb-1.5">
+                  <QuotedPreview quoted={message.replyTo} />
+                </div>
+              )}
+              {isMedia && (
+                <MessageMediaBubble
+                  messageType={message.messageType as 'IMAGE' | 'DOCUMENT' | 'AUDIO'}
+                  mediaStatus={message.mediaStatus}
+                  attachment={message.attachment}
+                  dark={false}
+                />
+              )}
+              {showCaption && (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                  {message.caption || message.content}
+                </p>
+              )}
+              {/* Só aparece quando a mensagem DIVERGE do canal da
+                  conversa — o caso de contato unificado em dois canais.
+                  Em thread de canal único não há o que informar. */}
+              {message.channel && message.channel !== selectedChannel && (
+                <div className="mt-1">
+                  <ChannelBadge channel={message.channel} accountLabel={message.accountLabel} />
+                </div>
+              )}
+              <div className="mt-1 flex items-center justify-end gap-1.5">
+                <span className="text-[11px] opacity-75">
+                  {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                {/* PENDING recente é envio em curso. PENDING VELHO é
+                    mensagem que não saiu: dizer "enviando…" para
+                    sempre foi exatamente a reclamação da clínica. */}
+                {!isIn && message.status === 'PENDING' && (
+                  Date.now() - new Date(message.createdAt).getTime() < 60_000 ? (
+                    <span className="text-[11px] opacity-75">· enviando…</span>
+                  ) : (
+                    <button
+                      onClick={() => handleRetry(message.id)}
+                      title="A mensagem não chegou a sair. Clique para tentar de novo."
+                      className="text-[11px] underline opacity-90 hover:opacity-100"
+                    >
+                      não enviada · reenviar
+                    </button>
+                  )
+                )}
+                {!isIn && message.status === 'SENT' && <span className="text-[11px] opacity-75" title="Enviado">✓</span>}
+                {!isIn && message.status === 'DELIVERED' && <span className="text-[11px] opacity-75" title="Entregue">✓✓</span>}
+                {/* Azul do "lido" precisa contrastar com a bolha CLARA
+                    de saída — o sky-300 anterior sumia no verde. */}
+                {!isIn && message.status === 'READ' && <span className="chat-tick-read text-[11px] font-semibold" title="Lido">✓✓</span>}
+                {!isIn && message.status === 'FAILED' && (
+                  <button
+                    onClick={() => handleRetry(message.id)}
+                    title={message.errorMessage || 'Falha no envio. Clique para tentar de novo.'}
+                    className="text-[11px] underline opacity-90 hover:opacity-100"
+                  >
+                    falhou · reenviar
+                  </button>
+                )}
+              </div>
+            </div>
+            {isIn && (
+              <button
+                onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
+                title="Responder"
+                aria-label="Responder"
+                className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+              >
+                <Reply className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    })
+  ), [messages, selectedChannel, handleRetry]);
+
   return (
     <div className="flex h-full min-h-0 bg-background">
       {/* ------------------------------------------------ Lista de conversas */}
@@ -873,95 +1085,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
             </div>
           ) : (
             <ul>
-              {filteredConversations.map((conversation) => {
-                const ativa = selectedId === conversation.id;
-                return (
-                  <li key={conversation.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(conversation.id)}
-                      aria-current={ativa}
-                      className={cn(
-                        'flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors',
-                        ativa
-                          ? 'bg-primary/5'
-                          : conversation.awaitingSince && waitingTone(conversation.awaitingSince) === 'destructive'
-                          ? 'bg-destructive/5 hover:bg-destructive/10'
-                          : 'hover:bg-muted/60'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-semibold',
-                          ativa ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
-                        )}
-                        aria-hidden
-                      >
-                        {(contactLabel(conversation.contact?.name, conversation.contact?.phone).trim()[0] || '?').toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className={cn('truncate text-sm', conversation.unreadCount ? 'font-semibold text-foreground' : 'font-medium text-foreground')}>
-                            {contactLabel(conversation.contact?.name, conversation.contact?.phone)}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {listTime(conversation.lastMessageAt)}
-                          </span>
-                        </span>
-                        <span className="mt-0.5 flex items-center gap-2">
-                          <span className={cn('truncate text-xs', conversation.unreadCount ? 'text-foreground' : 'text-muted-foreground')}>
-                            {conversation.lastMessage || 'Sem mensagens'}
-                          </span>
-                          {conversation.unreadCount > 0 && (
-                            <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                              {conversation.unreadCount}
-                            </span>
-                          )}
-                        </span>
-                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          {/* Prioridade visual: quanto tempo o paciente está sem
-                              resposta é o sinal mais importante da lista — vem
-                              primeiro e é o único badge com cor sólida (não só
-                              tom pastel) quando crítico. */}
-                          {conversation.awaitingSince && (() => {
-                            const tone = waitingTone(conversation.awaitingSince!);
-                            return (
-                              <span
-                                title={`Paciente aguardando resposta desde ${new Date(conversation.awaitingSince!).toLocaleString('pt-BR')}`}
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                                  tone === 'destructive' ? 'bg-destructive text-white'
-                                    : tone === 'warning' ? 'bg-warning/20 text-warning-strong'
-                                    : 'bg-muted text-muted-foreground'
-                                )}
-                              >
-                                <Clock className="h-2.5 w-2.5" /> aguardando {waitingLabel(conversation.awaitingSince!)}
-                              </span>
-                            );
-                          })()}
-                          <ChannelBadge channel={conversation.channel} accountLabel={conversation.account?.label} />
-                          {conversation.patientId && (
-                            <span className="inline-flex items-center rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
-                              Paciente
-                            </span>
-                          )}
-                          {conversation.nextTaskDueAt && (
-                            <span
-                              title={`Tarefa ${conversation.nextTaskOverdue ? 'vencida' : 'pendente'} · ${new Date(conversation.nextTaskDueAt).toLocaleDateString('pt-BR')}`}
-                              className={cn(
-                                'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                                conversation.nextTaskOverdue ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning'
-                              )}
-                            >
-                              <Bell className="h-2.5 w-2.5" /> Tarefa
-                            </span>
-                          )}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+              {conversationItems}
             </ul>
           )}
         </div>
@@ -1110,119 +1234,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 </p>
               ) : (
                 <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
-                  {messages.map((message, i) => {
-                    const isIn = message.direction === 'INCOMING';
-                    const isMedia = message.messageType === 'IMAGE' || message.messageType === 'DOCUMENT' || message.messageType === 'AUDIO';
-                    const showCaption = message.caption || (!isMedia && message.content);
-                    const anterior = messages[i - 1];
-                    const novoDia = !anterior || new Date(anterior.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
-                    return (
-                      <div key={message.id}>
-                        {novoDia && (
-                          <div className="my-3 flex justify-center">
-                            <span className="rounded-full bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
-                              {dayLabel(message.createdAt)}
-                            </span>
-                          </div>
-                        )}
-                        <div className={cn('group flex items-center gap-1', isIn ? 'justify-start' : 'justify-end')}>
-                          {/* Responder: só aparece no hover (padrão WhatsApp) — some no
-                              lugar errado da tela seria ruído em toda mensagem sempre visível. */}
-                          {!isIn && (
-                            <button
-                              onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
-                              title="Responder"
-                              aria-label="Responder"
-                              className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                            >
-                              <Reply className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          <div
-                            className={cn(
-                              'max-w-[85%] rounded-xl px-3 py-2 shadow-sm sm:max-w-md',
-                              isIn ? 'chat-bubble-in rounded-tl-sm' : 'chat-bubble-out rounded-tr-sm'
-                            )}
-                            // A procedência sai do visual mas continua acessível: numa
-                            // thread de um só canal a etiqueta em cada bolha era ruído.
-                            title={provenanceTitle(message)}
-                          >
-                            {message.replyTo && (
-                              <div className="mb-1.5">
-                                <QuotedPreview quoted={message.replyTo} />
-                              </div>
-                            )}
-                            {isMedia && (
-                              <MessageMediaBubble
-                                messageType={message.messageType as 'IMAGE' | 'DOCUMENT' | 'AUDIO'}
-                                mediaStatus={message.mediaStatus}
-                                attachment={message.attachment}
-                                dark={false}
-                              />
-                            )}
-                            {showCaption && (
-                              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                                {message.caption || message.content}
-                              </p>
-                            )}
-                            {/* Só aparece quando a mensagem DIVERGE do canal da
-                                conversa — o caso de contato unificado em dois canais.
-                                Em thread de canal único não há o que informar. */}
-                            {message.channel && message.channel !== selectedConversation.channel && (
-                              <div className="mt-1">
-                                <ChannelBadge channel={message.channel} accountLabel={message.accountLabel} />
-                              </div>
-                            )}
-                            <div className="mt-1 flex items-center justify-end gap-1.5">
-                              <span className="text-[11px] opacity-75">
-                                {new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              {/* PENDING recente é envio em curso. PENDING VELHO é
-                                  mensagem que não saiu: dizer "enviando…" para
-                                  sempre foi exatamente a reclamação da clínica. */}
-                              {!isIn && message.status === 'PENDING' && (
-                                Date.now() - new Date(message.createdAt).getTime() < 60_000 ? (
-                                  <span className="text-[11px] opacity-75">· enviando…</span>
-                                ) : (
-                                  <button
-                                    onClick={() => handleRetry(message.id)}
-                                    title="A mensagem não chegou a sair. Clique para tentar de novo."
-                                    className="text-[11px] underline opacity-90 hover:opacity-100"
-                                  >
-                                    não enviada · reenviar
-                                  </button>
-                                )
-                              )}
-                              {!isIn && message.status === 'SENT' && <span className="text-[11px] opacity-75" title="Enviado">✓</span>}
-                              {!isIn && message.status === 'DELIVERED' && <span className="text-[11px] opacity-75" title="Entregue">✓✓</span>}
-                              {/* Azul do "lido" precisa contrastar com a bolha CLARA
-                                  de saída — o sky-300 anterior sumia no verde. */}
-                              {!isIn && message.status === 'READ' && <span className="chat-tick-read text-[11px] font-semibold" title="Lido">✓✓</span>}
-                              {!isIn && message.status === 'FAILED' && (
-                                <button
-                                  onClick={() => handleRetry(message.id)}
-                                  title={message.errorMessage || 'Falha no envio. Clique para tentar de novo.'}
-                                  className="text-[11px] underline opacity-90 hover:opacity-100"
-                                >
-                                  falhou · reenviar
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {isIn && (
-                            <button
-                              onClick={() => { setReplyTarget(message); composerRef.current?.focus(); }}
-                              title="Responder"
-                              aria-label="Responder"
-                              className="shrink-0 rounded-full p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                            >
-                              <Reply className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {threadItems}
                 </div>
               )}
             </div>
