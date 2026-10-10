@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User, ArrowLeft, Pencil, UserMinus } from 'lucide-react'
 import PatientForm from '@/components/patients/PatientForm'
+import { useBreadcrumbLabel } from '@/components/shell/breadcrumb-labels'
 import Timeline from '@/components/patients/Timeline'
 import Tags from '@/components/patients/Tags'
 import Attachments from '@/components/patients/Attachments'
@@ -63,6 +64,8 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
   const [error, setError] = useState<string | null>(null)
   // Níveis de acesso por área clínica ('none' | 'view' | 'edit').
   const [access, setAccess] = useState<Record<string, string>>({})
+  // Breadcrumb mostra o nome do paciente, não o id da URL.
+  useBreadcrumbLabel(id, patient?.name)
 
   const load = useCallback(async () => {
     setLoading(true)
