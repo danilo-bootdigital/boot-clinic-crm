@@ -20,6 +20,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
 import { financialCan } from '@/lib/financial-caps'
+import { PatientAppliedProducts } from '@/components/stock/PatientAppliedProducts'
 
 const ORIGIN_LABELS: Record<string, string> = {
   GOOGLE: 'Google', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', REFERRAL: 'Indicação',
@@ -182,7 +183,12 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       {tab === 'tags' && <Tags patientId={id} />}
       {tab === 'anexos' && <Attachments patientId={id} />}
       {tab === 'anamnese' && <Anamneses patientId={id} canEdit={access.anamnese === 'edit'} />}
-      {tab === 'prontuario' && <MedicalRecords patientId={id} canEdit={access.prontuario === 'edit'} />}
+      {tab === 'prontuario' && (
+        <>
+          <MedicalRecords patientId={id} canEdit={access.prontuario === 'edit'} />
+          <PatientAppliedProducts patientId={id} />
+        </>
+      )}
       {tab === 'contratos' && <Contracts patient={patient} canEdit={access.contratos === 'edit'} />}
       {tab === 'orcamentos' && (
         <Quotes

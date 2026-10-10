@@ -27,7 +27,8 @@ interface AppointmentFormProps {
   onCancel: () => void
 }
 
-const TYPES = ['Consulta', 'Retorno', 'Exame', 'Avaliação']
+// Exportado: as fichas técnicas do estoque se ligam a estes tipos (texto).
+export const APPOINTMENT_TYPES = ['Consulta', 'Retorno', 'Exame', 'Avaliação']
 const DURATIONS = [15, 30, 45, 60, 90, 120]
 
 function toDateInput(iso?: string) {
@@ -232,7 +233,7 @@ export function AppointmentForm({ appointment, defaultProfessionalId, onSubmit, 
         <div>
           <label className={label}>Tipo</label>
           <FilterSelect className={field} value={form.type} onChange={(e) => set('type', e.target.value)}>
-            {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {APPOINTMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </FilterSelect>
         </div>
         <div>

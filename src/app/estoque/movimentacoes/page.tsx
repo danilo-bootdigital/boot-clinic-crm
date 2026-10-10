@@ -11,6 +11,7 @@ import { FilterBar, FilterSelect } from '@/components/ui/filter-bar'
 import { MovementForm, OPERATION_LABELS, type Operation } from '@/components/stock/MovementForm'
 import { MovementsTable, reverseWithPrompt, type Movement } from '@/components/stock/MovementsTable'
 import { StockTabs, fmtDateTime, useLookups, useRole } from '@/components/stock/shared'
+import { AppointmentMaterials } from '@/components/stock/AppointmentMaterials'
 import { MOVEMENT_LABELS, stockCan } from '@/lib/stock-caps'
 import { downloadCsv, dateStamp } from '@/lib/csv'
 
@@ -28,6 +29,8 @@ export default function EstoqueMovimentacoesPage() {
   const [to, setTo] = useState('')
   const [op, setOp] = useState<Operation | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [pending, setPending] = useState<{ appointmentId: string; type: string; startAt: string; patientName: string; professionalName: string }[]>([])
+  const [openUsage, setOpenUsage] = useState<string | null>(null)
 
   const canViewCost = stockCan(role, 'view_cost')
   const canAdjust = stockCan(role, 'adjust')
@@ -47,6 +50,10 @@ export default function EstoqueMovimentacoesPage() {
     fetchPage().then((d) => { setRows(d?.movements ?? []); setHasMore(!!d?.hasMore) }).finally(() => setLoading(false))
   }, [fetchPage])
   useEffect(() => { load() }, [load])
+  const loadPending = useCallback(() => {
+    fetch('/api/estoque/usages/pending').then((r) => (r.ok ? r.json() : [])).then((d) => setPending(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+  useEffect(() => { loadPending() }, [loadPending])
 
   const loadMore = () => {
     const last = rows[rows.length - 1]
@@ -94,6 +101,20 @@ export default function EstoqueMovimentacoesPage() {
 
       {msg && <p role="status" className="mb-4 text-sm text-muted-foreground">{msg}</p>}
 
+      {pending.length > 0 && (
+        <section className="mb-6 rounded-xl border border-warning/30 bg-warning/5 p-4">
+          <h3 className="mb-2 text-sm font-semibold">Atendimentos com materiais a conferir ({pending.length})</h3>
+          <ul className="divide-y divide-border">
+            {pending.map((p) => (
+              <li key={p.appointmentId} className="flex flex-col gap-1 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span>{p.patientName} <span className="text-muted-foreground">· {p.type} · {fmtDateTime(p.startAt)} · {p.professionalName}</span></span>
+                <Button size="sm" variant="outline" onClick={() => setOpenUsage(p.appointmentId)}>Conferir materiais</Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <FilterBar
         filters={
           <>
@@ -122,6 +143,10 @@ export default function EstoqueMovimentacoesPage() {
           {hasMore && <div className="mt-4 text-center"><Button variant="outline" onClick={loadMore}>Carregar mais</Button></div>}
         </>
       )}
+
+      <Drawer open={!!openUsage} onClose={() => { setOpenUsage(null); loadPending(); load() }} title="Materiais utilizados" width="max-w-2xl">
+        {openUsage && <AppointmentMaterials appointmentId={openUsage} appointmentStatus="ATTENDED" />}
+      </Drawer>
 
       <Drawer open={!!op} onClose={() => setOp(null)} title={op ? OPERATION_LABELS[op] : ''} width="max-w-xl">
         {op && (

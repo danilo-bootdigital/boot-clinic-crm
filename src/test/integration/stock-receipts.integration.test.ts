@@ -4,6 +4,7 @@ import { postMovement, reverseMovement, type Actor } from '@/lib/stock/movements
 import { confirmReceipt, generatePendingPayable, reverseReceipt, saveReceiptDraft, MATERIAL_CATEGORY } from '@/lib/stock/receipts';
 import { registerPayablePayment } from '@/lib/api/payable-service';
 import { ReceiptConfirmSchema, ReceiptDraftSchema, ReceiptPayableSchema } from '@/lib/validations/stock';
+import { STOCK_IT_ROLE, ensureStockTestRole } from './stock-db';
 
 // Integração REAL do Recebimento (Fase 2) contra PostgreSQL local: rateio no
 // custo, conta(s) a pagar geradas na mesma transação, pendência p/ o
@@ -12,7 +13,7 @@ import { ReceiptConfirmSchema, ReceiptDraftSchema, ReceiptPayableSchema } from '
 
 const url = process.env.LOCAL_DATABASE_URL;
 const db = new PrismaClient({ datasources: { db: { url: url || 'postgresql://invalid' } } });
-const ROLE = 'stock_it_role';
+const ROLE = STOCK_IT_ROLE;
 const tag = `r${Date.now().toString(36)}`;
 let reachable = false;
 
@@ -45,9 +46,7 @@ async function balance(itemId: string) {
 beforeAll(async () => {
   if (!url) return;
   try { await db.$queryRaw`SELECT 1`; reachable = true; } catch { reachable = false; return; }
-  await db.$executeRawUnsafe(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROLE}') THEN CREATE ROLE ${ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$;`);
-  await db.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${ROLE}`);
-  await db.$executeRawUnsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${ROLE}`);
+  await ensureStockTestRole(db);
   const company = await db.company.create({ data: { name: `IT recebimento ${tag}` } });
   companyId = company.id;
   userId = (await db.user.create({ data: { email: `it-${tag}@estoque.test`, name: 'IT', role: 'OWNER', companyId } })).id;

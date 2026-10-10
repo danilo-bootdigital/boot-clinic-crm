@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { postMovement, reverseMovement, InsufficientBalanceError, StockError, type Actor } from '@/lib/stock/movements';
 import type { MovementInput } from '@/lib/validations/stock';
+import { STOCK_IT_ROLE, ensureStockTestRole } from './stock-db';
 
 // Integração REAL do motor de estoque contra PostgreSQL local (container
 // descartável). Valida o que só o banco garante: RLS por clínica, UPDATE
@@ -14,7 +15,7 @@ import type { MovementInput } from '@/lib/validations/stock';
 
 const url = process.env.LOCAL_DATABASE_URL;
 const db = new PrismaClient({ datasources: { db: { url: url || 'postgresql://invalid' } } });
-const ROLE = 'stock_it_role';
+const ROLE = STOCK_IT_ROLE;
 const tag = Date.now().toString(36);
 let reachable = false;
 
@@ -73,9 +74,7 @@ async function makeClinic(label: string): Promise<Ctx> {
 beforeAll(async () => {
   if (!url) return;
   try { await db.$queryRaw`SELECT 1`; reachable = true; } catch { reachable = false; return; }
-  await db.$executeRawUnsafe(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROLE}') THEN CREATE ROLE ${ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$;`);
-  await db.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${ROLE}`);
-  await db.$executeRawUnsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${ROLE}`);
+  await ensureStockTestRole(db);
   A = await makeClinic('a');
   B = await makeClinic('b');
 });

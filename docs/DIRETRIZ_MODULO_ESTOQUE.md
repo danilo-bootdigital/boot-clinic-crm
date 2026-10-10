@@ -1,8 +1,9 @@
 # DIRETRIZ — MÓDULO DE ESTOQUE
 
-> **Status:** Fases 0, 1 e 2 implementadas (2026-10-10, branch `feat/estoque`, PR #35;
-> migrations `20261010120000_stock_base` e `20261010180000_stock_receipts` validadas no banco
-> local, **não aplicadas em produção**). Desenho registrado em 2026-10-08. Ver §13 e §14.
+> **Status:** Fases 0, 1, 2 e 3 implementadas (o **MVP** — 2026-10-10, branch `feat/estoque`,
+> PR #35). Migrations `20261010120000_stock_base`, `20261010180000_stock_receipts` e
+> `20261010210000_stock_kits_usage` validadas no banco local, **não aplicadas em produção**.
+> Desenho registrado em 2026-10-08. Ver §13, §14 e §15.
 > Fonte: pedido do Danilo — "módulo de estoque o mais completo possível para uma clínica".
 > Segue os padrões da base: `companyId` em tudo, FK escalar entre módulos (sem `@relation`
 > cruzando domínios), snapshot do contexto histórico, `AuditLog` genérico, RBAC por
@@ -702,4 +703,45 @@ entradas usam o mesmo `applyEntry` das entradas avulsas.
 
 **Para ir a produção:** aplicar as duas migrations (`npm run db:migrate:prod`) antes do merge
 do PR #35. As duas são só aditivas.
+
+## 15. Implementação — Fase 3: ficha técnica + baixa no atendimento (2026-10-10)
+
+**Entregue:** `ProcedureKit` / `ProcedureKitItem` / `StockAppointmentUsage` (RLS); tela
+`/estoque/fichas`; painel **"Materiais utilizados"** no detalhe do agendamento (Agenda);
+**"Produtos aplicados"** na aba Prontuário do paciente; **rastreio lote → pacientes** no detalhe
+do item; lista de "Atendimentos com materiais a conferir" em Movimentações. Código em
+`src/lib/stock/appointments.ts` (regras), `agenda-hooks.ts` (ganchos da Agenda) e `kits.ts`.
+
+**Desvio do desenho (§4):** o kit **não** usa `appointmentTypeId`. A agenda não usa a tabela
+`AppointmentType`: o tipo do agendamento é texto escolhido de uma lista fixa (`Consulta`,
+`Retorno`, `Exame`, `Avaliação`, em `APPOINTMENT_TYPES`). O kit guarda
+`appointmentType` (texto), casado **sem diferenciar maiúsculas/minúsculas**, com no máximo um
+kit ativo por tipo. Além disso, qualquer kit pode ser aplicado **à mão** no painel (um
+atendimento pode somar vários kits). Se um catálogo de procedimentos surgir, o kit ganha a FK
+sem migração destrutiva.
+
+**Como funciona:**
+
+- **"Compareceu" na Agenda** chama `stockOnAttend` (best-effort: erro no estoque nunca derruba
+  a agenda, e só roda com o módulo habilitado). Sem kit para o tipo, nada acontece.
+  - **CONFIRMADA:** cria a pendência; o painel abre com o kit, a quantidade que falta e o lote
+    sugerido (FEFO no local da sala ou no padrão).
+  - **AUTOMATICA:** baixa os itens **fixos e não opcionais**; variável, opcional e
+    **controlado nunca** saem sozinhos. Cada item é uma transação: falta de saldo vira
+    alerta + tarefa, e o atendimento fica "materiais a conferir". Tudo baixado sem sobra →
+    `AUTOMATICO`. O gancho é idempotente (clicar de novo não baixa em dobro).
+- **Conferência** (médico nos próprios atendimentos, recepção e gestão em qualquer um):
+  "quem confirmou primeiro fecha o painel" por UPDATE condicional; o segundo recebe 409 e só
+  acrescenta material ou corrige (estorno da linha + nova baixa). "Nenhum material usado"
+  também fecha o painel.
+- **Controlado no atendimento:** justificativa + "li a observação"; estorno só pela gestão.
+- **Prontuário:** item rastreado por paciente gera `MedicalRecord` `PROCEDURE` ("Produtos
+  aplicados — tipo") com produto, lote, validade, quantidade e **região** (texto do painel);
+  o movimento guarda `medicalRecordId`.
+- **Atendimento desfeito** (cancelar / faltou / reagendar depois de realizado): estorna as
+  baixas; controlado que o usuário não pode estornar vira tarefa para a gestão.
+- **Médico sem custo:** o painel e o prontuário mostram só quantidades. O custo estimado da
+  ficha some para quem não tem `view_cost`.
+
+**Fora desta fase:** frascos multidose (Fase 5), visão geral e alertas consolidados (Fase 4).
 

@@ -36,6 +36,7 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
   const [edit, setEdit] = useState(false)
   const [move, setMove] = useState<MoveState>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [trace, setTrace] = useState<{ lot: any; applications: any[] } | null>(null)
 
   const canViewCost = stockCan(role, 'view_cost')
   const canManage = stockCan(role, 'manage')
@@ -71,6 +72,12 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
     })
     setMsg(res.ok ? 'Status do lote atualizado.' : (await res.json().catch(() => ({}))).error || 'Erro ao atualizar o lote')
     load()
+  }
+
+  async function openTrace(lotId: string) {
+    const res = await fetch(`/api/estoque/lots/${lotId}/patients`)
+    if (res.ok) setTrace(await res.json())
+    else setMsg((await res.json().catch(() => ({}))).error || 'Não foi possível carregar o rastreio')
   }
 
   async function removeItem() {
@@ -216,6 +223,8 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
                   </p>
                   {l.blockReason && <p className="text-xs text-warning-strong">{l.blockReason}</p>}
                 </div>
+                <div className="flex shrink-0 items-center gap-2">
+                {item.tracksPatient && <Button size="sm" variant="ghost" onClick={() => openTrace(l.id)}>Pacientes</Button>}
                 {canManage ? (
                   <FilterSelect value={l.status} onChange={(e) => changeLotStatus(l.id, e.target.value)} aria-label={`Status do lote ${l.lotNumber}`}>
                     {Object.entries(LOT_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -223,6 +232,7 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
                 ) : (
                   <StatusBadge tone={l.status === 'LIBERADO' ? 'success' : 'warning'}>{LOT_STATUS_LABELS[l.status]}</StatusBadge>
                 )}
+                </div>
               </li>
             ))}
           </ul>
@@ -262,6 +272,23 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
           ? <EmptyState title="Nenhuma movimentação" />
           : <MovementsTable movements={movements} showBalance canViewCost={canViewCost} canReverse={canAdjust} onReverse={onReverse} />}
       </section>
+
+      <Drawer open={!!trace} onClose={() => setTrace(null)} title={trace ? `Lote ${trace.lot.lotNumber}: pacientes` : ''}
+        description="Rastreabilidade para recall e tecnovigilância." width="max-w-xl">
+        {trace && (trace.applications.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma aplicação deste lote em paciente.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {trace.applications.map((a: any) => (
+              <li key={a.id} className="py-2.5 text-sm">
+                <Link href={`/pacientes/${a.patientId}?tab=prontuario`} className="font-medium text-primary hover:underline">{a.patientName || 'Paciente'}</Link>
+                <span className="text-muted-foreground"> — {fmtQty(a.quantity)} {a.baseUnit}</span>
+                <p className="text-xs text-muted-foreground">{fmtDate(a.occurredAt)}{a.professionalName ? ` · ${a.professionalName}` : ''}{a.region ? ` · ${a.region}` : ''}</p>
+              </li>
+            ))}
+          </ul>
+        ))}
+      </Drawer>
 
       <Drawer open={edit} onClose={() => setEdit(false)} title="Editar item" width="max-w-2xl">
         <ItemForm item={item} lookups={lookups} canViewCost={canViewCost} onCancel={() => setEdit(false)} onSaved={() => { setEdit(false); load() }} />

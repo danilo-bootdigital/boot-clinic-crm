@@ -236,3 +236,43 @@ export const ReceiptConfirmSchema = ReceiptPayableSchema.extend({
   confirmTemperature: z.boolean().optional(),
 });
 export type ReceiptConfirmInput = z.infer<typeof ReceiptConfirmSchema>;
+
+// ---- Ficha técnica + baixa no atendimento (Fase 3) ----
+const kitQty = z
+  .number({ invalid_type_error: 'Quantidade inválida' })
+  .finite()
+  .nonnegative()
+  .max(1e6)
+  .refine((n) => Math.abs(n * 1e4 - Math.round(n * 1e4)) < 1e-6, 'Máximo 4 casas decimais');
+
+export const KitSchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(120),
+  appointmentType: optText(80),
+  consumptionMode: z.enum(['AUTOMATICA', 'CONFIRMADA']).nullable().optional(),
+  notes: optText(1000),
+  isActive: z.boolean().optional(),
+  items: z
+    .array(z.object({ itemId: id, quantity: kitQty, variable: z.boolean().default(false), optional: z.boolean().default(false) }))
+    .max(100)
+    .default([]),
+});
+export type KitInput = z.infer<typeof KitSchema>;
+
+export const UsageLineSchema = z.object({
+  itemId: id,
+  quantity: qty,
+  lotId: optId,
+  kitId: optId,
+  reason: optText(),
+  ackControlledNote: z.boolean().optional(),
+});
+
+export const UsageConfirmSchema = z.object({
+  locationId: id,
+  kitIds: z.array(id).max(20).default([]),
+  region: optText(200), // região de aplicação (texto) — vai para o prontuário
+  lines: z.array(UsageLineSchema).max(100).default([]),
+  // false = conferência do atendimento (fecha o painel); true = só acrescenta material.
+  add: z.boolean().default(false),
+});
+export type UsageConfirmInput = z.infer<typeof UsageConfirmSchema>;

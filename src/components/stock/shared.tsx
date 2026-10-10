@@ -40,6 +40,7 @@ export function StockTabs({ role }: { role: string }) {
     { href: '/estoque', label: 'Itens', show: true },
     { href: '/estoque/movimentacoes', label: 'Movimentações', show: true },
     { href: '/estoque/recebimentos', label: 'Recebimentos', show: stockCan(role, 'receive') },
+    { href: '/estoque/fichas', label: 'Fichas técnicas', show: true },
     { href: '/estoque/configuracoes', label: 'Configurações', show: stockCan(role, 'manage') },
   ].filter((t) => t.show)
   const items = tabs.map((t) => ({

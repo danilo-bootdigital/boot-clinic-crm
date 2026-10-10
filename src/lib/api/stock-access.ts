@@ -39,7 +39,7 @@ export async function resolveStockUser(cap: StockCapability) {
 // Campos de VALOR. Para quem não tem `view_cost` (ex.: médico), saem do JSON no
 // servidor — não basta esconder na tela (decisão Danilo, 2026-10-08, §7).
 const COST_KEYS = new Set([
-  'avgCost', 'lastCost', 'unitCost', 'totalCost', 'salePrice', 'totalValue', 'stockValue',
+  'avgCost', 'lastCost', 'unitCost', 'totalCost', 'salePrice', 'totalValue', 'stockValue', 'estimatedCost',
 ]);
 
 // Serializa para JSON: Decimal → number, Date → ISO, e remove custo se não puder vê-lo.

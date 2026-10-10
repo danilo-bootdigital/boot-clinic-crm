@@ -141,6 +141,7 @@ type MovementData = {
   supplierId?: string | null;
   transferId?: string | null;
   receiptId?: string | null;
+  appointmentId?: string | null;
   reason?: string | null;
   reversalOfId?: string | null;
   snapshotExtra?: Record<string, unknown>;
@@ -162,6 +163,7 @@ function createMovement(tx: TxClient, actor: Actor, m: MovementData) {
       supplierId: m.supplierId ?? null,
       transferId: m.transferId ?? null,
       receiptId: m.receiptId ?? null,
+      appointmentId: m.appointmentId ?? null,
       reason: m.reason ?? null,
       reversalOfId: m.reversalOfId ?? null,
       snapshot: snapshotOf(m.item, m.lot, m.loc, m.snapshotExtra),
@@ -474,9 +476,55 @@ export async function reverseMovement(tx: TxClient, actor: Actor, movementId: st
 
     created.push(await createMovement(tx, actor, {
       type: 'ESTORNO', item, lot, loc, quantity: -q, unitCost: cost,
-      patientId: leg.patientId, professionalId: leg.professionalId, transferId: leg.transferId,
+      patientId: leg.patientId, professionalId: leg.professionalId, transferId: leg.transferId, appointmentId: leg.appointmentId,
       reason, reversalOfId: leg.id, snapshotExtra: { reversedType: leg.type },
     }));
   }
   return created;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 3: baixa no atendimento (CONSUMO_ATENDIMENTO)
+// ---------------------------------------------------------------------------
+
+export type AppointmentRef = {
+  id: string; patientId: string; professionalId: string; type: string
+  patientName?: string | null; professionalName?: string | null
+}
+
+// Uma linha de material do atendimento. Paciente e profissional vêm do
+// agendamento (rastreio lote → paciente). Controlado exige justificativa e
+// ciência da observação, e NUNCA sai no modo automático (§5.11).
+export async function consumeForAppointment(
+  tx: TxClient,
+  actor: Actor,
+  args: {
+    appointment: AppointmentRef; itemId: string; locationId: string; lotId?: string | null; qty: number
+    mode: 'AUTOMATICA' | 'CONFIRMADA'; kitId?: string | null; region?: string | null
+    reason?: string | null; ackControlledNote?: boolean
+  },
+) {
+  const item = await lockItem(tx, actor.companyId, args.itemId);
+  const loc = await loadLocation(tx, actor.companyId, args.locationId);
+  if (item.isControlled) {
+    if (args.mode === 'AUTOMATICA') throw new StockError(409, `${item.name} é controlado e não sai automaticamente`);
+    assertControlledAccess(actor, item);
+    if (!args.reason || args.reason.trim().length < 3) throw new StockError(400, `${item.name} é controlado: a justificativa é obrigatória`);
+    if (item.controlledNote && !args.ackControlledNote) throw new StockError(400, `Confirme que leu a observação de ${item.name}`);
+  }
+  const mv = await exitFrom(tx, actor, {
+    type: 'CONSUMO_ATENDIMENTO', item, loc, lotId: args.lotId, qty: args.qty,
+    appointmentId: args.appointment.id, patientId: args.appointment.patientId, professionalId: args.appointment.professionalId,
+    reason: args.reason ?? null,
+    snapshotExtra: {
+      patientName: args.appointment.patientName ?? null,
+      professionalName: args.appointment.professionalName ?? null,
+      appointmentType: args.appointment.type,
+      consumptionMode: args.mode,
+      kitId: args.kitId ?? null,
+      region: args.region?.trim() || null,
+    },
+  });
+  return { movement: mv, item };
+}
+

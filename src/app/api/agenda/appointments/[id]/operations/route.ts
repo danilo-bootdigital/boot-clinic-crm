@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveModuleUser } from '@/lib/api/session';
 import { requirePermission } from '@/lib/api/permissions';
 import { findAppointmentConflict } from '@/lib/api/appointments';
+import { stockOnAttend, stockOnUnattend } from '@/lib/stock/agenda-hooks';
 
 const Schema = z.object({
   action: z.enum(['confirm', 'attend', 'no_show', 'cancel', 'reschedule']),
@@ -65,6 +66,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     await prisma.appointmentStatusHistory.create({
       data: { appointmentId: appt.id, status: appt.status, changedById: dbUser!.id, notes: body.cancellationReason || null },
     }).catch(() => {});
+
+    // Estoque (Fase 3): baixa do kit no "Compareceu" e estorno ao desfazer um
+    // atendimento realizado. Best-effort — nunca derruba a operação da agenda.
+    if (appt.status === 'ATTENDED' && existing.status !== 'ATTENDED') await stockOnAttend(dbUser!, appt.id, request);
+    if (existing.status === 'ATTENDED' && appt.status !== 'ATTENDED') await stockOnUnattend(dbUser!, appt.id, appt.status);
 
     return NextResponse.json(appt);
   } catch (err) {

@@ -1313,6 +1313,7 @@ enum EntityType {
   STOCK_MOVEMENT
   STOCK_SETTINGS
   STOCK_RECEIPT
+  PROCEDURE_KIT
 }
 
 enum ActionType {
@@ -2486,6 +2487,69 @@ enum StockReceiptStatus {
   RASCUNHO
   CONFIRMADO
   ESTORNADO
+}
+
+// ---- Fase 3: Ficha técnica (kit) + baixa no atendimento ----
+// A agenda não usa AppointmentType (o tipo é texto: "Consulta", "Retorno"...),
+// então o kit se liga ao TEXTO do tipo (comparação sem maiúsculas/minúsculas)
+// e também pode ser aplicado à mão no painel "Materiais utilizados".
+model ProcedureKit {
+  id              String                @id @default(cuid())
+  companyId       String
+  name            String
+  appointmentType String? // Appointment.type que dispara a sugestão/baixa automática
+  consumptionMode StockConsumptionMode? // null = herda o padrão da clínica (§5.14)
+  notes           String?
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  items ProcedureKitItem[]
+
+  @@unique([companyId, name])
+  @@index([companyId, appointmentType])
+  @@map("stock_procedure_kits")
+}
+
+model ProcedureKitItem {
+  id        String  @id @default(cuid())
+  companyId String
+  kitId     String
+  itemId    String
+  quantity  Decimal @db.Decimal(14, 4) // padrão, em unidade base
+  variable  Boolean @default(false) // decidida na hora (ex.: unidades de toxina) — nunca sai sozinho
+  optional  Boolean @default(false) // vem desmarcado — nunca sai sozinho
+  order     Int     @default(0)
+
+  kit ProcedureKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  @@index([kitId])
+  @@map("stock_procedure_kit_items")
+}
+
+// Situação da baixa de materiais de um atendimento (1 por agendamento). As
+// linhas baixadas são os próprios movimentos CONSUMO_ATENDIMENTO (appointmentId).
+model StockAppointmentUsage {
+  id            String               @id @default(cuid())
+  companyId     String
+  appointmentId String
+  status        StockUsageStatus     @default(PENDENTE)
+  mode          StockConsumptionMode
+  kitIds        String[]             @default([])
+  confirmedById String?
+  confirmedAt   DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([companyId, appointmentId])
+  @@index([companyId, status])
+  @@map("stock_appointment_usages")
+}
+
+enum StockUsageStatus {
+  PENDENTE // aguarda conferência (modo confirmado, ou sobrou item na automática)
+  CONFIRMADO // alguém conferiu os materiais
+  AUTOMATICO // modo automático baixou tudo, sem pendência
 }
 
 enum StockItemKind {
