@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isMedico } from '@/lib/api/is-doctor';
+import { isMedico, atendeComoMedico } from '@/lib/api/is-doctor';
 
 describe('quem aparece como Médico(a) na agenda', () => {
   it('cadastro sem conta de acesso aparece (médico que não faz login)', () => {
@@ -16,6 +16,17 @@ describe('quem aparece como Médico(a) na agenda', () => {
     // "médicos" porque o GET criava um registro com o nome de quem abria a tela.
     for (const role of ['OWNER', 'RECEPTION', 'FINANCE', 'MANAGER', 'MARKETING', 'ATTENDANCE', 'SUPER_ADMIN'] as const) {
       expect(isMedico({ userId: 'u1', user: { role } })).toBe(false);
+    }
+  });
+
+  it('gestor (dono/gerente) que também atende aparece', () => {
+    expect(isMedico({ userId: 'u1', user: { role: 'MANAGER', attendsAsDoctor: true } })).toBe(true);
+    expect(isMedico({ userId: 'u1', user: { role: 'OWNER', attendsAsDoctor: true } })).toBe(true);
+  });
+
+  it('"também atende" é ignorado fora dos papéis de gestão', () => {
+    for (const role of ['RECEPTION', 'FINANCE', 'MARKETING', 'ATTENDANCE', 'SUPER_ADMIN'] as const) {
+      expect(atendeComoMedico({ role, attendsAsDoctor: true })).toBe(false);
     }
   });
 

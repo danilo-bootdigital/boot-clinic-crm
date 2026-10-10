@@ -1,20 +1,22 @@
 import { prisma } from '@/lib/db/prisma';
 import type { UserRole } from '@prisma/client';
+import { atendeComoMedico } from '@/lib/api/is-doctor';
 
 interface SyncUser {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  attendsAsDoctor?: boolean | null;
   companyId: string;
 }
 
 /**
  * Mantém o cadastro de Profissional (agenda) em sincronia com a conta de acesso.
  *
- * - Usuário com papel DOCTOR  → garante um Professional vinculado, ativo e com
+ * - Usuário que atende como médico(a) (DOCTOR, ou gestor com attendsAsDoctor) → garante um Professional vinculado, ativo e com
  *   nome/e-mail atualizados (cria na primeira vez, reaproveita o vínculo depois).
- * - Usuário deixou de ser DOCTOR → desativa (soft-delete) o Professional vinculado,
+ * - Usuário deixou de atender → desativa (soft-delete) o Professional vinculado,
  *   removendo-o dos seletores da agenda sem apagar histórico de agendamentos.
  *
  * É um efeito secundário: nunca lança — uma falha aqui não deve impedir a
@@ -30,7 +32,7 @@ export async function syncProfessionalForUser(
   specialtyIds?: string[]
 ): Promise<void> {
   try {
-    if (user.role === 'DOCTOR') {
+    if (atendeComoMedico(user)) {
       const existing = await prisma.professional.findUnique({ where: { userId: user.id } });
       let professionalId: string;
       if (existing) {
@@ -60,7 +62,7 @@ export async function syncProfessionalForUser(
         }
       }
     } else {
-      // Papel mudou para não-médico: tira o profissional vinculado da agenda.
+      // Deixou de atender como médico(a): tira o profissional vinculado da agenda.
       await prisma.professional.updateMany({
         where: { userId: user.id, deletedAt: null },
         data: { deletedAt: new Date(), isActive: false },

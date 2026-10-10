@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
       include: {
         specialties: { select: { specialtyId: true, specialty: { select: { name: true } } } },
-        user: { select: { role: true } },
+        user: { select: { role: true, attendsAsDoctor: true } },
       },
     });
 
