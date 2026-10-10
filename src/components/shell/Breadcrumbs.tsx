@@ -4,26 +4,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { ROUTE_LABELS } from "./nav-config";
+import { useBreadcrumbLabels } from "./breadcrumb-labels";
 
-function labelFor(segment: string) {
-  return (
-    ROUTE_LABELS[segment] ??
-    segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ")
-  );
+// Id de registro na URL: uuid/hex ou cuid do Prisma (ex.: cmsqsovh7000r59fnd6qouhch).
+function isRecordId(segment: string) {
+  return /^[0-9a-f-]{8,}$/i.test(segment) || /^c[a-z0-9]{20,}$/.test(segment);
+}
+
+function labelFor(segment: string, dynamic: Map<string, string>) {
+  const published = dynamic.get(segment);
+  if (published) return published;
+  if (ROUTE_LABELS[segment]) return ROUTE_LABELS[segment];
+  // Nunca mostrar o código cru: enquanto a página não publica o nome, "Detalhes".
+  if (isRecordId(segment)) return "Detalhes";
+  return segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
 }
 
 export function Breadcrumbs() {
   const pathname = usePathname();
+  const dynamicLabels = useBreadcrumbLabels();
   const segments = pathname.split("/").filter(Boolean);
 
   if (segments.length === 0) return null;
 
   const crumbs = segments.map((seg, i) => ({
-    label: labelFor(seg),
+    label: labelFor(seg, dynamicLabels),
     href: "/" + segments.slice(0, i + 1).join("/"),
     last: i === segments.length - 1,
     // ids/uuids não devem virar link clicável de seção
-    dynamic: /^[0-9a-f-]{8,}$/i.test(seg),
+    dynamic: isRecordId(seg),
   }));
 
   return (
