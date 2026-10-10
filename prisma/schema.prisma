@@ -54,20 +54,20 @@ enum CompanyStatus {
 
 // Usuários e Autenticação
 model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  name        String
-  avatar      String?
-  role        UserRole
-  companyId   String
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  avatar          String?
+  role            UserRole
+  companyId       String
   // Permissões por módulo: { patients|crm|agenda|followup|dashboard|configuracoes: 'none'|'view'|'edit' }
-  permissions Json?
+  permissions     Json?
   // Gestor (OWNER/MANAGER) que também atende: entra na agenda como médico(a).
   // Ignorado nos demais papéis — ver lib/api/is-doctor.ts.
-  attendsAsDoctor Boolean @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  attendsAsDoctor Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   // Relacionamentos
   company         Company         @relation(fields: [companyId], references: [id])
@@ -1305,6 +1305,13 @@ enum EntityType {
   DEAL_LOSS_REASON
   // Módulo Tarefas (centro operacional de pendências da clínica)
   FOLLOW_UP_TASK
+  // Módulo Estoque
+  STOCK_ITEM
+  STOCK_CATEGORY
+  STOCK_LOCATION
+  STOCK_LOT
+  STOCK_MOVEMENT
+  STOCK_SETTINGS
 }
 
 enum ActionType {
@@ -1331,6 +1338,8 @@ enum ActionType {
   CANCEL // cancelamento (receita/parcela)
   REVERSE // estorno de pagamento
   DELETE // exclusão definitiva (ex.: categoria financeira não usada)
+  // Estoque: saída recusada por falta de saldo (relatório de rupturas)
+  REJECTED_NO_BALANCE
 }
 
 enum ExecutionStatus {
@@ -2249,4 +2258,231 @@ enum PayableStatus {
   PARCIAL
   PAGO
   CANCELADO
+}
+
+// ============================================================================
+// MÓDULO ESTOQUE (Fase 0 — base). Desenho: docs/DIRETRIZ_MODULO_ESTOQUE.md
+// Razão imutável (StockMovement) + saldo cache por item×lote×local (StockBalance).
+// FK escalar entre módulos (Room, Supplier, Patient, Appointment...) — sem
+// @relation cruzando domínios. RLS FORCE + GUC app.company_id (withFinanceTenant).
+// Quantidades em unidade base, Decimal(14,4); custo unitário Decimal(14,6).
+// ============================================================================
+
+// Configuração do módulo por clínica (1 linha por companyId, criada sob demanda).
+model StockSettings {
+  id                      String               @id @default(cuid())
+  companyId               String               @unique
+  defaultConsumptionMode  StockConsumptionMode @default(CONFIRMADA)
+  expiryAlertDays         Int                  @default(60)
+  overconsumptionAlertPct Int                  @default(20)
+  updatedAt               DateTime             @updatedAt
+
+  @@map("stock_settings")
+}
+
+model StockCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, name])
+  @@map("stock_categories")
+}
+
+model StockItem {
+  id                   String          @id @default(cuid())
+  companyId            String
+  categoryId           String?
+  name                 String
+  sku                  String?
+  barcode              String?
+  kind                 StockItemKind
+  manufacturer         String?
+  anvisaRegistration   String?
+  baseUnit             String // "U", "ml", "un", "g" — todo saldo é guardado nela
+  purchaseUnit         String? // "frasco", "caixa"
+  conversionFactor     Decimal         @default(1) @db.Decimal(14, 4) // base por unidade de compra
+  tracksLot            Boolean         @default(true)
+  tracksExpiry         Boolean         @default(true)
+  tracksPatient        Boolean         @default(false) // exige paciente na saída
+  isControlled         Boolean         @default(false) // Portaria SVS/MS 344/98
+  controlledList       ControlledList?
+  controlledNote       String? // observação exibida em destaque onde o item aparecer
+  storageTemp          StorageTemp     @default(AMBIENTE)
+  multiDose            Boolean         @default(false)
+  openedShelfLifeHours Int?
+  minQty               Decimal?        @db.Decimal(14, 4)
+  reorderPoint         Decimal?        @db.Decimal(14, 4)
+  maxQty               Decimal?        @db.Decimal(14, 4)
+  leadTimeDays         Int?
+  preferredSupplierId  String?
+  avgCost              Decimal         @default(0) @db.Decimal(14, 6) // custo médio ponderado (por unidade base)
+  lastCost             Decimal?        @db.Decimal(14, 6)
+  salePrice            Decimal?        @db.Decimal(12, 2) // só REVENDA (venda = Fase 8)
+  notes                String?
+  isActive             Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  deletedAt            DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId, categoryId])
+  @@map("stock_items")
+}
+
+model StockLocation {
+  id                String            @id @default(cuid())
+  companyId         String
+  name              String
+  type              StockLocationType
+  roomId            String? // Room (escalar) quando type = SALA
+  storageTemp       StorageTemp       @default(AMBIENTE)
+  isDefault         Boolean           @default(false) // destino padrão de entradas
+  controlledStorage Boolean           @default(false) // armário/local trancado p/ controlados
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+
+  @@unique([companyId, name])
+  @@map("stock_locations")
+}
+
+model StockLot {
+  id             String         @id @default(cuid())
+  companyId      String
+  itemId         String
+  lotNumber      String // "PADRAO" p/ item sem controle de lote
+  expiresAt      DateTime?
+  manufacturedAt DateTime?
+  supplierId     String?
+  unitCost       Decimal        @db.Decimal(14, 6) // custo de entrada por unidade base
+  status         StockLotStatus @default(LIBERADO)
+  blockReason    String?
+  createdAt      DateTime       @default(now())
+
+  @@unique([companyId, itemId, lotNumber])
+  @@index([companyId, expiresAt])
+  @@map("stock_lots")
+}
+
+// Cache materializado de Σ movimentos por item×lote×local (recalculável do razão).
+model StockBalance {
+  id         String   @id @default(cuid())
+  companyId  String
+  itemId     String
+  lotId      String
+  locationId String
+  quantity   Decimal  @db.Decimal(14, 4)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([companyId, itemId, lotId, locationId])
+  @@index([companyId, itemId])
+  @@index([companyId, locationId])
+  @@map("stock_balances")
+}
+
+// Razão append-only: nunca se edita nem se apaga — corrige-se com ESTORNO.
+model StockMovement {
+  id              String            @id @default(cuid())
+  companyId       String
+  type            StockMovementType
+  itemId          String
+  lotId           String
+  locationId      String
+  quantity        Decimal           @db.Decimal(14, 4) // COM SINAL: + entra, − sai
+  unitCost        Decimal           @db.Decimal(14, 6) // snapshot do custo no momento
+  totalCost       Decimal           @db.Decimal(12, 2)
+  receiptId       String?
+  transferId      String? // agrupa as 2 pernas de uma transferência
+  countId         String?
+  appointmentId   String?
+  patientId       String?
+  professionalId  String?
+  medicalRecordId String?
+  receivableId    String?
+  openContainerId String?
+  supplierId      String?
+  reason          String?
+  reversalOfId    String? // estorno aponta para a original
+  reversedAt      DateTime? // preenchido na ORIGINAL quando estornada
+  snapshot        Json?
+  occurredAt      DateTime          @default(now())
+  createdById     String
+  createdAt       DateTime          @default(now())
+
+  @@index([companyId, itemId, occurredAt])
+  @@index([companyId, lotId])
+  @@index([companyId, patientId])
+  @@index([companyId, appointmentId])
+  @@index([companyId, type, occurredAt])
+  @@index([companyId, transferId])
+  @@map("stock_movements")
+}
+
+enum StockItemKind {
+  INSUMO
+  MEDICAMENTO
+  INJETAVEL
+  DESCARTAVEL
+  REVENDA
+  USO_INTERNO
+}
+
+enum StorageTemp {
+  AMBIENTE
+  REFRIGERADO
+  CONGELADO
+}
+
+enum StockLocationType {
+  ALMOXARIFADO
+  SALA
+  GELADEIRA
+  CARRINHO
+  OUTRO
+}
+
+enum StockLotStatus {
+  LIBERADO
+  QUARENTENA
+  BLOQUEADO
+  RECOLHIDO
+}
+
+enum StockMovementType {
+  ENTRADA_COMPRA
+  ENTRADA_AVULSA // saldo inicial / compra já lançada fora do recebimento (sem Payable)
+  ENTRADA_BONIFICACAO
+  ENTRADA_DEVOLUCAO
+  CONSUMO_ATENDIMENTO
+  CONSUMO_INTERNO
+  VENDA
+  PERDA
+  DEVOLUCAO_FORNECEDOR
+  TRANSFERENCIA_SAIDA
+  TRANSFERENCIA_ENTRADA
+  AJUSTE_INVENTARIO
+  AJUSTE_MANUAL
+  ESTORNO
+}
+
+enum ControlledList {
+  A1
+  A2
+  A3
+  B1
+  B2
+  C1
+  C2
+  C3
+  C4
+  C5
+}
+
+enum StockConsumptionMode {
+  AUTOMATICA
+  CONFIRMADA
 }

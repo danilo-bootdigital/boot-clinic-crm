@@ -37,6 +37,8 @@ export const MODULE_CATALOG: ModuleDef[] = [
   { key: 'telemedicina',  label: 'Telemedicina',   isCore: false, available: true,  order: 9 },
   // Financeiro — Fase 1 (Contas a Receber) construída.
   { key: 'financeiro',    label: 'Financeiro',     isCore: false, available: true,  order: 10 },
+  // Estoque — Fases 0/1 (catálogo, locais, lotes, razão e saldo). docs/DIRETRIZ_MODULO_ESTOQUE.md
+  { key: 'estoque',       label: 'Estoque',        isCore: false, available: true,  order: 11 },
   // Futuros (preparados — sem rotas ainda; entram no menu quando construídos).
   { key: 'ia',                   label: 'IA',                    isCore: false, available: false, order: 22 },
   { key: 'portal-paciente',      label: 'Portal do Paciente',    isCore: false, available: false, order: 23 },
