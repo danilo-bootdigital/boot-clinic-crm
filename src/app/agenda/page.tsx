@@ -15,6 +15,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { Tabs } from '@/components/ui/tabs'
 import { StatusPill } from '@/components/agenda/StatusPill'
 import { AppointmentBilling } from '@/components/agenda/AppointmentBilling'
+import { AppointmentMaterials } from '@/components/stock/AppointmentMaterials'
 
 type Tab = 'agenda' | 'profissionais' | 'salas' | 'bloqueios'
 type Mode = 'grid' | 'create' | 'detail'
@@ -149,6 +150,9 @@ export default function AgendaPage() {
 
           {/* Agenda → Financeiro: faturar o atendimento realizado sem passar por orçamento. */}
           <AppointmentBilling appointment={selected} role={role} />
+
+          {/* Agenda → Estoque: materiais utilizados (ficha técnica, lote → paciente). */}
+          <AppointmentMaterials appointmentId={selected.id} appointmentStatus={selected.status} />
 
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
             <ActionButton onClick={() => operation('confirm')}>Confirmar</ActionButton>
