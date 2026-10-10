@@ -12,6 +12,7 @@ import {
   Stethoscope,
   Video,
   Wallet,
+  Package,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,6 +46,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Tarefas", href: "/tarefas", icon: Repeat, module: "followup" },
       { label: "Automações", href: "/automacoes", icon: Workflow, module: "automacoes" },
       { label: "Financeiro", href: "/financeiro", icon: Wallet, module: "financeiro" },
+      { label: "Estoque", href: "/estoque", icon: Package, module: "estoque" },
     ],
   },
   {
@@ -91,6 +93,11 @@ export const ROUTE_LABELS: Record<string, string> = {
   categorias: "Categorias",
   "centros-custo": "Centros de custo",
   "fluxo-caixa": "Fluxo de caixa",
+  estoque: "Estoque",
+  itens: "Itens",
+  movimentar: "Movimentar",
+  movimentacoes: "Movimentações",
+  recebimentos: "Recebimentos",
   configuracoes: "Configurações",
   audit: "Auditoria",
   admin: "Clínicas",

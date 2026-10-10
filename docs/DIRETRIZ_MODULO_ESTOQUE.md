@@ -1,6 +1,8 @@
 # DIRETRIZ — MÓDULO DE ESTOQUE
 
-> **Status:** desenho (não implementado). Registrado em 2026-10-08.
+> **Status:** Fases 0, 1 e 2 implementadas (2026-10-10, branch `feat/estoque`, PR #35;
+> migrations `20261010120000_stock_base` e `20261010180000_stock_receipts` validadas no banco
+> local, **não aplicadas em produção**). Desenho registrado em 2026-10-08. Ver §13 e §14.
 > Fonte: pedido do Danilo — "módulo de estoque o mais completo possível para uma clínica".
 > Segue os padrões da base: `companyId` em tudo, FK escalar entre módulos (sem `@relation`
 > cruzando domínios), snapshot do contexto histórico, `AuditLog` genérico, RBAC por
@@ -612,8 +614,92 @@ aplicou.
    emitir alerta** (tela + gestão + tarefa + auditoria). Ver §5.3.
 3. ~~**Quem dá baixa**~~ — **DECIDIDO (2026-10-08): médico e recepção.** Médico nos
    próprios atendimentos; recepção em qualquer atendimento. Ver §7.
-4. **Venda de produtos (home care):** entra no escopo agora ou fica para a Fase 8?
+4. ~~**Venda de produtos (home care)**~~ — **DECIDIDO (2026-10-10): fica para a Fase 8.**
+   O MVP é 0 → 1 → 2 → 3; o cadastro já aceita `kind = REVENDA` e `salePrice`, mas nada
+   gera `Receivable` até a Fase 8.
 5. ~~**Custo visível para o médico**~~ — **DECIDIDO (2026-10-08): o médico não vê custo
    de nada.** Ver §7.
 6. ~~**Controlados**~~ — **DECIDIDO (2026-10-08): as clínicas usam.** Marcação + observação
    desde a Fase 1; regras completas na Fase 5. Ver §5.11.
+
+## 13. Implementação — Fases 0 e 1 (2026-10-10)
+
+**Entregue:** schema base (`StockSettings`, `StockCategory`, `StockItem`, `StockLocation`,
+`StockLot`, `StockBalance`, `StockMovement`) com RLS FORCE + GUC (mesmo padrão do Financeiro,
+via `withFinanceTenant`), `lib/stock-caps.ts`, módulo SaaS `estoque`, auditoria; telas
+`/estoque` (catálogo), `/estoque/itens/[id]` (saldos por local×lote, lotes, kardex),
+`/estoque/movimentacoes` (entrada avulsa, consumo interno, perda, transferência, ajuste,
+estorno) e `/estoque/configuracoes` (locais, categorias, parâmetros).
+
+**Onde está:** motor em `src/lib/stock/movements.ts` (regras puras em `rules.ts`), alerta de
+saída recusada em `alerts.ts`, rotas em `src/app/api/estoque/*`. Testes: unitários em
+`src/lib/stock/__tests__`, integração em `src/test/integration/stock-ledger.integration.test.ts`
+(RLS com role sem bypass, concorrência, CHECK, FEFO, estornos, controlados).
+
+**Decisões tomadas na implementação (sem mudar o desenho):**
+
+- **`ENTRADA_AVULSA`** entrou no enum: saldo inicial e compra já lançada fora do
+  Recebimento, **sem** gerar Payable. Compra com nota → Contas a Pagar continua sendo o
+  Recebimento (Fase 2).
+- **Defesa no banco:** `CHECK (quantity >= 0)` em `stock_balances`, além do UPDATE
+  condicional. Saldo negativo é impossível mesmo por fora do motor.
+- **Custo sem informar** na entrada: devolução e avulsa entram pelo custo médio (não
+  distorcem a média); bonificação entra a custo zero. Recepção (sem `view_cost`) não vê nem
+  digita custo.
+- **Estorno de entrada desfaz o custo médio**; o estorno de uma perna de transferência
+  estorna as duas. Estorno que deixaria saldo negativo é recusado como qualquer saída.
+- **Transferência de lote bloqueado/vencido é permitida** (mover para quarentena); consumo
+  não.
+- **Controlado na Fase 1:** a regra completa de saída (paciente + profissional + justificativa
+  + "li a observação") já vale no consumo interno; perda/ajuste/estorno só pela gestão;
+  guarda só em local `controlledStorage`. Livro de registro e bloqueio da baixa automática
+  ficam na Fase 5, como previsto.
+- **Unidade base e controle de lote ficam travados** depois da primeira movimentação (mudar
+  reescreveria o significado do saldo). Item com saldo não é desativado nem excluído;
+  exclusão é lógica e libera o nome.
+- **Primeiro acesso** cria categorias sugeridas e o local "Almoxarifado" (padrão).
+- **Alerta de ruptura**: sino para OWNER/MANAGER + uma `FollowUpTask` ADMINISTRATIVO aberta
+  por item×local (dedup pela marca `[estoque:ruptura:item:local]` na descrição) + `AuditLog`
+  `REJECTED_NO_BALANCE`.
+
+**Para ir a produção:** aplicar a migration em produção (`npm run db:migrate:prod`) **antes**
+do merge. A migration é só aditiva (tabelas/enums novos + valores novos em `EntityType`/
+`ActionType`).
+
+## 14. Implementação — Fase 2: Recebimento → Contas a Pagar (2026-10-10)
+
+**Entregue:** `StockReceipt` + `StockReceiptItem` (RLS), tela `/estoque/recebimentos` (lista
+e conferência da nota), confirmação, conta a pagar pendente e estorno. "Últimas compras"
+(fornecedor, preço, custo rateado) no detalhe do item, só para quem tem `view_cost`.
+
+**Fluxo:** rascunho editável (cabeçalho da nota + linhas com item, lote, validade, local,
+quantidade na unidade de compra e preço) → **confirmar** numa transação só: uma
+`ENTRADA_COMPRA` por linha + conta(s) a pagar. Código em `src/lib/stock/receipts.ts`; as
+entradas usam o mesmo `applyEntry` das entradas avulsas.
+
+**Decisões tomadas na implementação:**
+
+- **Rateio:** frete e desconto entram no custo, rateados **pelo valor de cada linha**, em
+  centavos e pelo maior resto (a soma fecha exatamente com o total da nota). Nota com
+  valor zero e frete divide o frete por igual.
+- **Parcelas = N contas a pagar** ("NF 123 — Fornecedor (recebimento #7) · parcela 1/3"),
+  porque `Payable` não tem parcelas. O centavo que sobra vai para as primeiras parcelas.
+  Categoria padrão **"Material clínico"** (criada na primeira vez); centro de custo opcional.
+- **Sem acesso a Contas a Pagar** (ex.: recepção): a entrada física é confirmada, a conta
+  fica `payablePending`, o financeiro recebe aviso no sino e uma tarefa FINANCEIRO. Quando
+  o financeiro gera a conta pelo recebimento, a tarefa é concluída sozinha.
+- **Valores da nota para quem confere:** quem tem `receive` vê e digita os preços da nota
+  (está com a NF na mão). O custo médio, o custo rateado por unidade base e o valor em
+  estoque continuam seguindo `view_cost`. Médico não tem `receive`, então não vê nada disso.
+- **Estorno do recebimento** desfaz todas as entradas e cancela as contas, numa transação.
+  É recusado se alguma conta tem pagamento (estornar o pagamento ou devolver ao fornecedor)
+  ou se parte do material já saiu do estoque. Precisa de `adjust` + acesso para cancelar
+  conta a pagar.
+- **Entrada de compra não se estorna pelo kardex**, só pelo recebimento inteiro (que também
+  trata a conta).
+- **Número sequencial por clínica** (`#1, #2…`). Pedido de compra (`purchaseOrderId`) fica
+  para a Fase 7.
+
+**Para ir a produção:** aplicar as duas migrations (`npm run db:migrate:prod`) antes do merge
+do PR #35. As duas são só aditivas.
+
