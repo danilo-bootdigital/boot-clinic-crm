@@ -59,14 +59,24 @@ export async function GET() {
 
     // Última mensagem de CADA conversa, com a direção — é o que diz se o
     // paciente está esperando resposta (última = INCOMING) ou se a clínica já
-    // respondeu (última = OUTGOING/MOBILE/automação). Uma consulta só
-    // (distinct + orderBy), não N+1 por conversa.
-    const lastMsgs = await prisma.message.findMany({
-      where: { companyId: dbUser!.companyId, conversationId: { in: convs.map((c) => c.id) } },
-      orderBy: [{ conversationId: 'asc' }, { createdAt: 'desc' }],
-      distinct: ['conversationId'],
-      select: { conversationId: true, direction: true, createdAt: true },
-    });
+    // respondeu (última = OUTGOING/MOBILE/automação). Uma consulta só, não N+1.
+    // SQL direto: o `distinct` do Prisma 5 é feito em memória — trazia TODAS as
+    // mensagens da clínica a cada polling de 6s e travava a mensageria conforme
+    // o histórico crescia. O LATERAL lê 1 linha por conversa pelo índice
+    // (conversationId, createdAt).
+    const convIds = convs.map((c) => c.id);
+    const lastMsgs = convIds.length
+      ? await prisma.$queryRaw<{ conversationId: string; direction: string; createdAt: Date }[]>`
+          SELECT l."conversationId", l.direction, l."createdAt"
+          FROM unnest(${convIds}::text[]) AS c(id)
+          CROSS JOIN LATERAL (
+            SELECT m."conversationId", m.direction, m."createdAt"
+            FROM messages m
+            WHERE m."conversationId" = c.id AND m."companyId" = ${dbUser!.companyId}
+            ORDER BY m."createdAt" DESC
+            LIMIT 1
+          ) l`
+      : [];
     const lastMsgByConv = new Map(lastMsgs.map((m) => [m.conversationId, m]));
 
     // Formato consumido pela tela da mensageria. Cada item carrega a etiqueta de

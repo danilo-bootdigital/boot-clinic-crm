@@ -256,6 +256,12 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   // de mensagem antiga era interrompida a cada polling.
   const threadRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
+  // Conversa aberta AGORA — resposta de uma conversa anterior que chega depois
+  // da troca não pode sobrescrever a thread nova.
+  const selectedIdRef = useRef<string | null>(null);
+  // Polling em andamento: com o servidor lento, o setInterval empilhava
+  // requisições (a próxima saía antes da anterior voltar) e a tela travava.
+  const pollingRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const selectedConversation = useMemo(
@@ -283,6 +289,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
       const response = await fetch(`/api/mensageria/messages?conversationId=${conversationId}`);
       if (response.ok) {
         const data = await response.json();
+        if (selectedIdRef.current !== conversationId) return;
         setMessages(data);
       }
     } catch (error) {
@@ -323,6 +330,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   // Troca de conversa: carrega a thread e desce para a última mensagem.
   useEffect(() => {
     setReplyTarget(null); // contexto de resposta é desta conversa — não segue pra outra
+    selectedIdRef.current = selectedId;
     if (!selectedId) {
       setMessages([]);
       return;
@@ -335,9 +343,18 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
   // Tempo real (polling estável p/ Vercel): atualiza a lista de conversas e a
   // conversa aberta sem refresh manual. Silencioso (não pisca o loading).
   useEffect(() => {
-    const id = setInterval(() => {
-      loadConversations(true);
-      if (selectedId) loadMessages(selectedId);
+    const id = setInterval(async () => {
+      // Aba em segundo plano não atualiza; e só um ciclo por vez.
+      if (document.hidden || pollingRef.current) return;
+      pollingRef.current = true;
+      try {
+        await Promise.all([
+          loadConversations(true),
+          selectedId ? loadMessages(selectedId) : Promise.resolve(),
+        ]);
+      } finally {
+        pollingRef.current = false;
+      }
     }, 6000);
     return () => clearInterval(id);
   }, [selectedId, loadConversations, loadMessages]);
