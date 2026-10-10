@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { withFinanceTenant, type TxClient } from '@/lib/db/financeTenant';
 import { InsufficientBalanceError, StockError, type Actor } from '@/lib/stock/movements';
 import { reportRejectedExit } from '@/lib/stock/alerts';
+import { FinancialError } from '@/lib/api/financial-service';
 
 const num = (d: unknown) => (d == null ? 0 : Number(String(d)));
 
@@ -33,6 +34,9 @@ export async function stockErrorResponse(err: unknown, actor: Actor | undefined,
       }));
     }).catch(() => []);
     return NextResponse.json({ error: err.message, code: 'NO_BALANCE', ...err.info, alternatives }, { status: 409 });
+  }
+  if (err instanceof FinancialError) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (err instanceof StockError) {
     return NextResponse.json({ error: err.message, ...(err.details ?? {}) }, { status: err.status });

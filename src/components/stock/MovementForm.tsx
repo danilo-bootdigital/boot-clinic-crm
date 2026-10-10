@@ -200,7 +200,7 @@ export function MovementForm({ operation, itemId: initialItemId, locationId: ini
       {item && (
         <>
           {operation === 'ENTRADA' && (
-            <Field label="Tipo de entrada" required hint={entryType === 'ENTRADA_AVULSA' ? 'Saldo inicial ou compra já lançada no financeiro. Compra com nota é pelo Recebimento.' : undefined}>
+            <Field label="Tipo de entrada" required hint={entryType === 'ENTRADA_AVULSA' ? 'Saldo inicial ou compra já lançada no financeiro. Compra com nota: use Recebimentos (gera a conta a pagar).' : undefined}>
               <FilterSelect className="w-full" value={entryType} onChange={(e) => setEntryType(e.target.value)}>
                 <option value="ENTRADA_AVULSA">Entrada avulsa / saldo inicial</option>
                 <option value="ENTRADA_BONIFICACAO">Bonificação / amostra do fornecedor</option>

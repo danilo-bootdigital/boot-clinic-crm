@@ -152,3 +152,34 @@ describe('validações', () => {
     expect(MovementSchema.safeParse({ operation: 'AJUSTE', itemId: 'i', locationId: 'l', lotId: 'x', direction: 'OUT', quantity: 1 }).success).toBe(false);
   });
 });
+
+describe('rateio de frete/desconto (Fase 2)', () => {
+  it('soma das partes é exatamente o total, proporcional ao valor', async () => {
+    const { allocateCents } = await import('@/lib/stock/rules');
+    const parts = allocateCents(10_000, [3_000, 7_000]);
+    expect(parts).toEqual([3_000, 7_000]);
+    const odd = allocateCents(100, [1, 1, 1]);
+    expect(odd.reduce((s, p) => s + p, 0)).toBe(100);
+    expect(odd).toEqual([34, 33, 33]);
+  });
+  it('pesos zerados (bonificação com frete) dividem igual', async () => {
+    const { allocateCents } = await import('@/lib/stock/rules');
+    expect(allocateCents(1_000, [0, 0])).toEqual([500, 500]);
+  });
+  it('parcelas: centavo que sobra vai para as primeiras', async () => {
+    const { splitInstallments } = await import('@/lib/stock/rules');
+    expect(splitInstallments(10_000, 3)).toEqual([3_334, 3_333, 3_333]);
+    expect(splitInstallments(500, 1)).toEqual([500]);
+  });
+});
+
+describe('validação do recebimento', () => {
+  it('chave de acesso: 44 dígitos (pontuação ignorada) ou vazia', async () => {
+    const { ReceiptDraftSchema } = await import('@/lib/validations/stock');
+    const key = '3526 1012 3456 7800 0199 5500 1000 0012 3410 0012 3456'; // 44 dígitos
+    expect(ReceiptDraftSchema.safeParse({ invoiceKey: key }).success).toBe(true);
+    expect(ReceiptDraftSchema.safeParse({ invoiceKey: key.slice(0, -1) }).success).toBe(false); // 43
+    expect(ReceiptDraftSchema.parse({ invoiceKey: key }).invoiceKey).toHaveLength(44);
+    expect(ReceiptDraftSchema.safeParse({ invoiceKey: '' }).success).toBe(true);
+  });
+});

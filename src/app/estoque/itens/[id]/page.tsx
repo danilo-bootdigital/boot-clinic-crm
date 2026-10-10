@@ -21,6 +21,7 @@ type Detail = {
   item: Record<string, any>
   balances: { id: string; quantity: number; locationId: string; locationName: string; lotId: string; lotNumber: string; expiresAt: string | null; lotStatus: string }[]
   lots: { id: string; lotNumber: string; expiresAt: string | null; status: string; blockReason: string | null; quantity: number; unitCost?: number }[]
+  purchases: { receiptId: string; number: number; receivedAt: string; invoiceNumber: string | null; supplierName: string | null; qtyPurchase: number; unitPrice: number; unitCost?: number | null }[]
 }
 
 type MoveState = { op: Operation; locationId?: string; lotId?: string } | null
@@ -222,6 +223,25 @@ export default function EstoqueItemPage({ params }: { params: { id: string } }) 
                 ) : (
                   <StatusBadge tone={l.status === 'LIBERADO' ? 'success' : 'warning'}>{LOT_STATUS_LABELS[l.status]}</StatusBadge>
                 )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {canViewCost && data.purchases?.length > 0 && (
+        <section className="mb-8">
+          <h3 className="mb-3 text-base font-semibold">Últimas compras</h3>
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {data.purchases.map((p) => (
+              <li key={`${p.receiptId}-${p.unitPrice}-${p.qtyPurchase}`} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  <Link href={`/estoque/recebimentos/${p.receiptId}`} className="text-primary hover:underline">#{p.number}</Link>
+                  <span className="text-muted-foreground"> · {fmtDate(p.receivedAt)} · {p.supplierName || 'sem fornecedor'}{p.invoiceNumber ? ` · NF ${p.invoiceNumber}` : ''}</span>
+                </span>
+                <span className="tabular-nums text-muted-foreground">
+                  {fmtQty(p.qtyPurchase)} {item.purchaseUnit || unit} × {brl(p.unitPrice)}{p.unitCost != null ? ` · custo ${brl(p.unitCost)}/${unit}` : ''}
+                </span>
               </li>
             ))}
           </ul>

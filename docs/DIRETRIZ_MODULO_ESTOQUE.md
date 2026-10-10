@@ -1,8 +1,8 @@
 # DIRETRIZ — MÓDULO DE ESTOQUE
 
-> **Status:** Fases 0 e 1 implementadas (2026-10-10, branch `feat/estoque`; migration
-> `20261010120000_stock_base` validada no banco local, **não aplicada em produção**). Desenho
-> registrado em 2026-10-08. Ver §13.
+> **Status:** Fases 0, 1 e 2 implementadas (2026-10-10, branch `feat/estoque`, PR #35;
+> migrations `20261010120000_stock_base` e `20261010180000_stock_receipts` validadas no banco
+> local, **não aplicadas em produção**). Desenho registrado em 2026-10-08. Ver §13 e §14.
 > Fonte: pedido do Danilo — "módulo de estoque o mais completo possível para uma clínica".
 > Segue os padrões da base: `companyId` em tudo, FK escalar entre módulos (sem `@relation`
 > cruzando domínios), snapshot do contexto histórico, `AuditLog` genérico, RBAC por
@@ -665,4 +665,41 @@ saída recusada em `alerts.ts`, rotas em `src/app/api/estoque/*`. Testes: unitá
 **Para ir a produção:** aplicar a migration em produção (`npm run db:migrate:prod`) **antes**
 do merge. A migration é só aditiva (tabelas/enums novos + valores novos em `EntityType`/
 `ActionType`).
+
+## 14. Implementação — Fase 2: Recebimento → Contas a Pagar (2026-10-10)
+
+**Entregue:** `StockReceipt` + `StockReceiptItem` (RLS), tela `/estoque/recebimentos` (lista
+e conferência da nota), confirmação, conta a pagar pendente e estorno. "Últimas compras"
+(fornecedor, preço, custo rateado) no detalhe do item, só para quem tem `view_cost`.
+
+**Fluxo:** rascunho editável (cabeçalho da nota + linhas com item, lote, validade, local,
+quantidade na unidade de compra e preço) → **confirmar** numa transação só: uma
+`ENTRADA_COMPRA` por linha + conta(s) a pagar. Código em `src/lib/stock/receipts.ts`; as
+entradas usam o mesmo `applyEntry` das entradas avulsas.
+
+**Decisões tomadas na implementação:**
+
+- **Rateio:** frete e desconto entram no custo, rateados **pelo valor de cada linha**, em
+  centavos e pelo maior resto (a soma fecha exatamente com o total da nota). Nota com
+  valor zero e frete divide o frete por igual.
+- **Parcelas = N contas a pagar** ("NF 123 — Fornecedor (recebimento #7) · parcela 1/3"),
+  porque `Payable` não tem parcelas. O centavo que sobra vai para as primeiras parcelas.
+  Categoria padrão **"Material clínico"** (criada na primeira vez); centro de custo opcional.
+- **Sem acesso a Contas a Pagar** (ex.: recepção): a entrada física é confirmada, a conta
+  fica `payablePending`, o financeiro recebe aviso no sino e uma tarefa FINANCEIRO. Quando
+  o financeiro gera a conta pelo recebimento, a tarefa é concluída sozinha.
+- **Valores da nota para quem confere:** quem tem `receive` vê e digita os preços da nota
+  (está com a NF na mão). O custo médio, o custo rateado por unidade base e o valor em
+  estoque continuam seguindo `view_cost`. Médico não tem `receive`, então não vê nada disso.
+- **Estorno do recebimento** desfaz todas as entradas e cancela as contas, numa transação.
+  É recusado se alguma conta tem pagamento (estornar o pagamento ou devolver ao fornecedor)
+  ou se parte do material já saiu do estoque. Precisa de `adjust` + acesso para cancelar
+  conta a pagar.
+- **Entrada de compra não se estorna pelo kardex**, só pelo recebimento inteiro (que também
+  trata a conta).
+- **Número sequencial por clínica** (`#1, #2…`). Pedido de compra (`purchaseOrderId`) fica
+  para a Fase 7.
+
+**Para ir a produção:** aplicar as duas migrations (`npm run db:migrate:prod`) antes do merge
+do PR #35. As duas são só aditivas.
 

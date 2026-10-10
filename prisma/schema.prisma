@@ -1312,6 +1312,7 @@ enum EntityType {
   STOCK_LOT
   STOCK_MOVEMENT
   STOCK_SETTINGS
+  STOCK_RECEIPT
 }
 
 enum ActionType {
@@ -2420,6 +2421,71 @@ model StockMovement {
   @@index([companyId, type, occurredAt])
   @@index([companyId, transferId])
   @@map("stock_movements")
+}
+
+// ---- Fase 2: Recebimento de mercadoria (conferência da nota) ----
+// Confirmar gera ENTRADA_COMPRA por linha (custo com frete/desconto rateados)
+// e a(s) conta(s) a pagar. Sem acesso a Contas a Pagar, a entrada física é
+// confirmada e a conta fica pendente para o financeiro (payablePending).
+model StockReceipt {
+  id              String             @id @default(cuid())
+  companyId       String
+  number          Int // sequencial por clínica
+  supplierId      String?
+  purchaseOrderId String? // Fase 7
+  invoiceNumber   String?
+  invoiceKey      String? // chave de acesso NF-e (44 dígitos)
+  invoiceDate     DateTime?
+  freight         Decimal            @default(0) @db.Decimal(12, 2)
+  discount        Decimal            @default(0) @db.Decimal(12, 2)
+  total           Decimal            @default(0) @db.Decimal(12, 2) // itens + frete − desconto
+  status          StockReceiptStatus @default(RASCUNHO)
+  payableIds      String[]           @default([]) // Payable(s) gerado(s) — escalar
+  payablePending  Boolean            @default(false)
+  notes           String?
+  receivedAt      DateTime           @default(now())
+  confirmedAt     DateTime?
+  confirmedById   String?
+  reversedAt      DateTime?
+  reversedById    String?
+  reverseReason   String?
+  createdById     String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  items StockReceiptItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status, receivedAt])
+  @@index([companyId, supplierId])
+  @@map("stock_receipts")
+}
+
+model StockReceiptItem {
+  id          String    @id @default(cuid())
+  companyId   String
+  receiptId   String
+  itemId      String
+  lotNumber   String?
+  expiresAt   DateTime?
+  locationId  String
+  qtyPurchase Decimal   @db.Decimal(14, 4) // na unidade de compra do item
+  unitPrice   Decimal   @db.Decimal(12, 2) // por unidade de compra
+  unitCost    Decimal?  @db.Decimal(14, 6) // custo por unidade base após rateio (na confirmação)
+  movementId  String? // ENTRADA_COMPRA gerada
+  order       Int       @default(0)
+
+  receipt StockReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, itemId])
+  @@index([receiptId])
+  @@map("stock_receipt_items")
+}
+
+enum StockReceiptStatus {
+  RASCUNHO
+  CONFIRMADO
+  ESTORNADO
 }
 
 enum StockItemKind {

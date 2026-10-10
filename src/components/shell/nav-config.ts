@@ -97,6 +97,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   itens: "Itens",
   movimentar: "Movimentar",
   movimentacoes: "Movimentações",
+  recebimentos: "Recebimentos",
   configuracoes: "Configurações",
   audit: "Auditoria",
   admin: "Clínicas",

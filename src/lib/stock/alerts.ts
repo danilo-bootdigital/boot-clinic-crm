@@ -77,3 +77,68 @@ export async function reportRejectedExit(actor: Actor, info: RejectedExit, reque
     console.error('[estoque] falha ao emitir alerta de saída recusada:', e);
   }
 }
+
+export const pendingPayableMarker = (receiptId: string) => `[estoque:recebimento:${receiptId}]`;
+
+// Recebimento confirmado por quem não tem acesso a Contas a Pagar: avisa o
+// financeiro (sino) e abre uma tarefa FINANCEIRO para lançar a conta.
+export async function reportPendingPayable(actor: Actor, receipt: { id: string; number: number; invoiceNumber: string | null; total: unknown }) {
+  try {
+    const label = `Recebimento #${receipt.number}${receipt.invoiceNumber ? ` (NF ${receipt.invoiceNumber})` : ''}`;
+    const finance = await prisma.user.findMany({
+      where: { companyId: actor.companyId, role: { in: ['OWNER', 'MANAGER', 'FINANCE'] }, deletedAt: null },
+      select: { id: true },
+    });
+    if (finance.length > 0) {
+      await prisma.notificationEvent.createMany({
+        data: finance.map((u) => ({
+          title: 'Conta a pagar pendente de recebimento',
+          message: `${label} foi conferido por ${actor.name}. Falta lançar a conta a pagar.`,
+          type: 'INFO' as const,
+          priority: 'MEDIUM' as const,
+          userId: u.id,
+          companyId: actor.companyId,
+          metadata: JSON.stringify({ module: 'estoque', receiptId: receipt.id }),
+        })),
+      });
+    }
+    const marker = pendingPayableMarker(receipt.id);
+    const open = await prisma.followUpTask.findFirst({
+      where: { companyId: actor.companyId, deletedAt: null, status: { in: ['PENDING', 'IN_PROGRESS', 'OVERDUE'] }, description: { contains: marker } },
+      select: { id: true },
+    });
+    if (!open) {
+      await prisma.followUpTask.create({
+        data: {
+          title: `Lançar conta a pagar: ${label}`,
+          description: `Mercadoria recebida e conferida por ${actor.name}. Abra o recebimento em Estoque → Recebimentos e gere a conta a pagar.\n${marker}`,
+          dueDate: brTodayStart(),
+          priority: 'MEDIUM',
+          type: 'TASK',
+          category: 'FINANCEIRO',
+          createdById: actor.id,
+          companyId: actor.companyId,
+        },
+      });
+    }
+  } catch (e) {
+    console.error('[estoque] falha ao avisar conta a pagar pendente:', e);
+  }
+}
+
+// A conta foi gerada (ou o recebimento estornado): fecha a tarefa aberta.
+export async function closePendingPayableTask(actor: Actor, receiptId: string) {
+  try {
+    await prisma.followUpTask.updateMany({
+      where: {
+        companyId: actor.companyId,
+        deletedAt: null,
+        status: { in: ['PENDING', 'IN_PROGRESS', 'OVERDUE'] },
+        description: { contains: pendingPayableMarker(receiptId) },
+      },
+      data: { status: 'COMPLETED', completedAt: new Date(), completedById: actor.id },
+    });
+  } catch (e) {
+    console.error('[estoque] falha ao fechar tarefa de conta pendente:', e);
+  }
+}

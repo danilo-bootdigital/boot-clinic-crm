@@ -140,6 +140,7 @@ type MovementData = {
   professionalId?: string | null;
   supplierId?: string | null;
   transferId?: string | null;
+  receiptId?: string | null;
   reason?: string | null;
   reversalOfId?: string | null;
   snapshotExtra?: Record<string, unknown>;
@@ -160,6 +161,7 @@ function createMovement(tx: TxClient, actor: Actor, m: MovementData) {
       professionalId: m.professionalId ?? null,
       supplierId: m.supplierId ?? null,
       transferId: m.transferId ?? null,
+      receiptId: m.receiptId ?? null,
       reason: m.reason ?? null,
       reversalOfId: m.reversalOfId ?? null,
       snapshot: snapshotOf(m.item, m.lot, m.loc, m.snapshotExtra),
@@ -285,6 +287,42 @@ function assertTemperature(item: StockItem, loc: StockLocation, confirmed?: bool
   }
 }
 
+// Entrada (qualquer tipo ENTRADA_*): resolve/cria o lote, soma o saldo e
+// recalcula o custo médio ponderado. O item já deve estar travado (lockItem).
+// Usada pelas entradas avulsas (Fase 1) e pelo Recebimento (Fase 2).
+export async function applyEntry(
+  tx: TxClient,
+  actor: Actor,
+  args: {
+    item: StockItem; loc: StockLocation; type: StockMovementType; qty: number; unitCost: number; updateLastCost: boolean
+    lotNumber?: string | null; expiresAt?: string | null; manufacturedAt?: string | null
+    supplierId?: string | null; receiptId?: string | null; reason?: string | null; confirmTemperature?: boolean
+  },
+) {
+  const { item, loc, qty, unitCost } = args;
+  assertControlledAccess(actor, item);
+  assertControlledStorage(item, loc);
+  assertTemperature(item, loc, args.confirmTemperature);
+
+  const lot = await resolveEntryLot(tx, actor, item, { ...args, unitCost });
+  const before = await totalQty(tx, actor.companyId, item.id);
+  const current = await tx.stockItem.findUniqueOrThrow({ where: { id: item.id }, select: { avgCost: true } });
+  await incrementBalance(tx, actor.companyId, item.id, lot.id, loc.id, qty);
+  await tx.stockItem.update({
+    where: { id: item.id },
+    data: {
+      avgCost: dec(weightedAvgCost(before, num(current.avgCost), qty, unitCost), 6),
+      ...(args.updateLastCost ? { lastCost: dec(unitCost, 6) } : {}),
+    },
+  });
+  return createMovement(tx, actor, {
+    type: args.type, item, lot, loc, quantity: qty, unitCost,
+    supplierId: args.supplierId, receiptId: args.receiptId, reason: args.reason,
+  });
+}
+
+export { lockItem, loadLocation };
+
 // ---------------------------------------------------------------------------
 // Operações da Fase 1
 // ---------------------------------------------------------------------------
@@ -294,33 +332,19 @@ export async function postMovement(tx: TxClient, actor: Actor, input: MovementIn
 
   switch (input.operation) {
     case 'ENTRADA': {
-      assertControlledAccess(actor, item);
       const loc = await loadLocation(tx, actor.companyId, input.locationId);
-      assertControlledStorage(item, loc);
-      assertTemperature(item, loc, input.confirmTemperature);
-
       const factor = input.unit === 'purchase' ? num(item.conversionFactor) : 1;
-      const qty = round(input.quantity * factor, 4);
       // Custo por unidade base. Sem custo informado: devolução e avulsa entram
       // pelo custo médio (não distorcem a média); bonificação entra a custo zero.
       const informed = input.unitCost != null;
       const unitCost = informed
         ? input.unitCost! / factor
         : input.type === 'ENTRADA_BONIFICACAO' ? 0 : num(item.avgCost);
-
-      const lot = await resolveEntryLot(tx, actor, item, { ...input, unitCost });
-      const before = await totalQty(tx, actor.companyId, item.id);
-      await incrementBalance(tx, actor.companyId, item.id, lot.id, loc.id, qty);
-      await tx.stockItem.update({
-        where: { id: item.id },
-        data: {
-          avgCost: dec(weightedAvgCost(before, num(item.avgCost), qty, unitCost), 6),
-          ...(informed && input.type !== 'ENTRADA_DEVOLUCAO' ? { lastCost: dec(unitCost, 6) } : {}),
-        },
-      });
-      return [await createMovement(tx, actor, {
-        type: input.type, item, lot, loc, quantity: qty, unitCost,
-        supplierId: input.supplierId, reason: input.reason,
+      return [await applyEntry(tx, actor, {
+        item, loc, type: input.type, qty: round(input.quantity * factor, 4), unitCost,
+        updateLastCost: informed && input.type !== 'ENTRADA_DEVOLUCAO',
+        lotNumber: input.lotNumber, expiresAt: input.expiresAt, manufacturedAt: input.manufacturedAt,
+        supplierId: input.supplierId, reason: input.reason, confirmTemperature: input.confirmTemperature,
       })];
     }
 
@@ -393,9 +417,13 @@ export async function postMovement(tx: TxClient, actor: Actor, input: MovementIn
 
 // Estorno (§5.1): nunca se edita o razão — lança o inverso apontando a
 // original. Transferência estorna as duas pernas juntas.
-export async function reverseMovement(tx: TxClient, actor: Actor, movementId: string, reason: string) {
+export async function reverseMovement(tx: TxClient, actor: Actor, movementId: string, reason: string, opts: { fromReceipt?: boolean } = {}) {
   const original = await tx.stockMovement.findFirst({ where: { id: movementId, companyId: actor.companyId } });
   if (!original) throw new StockError(404, 'Movimentação não encontrada');
+  // Entrada de compra é desfeita pelo recebimento inteiro (que também cuida da conta a pagar).
+  if (original.receiptId && !opts.fromReceipt) {
+    throw new StockError(409, 'Esta entrada veio de um recebimento. Estorne pelo recebimento, que também trata a conta a pagar.');
+  }
   if (original.type === 'ESTORNO') throw new StockError(400, 'Um estorno não pode ser estornado — lance a movimentação de novo');
   if (original.reversedAt) throw new StockError(409, 'Esta movimentação já foi estornada');
 

@@ -185,3 +185,54 @@ export const SettingsSchema = z.object({
   expiryAlertDays: z.number().int().min(1).max(365).optional(),
   overconsumptionAlertPct: z.number().int().min(1).max(500).optional(),
 });
+
+// ---- Recebimento (Fase 2) ----
+const money = z
+  .number({ invalid_type_error: 'Valor inválido' })
+  .finite()
+  .nonnegative()
+  .max(1e9)
+  .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, 'Máximo 2 casas decimais');
+
+export const ReceiptLineSchema = z.object({
+  itemId: id,
+  lotNumber: optText(60),
+  expiresAt: dateStr,
+  locationId: id,
+  qtyPurchase: qty, // na unidade de compra do item (fator 1 se não houver)
+  unitPrice: money, // por unidade de compra
+});
+
+export const ReceiptDraftSchema = z.object({
+  supplierId: optId,
+  invoiceNumber: optText(30),
+  invoiceKey: z
+    .string()
+    .trim()
+    .transform((s) => s.replace(/\D/g, ''))
+    .refine((s) => s === '' || s.length === 44, 'A chave de acesso tem 44 dígitos')
+    .nullable()
+    .optional(),
+  invoiceDate: dateStr,
+  receivedAt: dateStr,
+  freight: money.default(0),
+  discount: money.default(0),
+  notes: optText(1000),
+  items: z.array(ReceiptLineSchema).max(300, 'Máximo de 300 linhas por recebimento').default([]),
+});
+export type ReceiptDraftInput = z.infer<typeof ReceiptDraftSchema>;
+
+export const ReceiptPayableSchema = z.object({
+  categoryId: optId,
+  costCenterId: optId,
+  installments: z.number().int().min(1).max(24).default(1),
+  firstDueDate: dateStr,
+  intervalDays: z.number().int().min(1).max(120).default(30),
+});
+export type ReceiptPayableInput = z.infer<typeof ReceiptPayableSchema>;
+
+export const ReceiptConfirmSchema = ReceiptPayableSchema.extend({
+  generatePayable: z.boolean().default(true),
+  confirmTemperature: z.boolean().optional(),
+});
+export type ReceiptConfirmInput = z.infer<typeof ReceiptConfirmSchema>;

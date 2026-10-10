@@ -39,6 +39,7 @@ export function StockTabs({ role }: { role: string }) {
   const tabs = [
     { href: '/estoque', label: 'Itens', show: true },
     { href: '/estoque/movimentacoes', label: 'Movimentações', show: true },
+    { href: '/estoque/recebimentos', label: 'Recebimentos', show: stockCan(role, 'receive') },
     { href: '/estoque/configuracoes', label: 'Configurações', show: stockCan(role, 'manage') },
   ].filter((t) => t.show)
   const items = tabs.map((t) => ({
@@ -122,4 +123,10 @@ export async function apiSend(url: string, method: string, body?: unknown) {
   })
   const data = await res.json().catch(() => ({}))
   return { ok: res.ok, status: res.status, data }
+}
+
+export const RECEIPT_STATUS: Record<string, { label: string; tone: 'neutral' | 'success' | 'destructive' | 'warning' }> = {
+  RASCUNHO: { label: 'Rascunho', tone: 'warning' },
+  CONFIRMADO: { label: 'Confirmado', tone: 'success' },
+  ESTORNADO: { label: 'Estornado', tone: 'neutral' },
 }

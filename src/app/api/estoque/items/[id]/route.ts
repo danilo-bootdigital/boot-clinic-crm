@@ -16,6 +16,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   if (error) return error;
   try {
     const companyId = dbUser!.companyId;
+    const canViewCost = stockCan(dbUser!.role, 'view_cost');
     const data = await withFinanceTenant(companyId, async (tx) => {
       const item = await tx.stockItem.findFirst({ where: { id: params.id, companyId, deletedAt: null } });
       if (!item) throw new StockError(404, 'Item não encontrado');
@@ -30,6 +31,26 @@ export async function GET(request: NextRequest, { params }: Ctx) {
       const locs = await tx.stockLocation.findMany({ where: { companyId, id: { in: balances.map((b) => b.locationId) } } });
       const locBy = new Map(locs.map((l) => [l.id, l]));
       const lotBy = new Map(lots.map((l) => [l.id, l]));
+      // Últimas compras (recebimentos confirmados): preço é valor — só p/ quem vê custo.
+      let purchases: unknown[] = [];
+      if (canViewCost) {
+        const lines = await tx.stockReceiptItem.findMany({
+          where: { companyId, itemId: item.id, movementId: { not: null }, receipt: { status: 'CONFIRMADO' } },
+          include: { receipt: { select: { id: true, number: true, receivedAt: true, supplierId: true, invoiceNumber: true } } },
+          orderBy: { receipt: { receivedAt: 'desc' } },
+          take: 10,
+        });
+        const sups = await tx.supplier.findMany({
+          where: { companyId, id: { in: lines.map((l) => l.receipt.supplierId).filter((x): x is string => !!x) } },
+          select: { id: true, name: true },
+        });
+        const supBy = new Map(sups.map((s) => [s.id, s.name]));
+        purchases = lines.map((l) => ({
+          receiptId: l.receipt.id, number: l.receipt.number, receivedAt: l.receipt.receivedAt, invoiceNumber: l.receipt.invoiceNumber,
+          supplierName: l.receipt.supplierId ? supBy.get(l.receipt.supplierId) ?? null : null,
+          qtyPurchase: l.qtyPurchase, unitPrice: l.unitPrice, unitCost: l.unitCost,
+        }));
+      }
       const lotQty = new Map<string, number>();
       for (const b of balances) lotQty.set(b.lotId, (lotQty.get(b.lotId) ?? 0) + num(b.quantity));
       return {
@@ -52,9 +73,10 @@ export async function GET(request: NextRequest, { params }: Ctx) {
           })
           .sort((a, b) => (a.expiresAt?.getTime() ?? Infinity) - (b.expiresAt?.getTime() ?? Infinity)),
         lots: lots.map((l) => ({ ...l, quantity: lotQty.get(l.id) ?? 0 })),
+        purchases,
       };
     });
-    return NextResponse.json(stockJson(data, stockCan(dbUser!.role, 'view_cost')));
+    return NextResponse.json(stockJson(data, canViewCost));
   } catch (err) {
     return stockErrorResponse(err, dbUser!, request, 'item GET');
   }

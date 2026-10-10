@@ -73,3 +73,27 @@ export const round = (n: number, places: number) => {
   const f = 10 ** places;
   return Math.round((n + Number.EPSILON) * f) / f;
 };
+
+// Rateio em centavos (Fase 2): distribui `totalCents` proporcionalmente aos
+// pesos, pelo maior resto — a soma das partes é SEMPRE exatamente o total.
+// Pesos todos zero (ex.: nota só de bonificação com frete) → divide igual.
+export function allocateCents(totalCents: number, weights: number[]): number[] {
+  if (weights.length === 0) return [];
+  const sumW = weights.reduce((s, w) => s + Math.max(0, w), 0);
+  const ws = sumW > 0 ? weights.map((w) => Math.max(0, w)) : weights.map(() => 1);
+  const totalW = sumW > 0 ? sumW : weights.length;
+  const raw = ws.map((w) => (totalCents * w) / totalW);
+  const parts = raw.map((r) => Math.floor(r));
+  let rest = totalCents - parts.reduce((s, p) => s + p, 0);
+  const order = raw.map((r, i) => ({ i, frac: r - Math.floor(r) })).sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; rest > 0; k = (k + 1) % order.length, rest--) parts[order[k].i]++;
+  return parts;
+}
+
+// Parcelas de uma conta a pagar: centavo que sobra vai para as primeiras.
+export function splitInstallments(totalCents: number, n: number): number[] {
+  const count = Math.max(1, Math.floor(n));
+  const base = Math.floor(totalCents / count);
+  const rest = totalCents - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < rest ? 1 : 0));
+}
