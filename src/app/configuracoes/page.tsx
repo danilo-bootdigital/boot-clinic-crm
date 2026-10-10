@@ -56,6 +56,7 @@ export default function ConfiguracoesPage() {
         value={tab}
         onValueChange={(v) => setTab(v as Tab)}
         items={TABS.map((t) => ({ value: t.key, label: t.label }))}
+        className="scrollbar-thin overflow-x-auto"
       />
       {tab === 'clinica' && <ClinicaTab router={router} />}
       {tab === 'especialidades' && <SpecialtiesSettings />}
