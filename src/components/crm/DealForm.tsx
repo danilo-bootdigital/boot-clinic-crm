@@ -40,7 +40,9 @@ interface DealFormProps {
 /** Telefone legível: 5511987654321 -> +55 (11) 98765-4321. */
 function formatPhone(raw?: string | null): string | null {
   if (!raw) return null;
-  const d = raw.replace(/\D/g, '');
+  let d = raw.replace(/\D/g, '');
+  // Ficha de paciente guarda DDD+número sem o 55 (10/11 dígitos).
+  if (d.length === 10 || d.length === 11) d = `55${d}`;
   if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
     const ddd = d.slice(2, 4);
     const resto = d.slice(4);

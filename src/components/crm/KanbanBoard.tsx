@@ -55,7 +55,10 @@ const SOURCE_LABEL: Record<string, string> = {
 /** Telefone legível: 5511987654321 -> +55 (11) 98765-4321. */
 function formatPhone(raw?: string | null): string | null {
   if (!raw) return null;
-  const d = raw.replace(/\D/g, '');
+  let d = raw.replace(/\D/g, '');
+  // Ficha de paciente guarda DDD+número sem o 55 (10/11 dígitos); o contato da
+  // mensageria já vem com o 55. Sem isso o card mostrava "+11987654321".
+  if (d.length === 10 || d.length === 11) d = `55${d}`;
   if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
     const resto = d.slice(4);
     const corte = resto.length === 9 ? 5 : 4;

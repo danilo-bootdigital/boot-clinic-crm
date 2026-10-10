@@ -29,5 +29,5 @@ export function FinanceTabs({ role }: { role: string }) {
     active: t.href === '/financeiro' ? isReceber : pathname.startsWith(t.href),
   }))
 
-  return <TabsNav items={items} className="mb-6" />
+  return <TabsNav items={items} scrollable className="mb-6" />
 }
