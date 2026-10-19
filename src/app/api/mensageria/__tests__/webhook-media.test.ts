@@ -5,7 +5,7 @@ vi.mock('@/lib/db/prisma', async () => {
   const { makePrismaMock } = await import('@/test/prisma-mock');
   return { prisma: makePrismaMock() };
 });
-vi.mock('@/lib/messaging/adapters/whatsapp/evolution', () => ({ getMediaBase64: vi.fn() }));
+vi.mock('@/lib/messaging/adapters/whatsapp/evolution', () => ({ getMediaBase64: vi.fn(), refreshWebhookEvents: vi.fn(), WEBHOOK_EVENTS_VERSION: 2 }));
 vi.mock('@/lib/storage/messaging-storage', () => ({ uploadMessagingMedia: vi.fn() }));
 
 import { prisma } from '@/lib/db/prisma';

@@ -7,6 +7,7 @@ import { extractText, jidToExternalId, jidToPhone, altPhoneFromKey, classifyMess
 import { waConfig, waConfigPatch } from '@/lib/messaging/adapters/whatsapp/account';
 import { downloadAndStoreInboundMedia } from '@/lib/messaging/adapters/whatsapp/media-inbound';
 import { ackToStatus, statusPatch } from '@/lib/messaging/adapters/whatsapp/message-status';
+import { refreshWebhookEvents, WEBHOOK_EVENTS_VERSION } from '@/lib/messaging/adapters/whatsapp/evolution';
 import { hashPayload, newCorrelationId, safeEqualToken, logWebhookEvent, type WebhookStatus } from '@/lib/messaging/webhook-log';
 
 // POST /api/mensageria/webhook?token=... - recebe mensagens da Evolution API.
@@ -33,6 +34,32 @@ const MAX_WEBHOOK_BYTES = 6 * 1024 * 1024;
 // evita divergência silenciosa entre contacts/chats/messages.
 function toList(d: any, key: string): any[] {
   return Array.isArray(d) ? d : d?.[key] || (d ? [d] : []);
+}
+
+/**
+ * Instância com a lista de eventos defasada passa a assinar a atual SEM
+ * reconectar: no primeiro evento que chega dela, atualiza o webhook na
+ * Evolution. O updateMany condicional é a trava — entre entregas concorrentes,
+ * só uma faz a chamada. Se a Evolution recusar, devolve a versão anterior para
+ * tentar de novo no próximo evento. Nunca quebra o processamento do webhook.
+ */
+async function ensureWebhookEvents(account: { id: string; companyId: string; providerConfig: Prisma.JsonValue; providerEventsVersion: number | null }) {
+  try {
+    const previous = account.providerEventsVersion ?? 0;
+    if (previous >= WEBHOOK_EVENTS_VERSION) return;
+    const claimed = await prisma.channelAccount.updateMany({
+      where: { id: account.id, providerEventsVersion: previous },
+      data: { providerEventsVersion: WEBHOOK_EVENTS_VERSION },
+    });
+    if (claimed.count !== 1) return;
+    const res = await refreshWebhookEvents(account);
+    if (!res.ok) {
+      console.warn('[mensageria] eventos do webhook não atualizados (nova tentativa no próximo evento):', waConfig(account).instanceName, res.error);
+      await prisma.channelAccount.update({ where: { id: account.id }, data: { providerEventsVersion: previous } });
+    }
+  } catch (e) {
+    console.warn('[mensageria] erro ao atualizar eventos do webhook:', e instanceof Error ? e.message : e);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -89,12 +116,15 @@ export async function POST(request: NextRequest) {
     let instanceName: string | null = null;
     const instance = await prisma.channelAccount.findFirst({
       where: { webhookToken: token },
-      select: { id: true, companyId: true, providerConfig: true },
+      select: { id: true, companyId: true, providerConfig: true, providerEventsVersion: true },
     });
     if (instance) {
       companyId = instance.companyId;
       instanceId = instance.id;
       instanceName = waConfig(instance).instanceName;
+      // Só pelo token da INSTÂNCIA: no legado (token da clínica) a URL registrada
+      // é outra e não é nossa para reescrever.
+      await ensureWebhookEvents(instance);
     } else {
       // Transição (legado): token por CLÍNICA (companies.whatsappWebhookToken).
       const company = await prisma.company.findFirst({
@@ -204,12 +234,31 @@ export async function POST(request: NextRequest) {
 
     const d = body?.data;
 
-    // CONTACTS_SET / CONTACTS_UPDATE: nome e foto dos contatos (não cria conversa).
+    // CONTACTS_SET / CONTACTS_UPSERT / CONTACTS_UPDATE: nome e foto dos contatos
+    // (não cria conversa).
     if (eventType.includes('contacts')) {
       const list: any[] = toList(d, 'contacts');
+      // UPSERT/UPDATE vêm a cada mudança de perfil e, na conexão, com a agenda
+      // inteira do aparelho. Esses só MELHORAM quem já está na mensageria (é o
+      // que dá nome ao "Sem nome · 1234"); não criam contato para cada pessoa
+      // da agenda. Quem cria em lote continua sendo o CONTACTS_SET.
+      let known: Set<string> | null = null;
+      if (eventType !== 'contacts.set') {
+        const ids = list
+          .map((c) => jidToExternalId(c?.id || c?.remoteJid))
+          .filter((x): x is string => !!x);
+        const rows = ids.length
+          ? await prisma.contactIdentity.findMany({
+              where: { companyId, channel: Channel.WHATSAPP, externalId: { in: ids } },
+              select: { externalId: true },
+            })
+          : [];
+        known = new Set(rows.map((r) => r.externalId));
+      }
       for (const c of list) {
         const externalId = jidToExternalId(c?.id || c?.remoteJid);
         if (!externalId || looksLikeGroupId(c?.id || c?.remoteJid) || looksLikeGroupId(externalId)) continue;
+        if (known && !known.has(externalId)) continue;
         await upsertContactProfile({
           companyId,
           channel: Channel.WHATSAPP,
