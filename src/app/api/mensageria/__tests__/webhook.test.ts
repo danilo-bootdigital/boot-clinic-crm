@@ -199,3 +199,25 @@ describe('webhook — CONNECTION_UPDATE', () => {
     expect(acc!.disconnectedAt).toBeTruthy();
   });
 });
+
+describe('webhook — nome tardio do @lid (CONTACTS_UPDATE)', () => {
+  const LID = '270969604202509';
+
+  it('contato "Sem nome" já na mensageria ganha o pushName', async () => {
+    const contact = await db.contact.create({ data: { companyId: COMPANY, name: 'Sem nome · 2509', nameSource: 'CHANNEL', phone: null } });
+    await db.contactIdentity.create({ data: { companyId: COMPANY, contactId: contact.id, channel: 'WHATSAPP', externalId: LID } });
+    const res = await post(TOKEN, { event: 'contacts.update', data: [{ remoteJid: `${LID}@lid`, pushName: 'Neto' }] });
+    expect(res.status).toBe(200);
+    expect((await db.contact.findUnique({ where: { id: contact.id } }))!.name).toBe('Neto');
+  });
+
+  it('pessoa da agenda que nunca falou com a clínica NÃO vira contato', async () => {
+    await post(TOKEN, { event: 'contacts.upsert', data: [{ remoteJid: '5511977776666@s.whatsapp.net', pushName: 'Fulano' }] });
+    expect(await db.contact.findMany({ where: { companyId: COMPANY } })).toHaveLength(0);
+  });
+
+  it('CONTACTS_SET continua criando em lote', async () => {
+    await post(TOKEN, { event: 'contacts.set', data: [{ remoteJid: '5511977776666@s.whatsapp.net', pushName: 'Fulano' }] });
+    expect(await db.contact.findMany({ where: { companyId: COMPANY } })).toHaveLength(1);
+  });
+});

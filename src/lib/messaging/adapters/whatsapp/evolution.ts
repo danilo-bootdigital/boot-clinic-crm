@@ -180,16 +180,20 @@ export function extractQr(data: any): string | null {
 
 // Eventos assinados no webhook. MESSAGES_UPDATE traz o ACK de status (enviado/
 // entregue/lido). Sem `events`, a Evolution não entrega nada.
+//
+// CONTACTS_UPSERT/UPDATE: o WhatsApp entrega o `@lid` primeiro e o pushName
+// DEPOIS, nesses eventos. Sem eles, quem só foi sincronizado (nunca escreveu)
+// fica para sempre como "Sem nome · 1234".
 export const WEBHOOK_EVENTS = [
   'QRCODE_UPDATED', 'CONNECTION_UPDATE',
   'MESSAGES_UPSERT', 'MESSAGES_SET', 'MESSAGES_UPDATE',
-  'CHATS_SET', 'CONTACTS_SET',
+  'CHATS_SET', 'CONTACTS_SET', 'CONTACTS_UPSERT', 'CONTACTS_UPDATE',
 ];
 
 // Versão da lista de eventos acima. Instâncias gravam a versão que já registraram
 // (ChannelAccount.webhookEventsVersion); só re-registramos quando estiver defasada
 // — evita uma chamada HTTP a cada reconnect. BUMP ao mudar WEBHOOK_EVENTS.
-export const WEBHOOK_EVENTS_VERSION = 1;
+export const WEBHOOK_EVENTS_VERSION = 2;
 
 // Cria a instância na Evolution (QR habilitado). `webhookUrl` aponta o inbound
 // para o endpoint da clínica (com o token dela), quando informado.
@@ -213,6 +217,33 @@ export async function setInstanceWebhook(instance: InstanceRef, webhookUrl: stri
   return evo(`/webhook/set/${encodeURIComponent(refName(instance))}`, {
     method: 'POST',
     body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, byEvents: false, base64: true, events: WEBHOOK_EVENTS } }),
+  });
+}
+
+/**
+ * Atualiza SÓ a lista de eventos do webhook, com a instância conectada — sem
+ * reconectar e sem QR. A URL (com o token) é a que JÁ está registrada na
+ * Evolution, lida de volta: assim uma env de URL defasada nunca desvia o
+ * inbound de uma clínica em produção. Sem URL registrada, não mexe.
+ */
+export async function refreshWebhookEvents(instance: InstanceRef): Promise<EvoResult> {
+  const name = encodeURIComponent(refName(instance));
+  const current = await evo<any>(`/webhook/find/${name}`, { method: 'GET' });
+  const url = current.data?.url;
+  if (!current.ok || typeof url !== 'string' || !url) {
+    return { configured: current.configured, ok: false, error: current.error ?? 'webhook atual não encontrado' };
+  }
+  return evo(`/webhook/set/${name}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      webhook: {
+        enabled: current.data.enabled ?? true,
+        url,
+        byEvents: current.data.webhookByEvents ?? false,
+        base64: current.data.webhookBase64 ?? true,
+        events: WEBHOOK_EVENTS,
+      },
+    }),
   });
 }
 
