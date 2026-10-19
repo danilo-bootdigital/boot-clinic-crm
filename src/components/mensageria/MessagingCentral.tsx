@@ -372,7 +372,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
     const el = composerRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   }, [newMessage]);
 
   const onThreadScroll = () => {
@@ -1241,7 +1241,7 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
 
             {/* Composer */}
             <div className="shrink-0 border-t border-border bg-card px-3 py-3 lg:px-4">
-              <div className="mx-auto max-w-3xl">
+              <div className="mx-auto max-w-5xl">
                 {/* "Respondendo a" — mesma ideia do swipe-to-reply do WhatsApp. */}
                 {replyTarget && (
                   <div className="mb-2.5">
@@ -1315,47 +1315,14 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                 {fileError && <p className="mb-2 text-sm text-destructive">{fileError}</p>}
                 {sendError && <p className="mb-2 text-sm text-destructive">{sendError}</p>}
 
-                <div className="flex items-end gap-2">
-                  <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} multiple className="hidden" onChange={onPickFile} />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={sending || recording || !!recordedUrl}
-                    title="Anexar imagem ou documento (pode escolher mais de um)"
-                    aria-label="Anexar imagem ou documento"
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={recording ? stopRecording : startRecording}
-                    disabled={sending || attachments.length > 0 || !!recordedUrl}
-                    title={recording ? 'Parar gravação' : 'Gravar áudio'}
-                    aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
-                    className={cn(
-                      'grid h-10 w-10 shrink-0 place-items-center rounded-lg border transition-colors disabled:opacity-50',
-                      recording
-                        ? 'border-destructive/40 bg-destructive/10 text-destructive'
-                        : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    <Mic className="h-4 w-4" />
-                  </button>
-                  <EmojiButton onSelect={insertEmoji} />
-                  <Link
-                    href="/mensageria/mensagens-prontas"
-                    title="Mensagens prontas"
-                    aria-label="Mensagens prontas"
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Link>
-
+                {/* Campo e ferramentas num quadro só: o texto ganha a largura
+                    inteira e os ícones vão para uma barra fina embaixo, em vez
+                    de cinco botões espremendo o campo pela lateral. */}
+                <div className="rounded-xl border border-border bg-background transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15">
                   {/* Atalho "/palavra": digitar "/" no início do campo abre a
                       lista de mensagens prontas cujo keyword bate com o que já
                       foi digitado — mesmo padrão do WhatsApp Business. */}
-                  <div className="relative min-w-0 flex-1">
+                  <div className="relative">
                     {slashOpen && (
                       <div className="absolute bottom-full left-0 z-10 mb-2 w-full max-w-sm overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-popover">
                         {slashMatches.map((qr, i) => (
@@ -1381,22 +1348,67 @@ export default function MessagingCentral({ onMessageSend }: MessagingCentralProp
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={attachments.length > 0 ? undefined : handleKeyDown}
                       onPaste={onPasteComposer}
-                      placeholder={attachments.length > 0 ? 'Mensagem de texto separada (opcional)…' : 'Escreva uma mensagem…  (Enter envia · "/" chama mensagem pronta · Ctrl+V cola imagem)'}
-                      className="max-h-40 min-h-[40px] w-full resize-none py-2.5"
-                      rows={1}
+                      placeholder={attachments.length > 0 ? 'Mensagem de texto separada (opcional)…' : 'Escreva uma mensagem…'}
+                      className="max-h-60 min-h-[64px] w-full resize-none border-0 bg-transparent px-3.5 pb-1 pt-3 text-[15px] leading-relaxed shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      rows={2}
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={sending || (attachments.length === 0 && !newMessage.trim())}
-                    className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span className="hidden sm:inline">
-                      {sending ? 'Enviando…' : attachments.length > 1 ? `Enviar (${attachments.length})` : attachments.length === 1 ? 'Enviar arquivo' : 'Enviar'}
-                    </span>
-                  </button>
+
+                  <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
+                    <input ref={fileInputRef} type="file" accept={CLIENT_ACCEPT_ATTR} multiple className="hidden" onChange={onPickFile} />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending || recording || !!recordedUrl}
+                      title="Anexar imagem ou documento (pode escolher mais de um)"
+                      aria-label="Anexar imagem ou documento"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      <Paperclip className="h-[18px] w-[18px]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={recording ? stopRecording : startRecording}
+                      disabled={sending || attachments.length > 0 || !!recordedUrl}
+                      title={recording ? 'Parar gravação' : 'Gravar áudio'}
+                      aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
+                      className={cn(
+                        'grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors disabled:opacity-50',
+                        recording
+                          ? 'bg-destructive/10 text-destructive'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      <Mic className="h-[18px] w-[18px]" />
+                    </button>
+                    <EmojiButton onSelect={insertEmoji} />
+                    <Link
+                      href="/mensageria/mensagens-prontas"
+                      title="Mensagens prontas"
+                      aria-label="Mensagens prontas"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <Settings className="h-[18px] w-[18px]" />
+                    </Link>
+
+                    {/* As dicas saíram do placeholder (que sumia ao digitar e
+                        empurrava o texto) e ficam aqui, discretas. */}
+                    <p className="ml-2 hidden min-w-0 flex-1 truncate text-xs text-muted-foreground lg:block">
+                      Enter envia · Shift+Enter quebra linha · &quot;/&quot; mensagem pronta · Ctrl+V cola imagem
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={handleSend}
+                      disabled={sending || (attachments.length === 0 && !newMessage.trim())}
+                      className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {sending ? 'Enviando…' : attachments.length > 1 ? `Enviar (${attachments.length})` : attachments.length === 1 ? 'Enviar arquivo' : 'Enviar'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

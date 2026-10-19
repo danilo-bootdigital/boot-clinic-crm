@@ -27,9 +27,9 @@ export function EmojiButton({ onSelect }: { onSelect: (emoji: string) => void })
           type="button"
           title="Emoji"
           aria-label="Inserir emoji"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <Smile className="h-4 w-4" />
+          <Smile className="h-[18px] w-[18px]" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
